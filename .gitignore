@@ -1,6 +1,7 @@
 .toolchains/
 .idea/
 .vscode/
+.worktrees/
 .DS_Store
 target/
 **/target/
