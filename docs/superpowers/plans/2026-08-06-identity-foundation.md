@@ -6,7 +6,7 @@
 
 **Architecture:** Build a Java 25 / Spring Boot 4.1 modular monolith under `services/platform-api`. The `identity`, `admin`, `payment`, and `audit` packages own their data, while application services coordinate transactions. PostgreSQL stores durable identity and audit records, Redis stores Sa-Token sessions, and MyBatis-Plus provides single-table persistence. This slice deliberately excludes object storage, WeChat network calls, profile/review/media features, and Spring AI.
 
-**Tech Stack:** Java 25, Spring Boot 4.1.0, Spring Modulith 2.1.0, Spring MVC, MyBatis-Plus 3.5.13, PostgreSQL 18, Redis 8, Flyway, Sa-Token 1.45.0, Bouncy Castle Argon2id, JUnit 5, Testcontainers, Maven Wrapper.
+**Tech Stack:** Java 25, Spring Boot 4.1.0, Spring Modulith 2.1.0, Spring MVC, MyBatis-Plus 3.5.17, PostgreSQL 18, Redis 8, Flyway, Sa-Token 1.45.0, Bouncy Castle Argon2id, JUnit 5, Testcontainers, Maven Wrapper.
 
 ## Global Constraints
 
@@ -34,7 +34,7 @@
 - Test: `services/platform-api/src/test/java/com/love/archive/PlatformApiApplicationTest.java`
 
 - [x] Initialize Git on branch `feat/identity-foundation`; ignore `.toolchains/`, IDE files, build output, secrets, and local environment files.
-- [x] Add a Maven parent and backend module pinned to Java 25, Spring Boot 4.1.0, Spring Modulith 2.1.0, MyBatis-Plus 3.5.13, and Sa-Token 1.45.0.
+- [x] Add a Maven parent and backend module pinned to Java 25, Spring Boot 4.1.0, Spring Modulith 2.1.0, MyBatis-Plus 3.5.17, and Sa-Token 1.45.0.
 - [x] Add `PlatformApiApplicationTest` that loads the Spring context with database, Redis, Flyway, and Sa-Token autoconfiguration excluded; run it and record the expected compilation failure because the application class does not exist.
 - [x] Add the minimal `@SpringBootApplication` class and test-only exclusions; run `./mvnw -pl services/platform-api test -Dtest=PlatformApiApplicationTest` and require success.
 - [x] Commit the repository bootstrap.
@@ -61,7 +61,7 @@
 - [x] Write failing tests for Argon2id hashing, matching, wrong-password rejection, and unique salts.
 - [x] Implement `PasswordHasher` and `Argon2PasswordHasher` directly with Bouncy Castle; make the tests pass without importing Spring Security.
 - [x] Write failing entropy/shape tests for one-time initial credentials, implement `InitialCredentialGenerator.generate(): String`, and make them pass.
-- [ ] Commit the security primitives.
+- [x] Commit the security primitives.
 
 ## Task 3: PostgreSQL Schema and MyBatis-Plus Persistence
 
@@ -88,11 +88,11 @@
 - Create: `services/platform-api/src/test/java/com/love/archive/testsupport/PostgresIntegrationTest.java`
 - Test: `services/platform-api/src/test/java/com/love/archive/identity/persistence/IdentityPersistenceTest.java`
 
-- [ ] Write a failing Testcontainers-backed persistence test that starts PostgreSQL, runs Flyway, inserts an account through `BaseMapper`, and finds it through a Lambda Wrapper.
-- [ ] Add the six tables with primary keys, timestamps, state checks, unique phone HMAC, one-time activation constraints, external identity uniqueness, and append-oriented audit fields.
-- [ ] Add explicit MyBatis-Plus entities and `BaseMapper` interfaces; do not add service-implementation inheritance or Mapper XML.
-- [ ] Configure underscore-to-camel mapping, enum persistence, and disabled automatic schema mutation; make the persistence test pass against PostgreSQL.
-- [ ] Commit the database foundation.
+- [x] Write a failing Testcontainers-backed persistence test that starts PostgreSQL, runs Flyway, inserts an account through `BaseMapper`, and finds it through a Lambda Wrapper.
+- [x] Add the six tables with primary keys, timestamps, state checks, unique phone HMAC, one-time activation constraints, external identity uniqueness, and append-oriented audit fields.
+- [x] Add explicit MyBatis-Plus entities and `BaseMapper` interfaces; do not add service-implementation inheritance or Mapper XML.
+- [x] Configure underscore-to-camel mapping, enum persistence, and disabled automatic schema mutation; make the persistence test pass against PostgreSQL.
+- [x] Commit the database foundation.
 
 ## Task 4: Sa-Token Guest/Admin Isolation and Redis Sessions
 

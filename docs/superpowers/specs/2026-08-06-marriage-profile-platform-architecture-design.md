@@ -14,7 +14,7 @@
 | 嘉宾端 | uni-app、Vue 3、TypeScript，第一期发布 H5，后续适配微信小程序 |
 | 管理后台 | Vue 3、TypeScript、Vite、Element Plus |
 | 后端 | Java 25 LTS、Spring Boot 4.1.x、Spring MVC、Spring Modulith |
-| 数据访问 | MyBatis-Plus 3.5.13+；单表使用内置方法和 Wrapper，复杂连表使用 Mapper 注解，不使用 XML |
+| 数据访问 | MyBatis-Plus 3.5.17+；单表使用内置方法和 Wrapper，复杂连表使用 Mapper 注解，不使用 XML |
 | 数据库 | PostgreSQL 18 的当前受支持小版本 |
 | 缓存与会话 | Redis，仅用于会话、限流、临时凭证、短期缓存和分布式协调 |
 | 文件 | 国内云厂商私有对象存储，使用短时效签名地址 |

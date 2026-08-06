@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: marriage-profile-platform-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/marriage_archive}
+    username: ${DB_USERNAME:archive_app}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-migration-naming: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    call-setters-on-nulls: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      update-strategy: not_null
+
+sa-token:
+  token-name: archive-token
+  timeout: 2592000
+  active-timeout: 604800
+  is-concurrent: true
+  is-share: false
+  token-style: tik
+  is-log: false
+
+app:
+  identity:
+    security:
+      phone-encryption-key: ${PHONE_ENCRYPTION_KEY:}
+      phone-search-key: ${PHONE_SEARCH_KEY:}
+      initial-credential-length: 20
+      activation-ttl: 7d
+      argon2:
+        memory-ki-b: 65536
+        iterations: 3
+        parallelism: 1
+        salt-length: 16
+        hash-length: 32
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: never
+

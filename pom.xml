@@ -26,7 +26,7 @@
         <java.version>25</java.version>
         <maven.compiler.release>25</maven.compiler.release>
         <spring-modulith.version>2.1.0</spring-modulith.version>
-        <mybatis-plus.version>3.5.13</mybatis-plus.version>
+        <mybatis-plus.version>3.5.17</mybatis-plus.version>
         <sa-token.version>1.45.0</sa-token.version>
         <bouncycastle.version>1.81</bouncycastle.version>
     </properties>
@@ -81,4 +81,3 @@
         </pluginManagement>
     </build>
 </project>
-
