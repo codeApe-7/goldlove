@@ -37,7 +37,7 @@
 - [x] Add a Maven parent and backend module pinned to Java 25, Spring Boot 4.1.0, Spring Modulith 2.1.0, MyBatis-Plus 3.5.13, and Sa-Token 1.45.0.
 - [x] Add `PlatformApiApplicationTest` that loads the Spring context with database, Redis, Flyway, and Sa-Token autoconfiguration excluded; run it and record the expected compilation failure because the application class does not exist.
 - [x] Add the minimal `@SpringBootApplication` class and test-only exclusions; run `./mvnw -pl services/platform-api test -Dtest=PlatformApiApplicationTest` and require success.
-- [ ] Commit the repository bootstrap.
+- [x] Commit the repository bootstrap.
 
 ## Task 2: Security Primitives
 
@@ -54,13 +54,13 @@
 - Test: `services/platform-api/src/test/java/com/love/archive/identity/security/Argon2PasswordHasherTest.java`
 - Test: `services/platform-api/src/test/java/com/love/archive/identity/security/InitialCredentialGeneratorTest.java`
 
-- [ ] Write failing tests for mainland China phone normalization and invalid input rejection.
-- [ ] Implement `PhoneNormalizer.normalize(String): String` and make its tests pass.
-- [ ] Write failing tests proving AES-256-GCM decrypts correctly, randomizes ciphertext, and a keyed HMAC index is deterministic.
-- [ ] Implement `PhoneProtector.encrypt(String): byte[]`, `decrypt(byte[]): String`, and `searchHash(String): String` using injected Base64 keys; make the tests pass.
-- [ ] Write failing tests for Argon2id hashing, matching, wrong-password rejection, and unique salts.
-- [ ] Implement `PasswordHasher` and `Argon2PasswordHasher` directly with Bouncy Castle; make the tests pass without importing Spring Security.
-- [ ] Write failing entropy/shape tests for one-time initial credentials, implement `InitialCredentialGenerator.generate(): String`, and make them pass.
+- [x] Write failing tests for mainland China phone normalization and invalid input rejection.
+- [x] Implement `PhoneNormalizer.normalize(String): String` and make its tests pass.
+- [x] Write failing tests proving AES-256-GCM decrypts correctly, randomizes ciphertext, and a keyed HMAC index is deterministic.
+- [x] Implement `PhoneProtector.encrypt(String): byte[]`, `decrypt(byte[]): String`, and `searchHash(String): String` using injected Base64 keys; make the tests pass.
+- [x] Write failing tests for Argon2id hashing, matching, wrong-password rejection, and unique salts.
+- [x] Implement `PasswordHasher` and `Argon2PasswordHasher` directly with Bouncy Castle; make the tests pass without importing Spring Security.
+- [x] Write failing entropy/shape tests for one-time initial credentials, implement `InitialCredentialGenerator.generate(): String`, and make them pass.
 - [ ] Commit the security primitives.
 
 ## Task 3: PostgreSQL Schema and MyBatis-Plus Persistence
