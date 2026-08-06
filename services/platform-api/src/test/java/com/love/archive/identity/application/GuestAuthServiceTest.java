@@ -130,6 +130,7 @@ class GuestAuthServiceTest extends ApiIntegrationTest {
                 paymentReference,
                 199_00L,
                 OffsetDateTime.now().minusMinutes(5),
+                "v0.3",
                 null,
                 "guest-auth-service-test");
     }

@@ -1,6 +1,7 @@
 package com.love.archive.payment.persistence;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.love.archive.payment.domain.PaymentStatus;
@@ -22,6 +23,8 @@ public class PaymentRecordEntity {
     private PaymentStatus status;
     private OffsetDateTime paidAt;
     private Long operatorAdminId;
+    @TableField("presented_authorization_document_id")
+    private Long presentedAuthorizationDocumentId;
     private String note;
     private OffsetDateTime createdAt;
 

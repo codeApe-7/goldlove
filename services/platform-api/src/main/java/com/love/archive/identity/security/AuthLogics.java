@@ -1,11 +1,12 @@
 package com.love.archive.identity.security;
 
 import cn.dev33.satoken.stp.StpLogic;
+import com.love.archive.common.security.GuestAccountIdentity;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Component
-public final class AuthLogics {
+public final class AuthLogics implements GuestAccountIdentity {
 
     private final StpLogic guest;
     private final StpLogic admin;
@@ -19,6 +20,11 @@ public final class AuthLogics {
 
     public StpLogic guest() {
         return guest;
+    }
+
+    @Override
+    public long currentGuestAccountId() {
+        return guest.getLoginIdAsLong();
     }
 
     public StpLogic admin() {

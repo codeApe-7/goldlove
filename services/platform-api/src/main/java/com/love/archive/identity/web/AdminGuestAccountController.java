@@ -32,6 +32,7 @@ public class AdminGuestAccountController {
                 body.paymentReference(),
                 body.amountMinor(),
                 body.paidAt(),
+                body.authorizationDocumentVersion(),
                 body.note(),
                 RequestIdFilter.current(request));
         return ResponseEntity.status(HttpStatus.CREATED)

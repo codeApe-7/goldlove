@@ -8,6 +8,7 @@ public record PaidPayment(
         Long amountMinor,
         OffsetDateTime paidAt,
         Long operatorAdminId,
+        Long presentedAuthorizationDocumentId,
         String note,
         OffsetDateTime createdAt) {
 }

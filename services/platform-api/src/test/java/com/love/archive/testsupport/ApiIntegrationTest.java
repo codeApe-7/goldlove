@@ -80,6 +80,16 @@ public abstract class ApiIntegrationTest {
                         activation_credential, payment_record, external_identity, user_account,
                         admin_user RESTART IDENTITY CASCADE
                     """);
+            statement.execute("""
+                    INSERT INTO authorization_document (
+                        document_code, version, title, content, content_sha256, status, effective_at
+                    ) VALUES (
+                        'PAID_PROFILE_LIVE_CONTENT', 'v0.3', '付费建档与直播内容授权书',
+                        '测试授权书内容',
+                        encode(digest(convert_to('测试授权书内容', 'UTF8'), 'sha256'), 'hex'),
+                        'ACTIVE', CURRENT_TIMESTAMP
+                    )
+                    """);
         } catch (SQLException exception) {
             throw new IllegalStateException("测试数据库清理失败", exception);
         }

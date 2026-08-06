@@ -13,5 +13,6 @@ public record CreateGuestAccountRequest(
         @NotBlank @Size(max = 100) @Pattern(regexp = "[A-Za-z0-9._:-]+") String paymentReference,
         @NotNull @Positive Long amountMinor,
         @NotNull @PastOrPresent OffsetDateTime paidAt,
+        @NotBlank @Size(max = 32) String authorizationDocumentVersion,
         @Size(max = 500) String note) {
 }

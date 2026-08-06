@@ -86,7 +86,8 @@ class AdminGuestAccountApiTest extends ApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"phone":"13900139000","paymentReference":"PAY-API-005",\
-                                "amountMinor":0,"paidAt":"2026-08-06T10:00:00+08:00"}
+                                "amountMinor":0,"paidAt":"2026-08-06T10:00:00+08:00",\
+                                "authorizationDocumentVersion":"v0.3"}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
@@ -184,7 +185,8 @@ class AdminGuestAccountApiTest extends ApiIntegrationTest {
     private String validRequest(String paymentReference) {
         return """
                 {"phone":"13800138000","paymentReference":"%s",\
-                "amountMinor":19900,"paidAt":"2026-08-06T10:00:00+08:00","note":"线下付款"}
+                "amountMinor":19900,"paidAt":"2026-08-06T10:00:00+08:00",\
+                "authorizationDocumentVersion":"v0.3","note":"线下付款"}
                 """.formatted(paymentReference);
     }
 }

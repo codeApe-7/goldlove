@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.love.archive.audit.application.AuditEvent;
 import com.love.archive.audit.application.AuditTrail;
 import com.love.archive.common.web.ApiException;
+import com.love.archive.consent.application.AuthorizationDocumentQuery;
+import com.love.archive.consent.application.AuthorizationDocumentView;
 import com.love.archive.identity.config.IdentitySecurityProperties;
 import com.love.archive.identity.domain.AccountStatus;
 import com.love.archive.identity.domain.PhoneNormalizer;
@@ -30,7 +32,10 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class GuestProvisioningService {
 
+    private static final String AUTHORIZATION_DOCUMENT_CODE = "PAID_PROFILE_LIVE_CONTENT";
+
     private final UserAccountMapper userAccountMapper;
+    private final AuthorizationDocumentQuery authorizationDocumentQuery;
     private final PaymentRecorder paymentRecorder;
     private final ActivationCredentialMapper activationCredentialMapper;
     private final AuditTrail auditTrail;
@@ -47,8 +52,11 @@ public class GuestProvisioningService {
             String paymentReference,
             long amountMinor,
             OffsetDateTime paidAt,
+            String authorizationDocumentVersion,
             String note,
             String requestId) {
+        AuthorizationDocumentView authorizationDocument = authorizationDocumentQuery.requireActive(
+                AUTHORIZATION_DOCUMENT_CODE, authorizationDocumentVersion);
         String phone;
         try {
             phone = phoneNormalizer.normalize(rawPhone);
@@ -80,7 +88,14 @@ public class GuestProvisioningService {
 
         try {
             paymentRecorder.recordPaid(new PaidPayment(
-                    account.getId(), paymentReference, amountMinor, paidAt, adminId, note, now));
+                    account.getId(),
+                    paymentReference,
+                    amountMinor,
+                    paidAt,
+                    adminId,
+                    authorizationDocument.id(),
+                    note,
+                    now));
         } catch (PaymentReferenceConflictException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_REFERENCE_EXISTS", "支付流水号已存在");
         }

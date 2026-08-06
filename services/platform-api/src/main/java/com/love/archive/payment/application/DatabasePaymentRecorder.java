@@ -1,15 +1,17 @@
 package com.love.archive.payment.application;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.love.archive.payment.domain.PaymentStatus;
 import com.love.archive.payment.persistence.PaymentRecordEntity;
 import com.love.archive.payment.persistence.PaymentRecordMapper;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-class DatabasePaymentRecorder implements PaymentRecorder {
+class DatabasePaymentRecorder implements PaymentRecorder, PaymentAuthorizationEvidence {
 
     private final PaymentRecordMapper paymentRecordMapper;
 
@@ -23,6 +25,7 @@ class DatabasePaymentRecorder implements PaymentRecorder {
         payment.setStatus(PaymentStatus.PAID);
         payment.setPaidAt(command.paidAt());
         payment.setOperatorAdminId(command.operatorAdminId());
+        payment.setPresentedAuthorizationDocumentId(command.presentedAuthorizationDocumentId());
         payment.setNote(command.note());
         payment.setCreatedAt(command.createdAt());
         try {
@@ -33,6 +36,21 @@ class DatabasePaymentRecorder implements PaymentRecorder {
             }
             throw exception;
         }
+    }
+
+    @Override
+    public Optional<PresentedAuthorization> findPaidAuthorization(long accountId) {
+        PaymentRecordEntity payment = paymentRecordMapper.selectOne(
+                Wrappers.<PaymentRecordEntity>lambdaQuery()
+                        .eq(PaymentRecordEntity::getUserAccountId, accountId)
+                        .eq(PaymentRecordEntity::getStatus, PaymentStatus.PAID)
+                        .orderByDesc(PaymentRecordEntity::getPaidAt)
+                        .orderByDesc(PaymentRecordEntity::getId)
+                        .last("LIMIT 1"));
+        if (payment == null || payment.getPresentedAuthorizationDocumentId() == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new PresentedAuthorization(payment.getId(), payment.getPresentedAuthorizationDocumentId()));
     }
 
     private static boolean containsConstraint(Throwable exception, String constraintName) {

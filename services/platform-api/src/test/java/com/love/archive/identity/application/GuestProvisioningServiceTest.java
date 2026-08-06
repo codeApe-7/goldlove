@@ -18,8 +18,15 @@ import com.love.archive.identity.persistence.UserAccountMapper;
 import com.love.archive.identity.security.PasswordHasher;
 import com.love.archive.identity.security.PhoneProtector;
 import com.love.archive.identity.web.ProvisionedGuestView;
+import com.love.archive.payment.application.PaymentAuthorizationEvidence;
+import com.love.archive.payment.domain.PaymentStatus;
+import com.love.archive.payment.persistence.PaymentRecordEntity;
 import com.love.archive.payment.persistence.PaymentRecordMapper;
 import com.love.archive.testsupport.ApiIntegrationTest;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +40,7 @@ class GuestProvisioningServiceTest extends ApiIntegrationTest {
     @Autowired private UserAccountMapper userAccountMapper;
     @Autowired private ActivationCredentialMapper activationCredentialMapper;
     @Autowired private PaymentRecordMapper paymentRecordMapper;
+    @Autowired private PaymentAuthorizationEvidence paymentAuthorizationEvidence;
     @Autowired private AuditLogMapper auditLogMapper;
     @Autowired private PasswordHasher passwordHasher;
     @Autowired private PhoneProtector phoneProtector;
@@ -43,6 +51,7 @@ class GuestProvisioningServiceTest extends ApiIntegrationTest {
     @BeforeEach
     void cleanAndCreateAdmin() {
         resetDatabase();
+        resetAuthorizationDocuments();
 
         OffsetDateTime now = OffsetDateTime.now();
         AdminUserEntity admin = new AdminUserEntity();
@@ -103,6 +112,82 @@ class GuestProvisioningServiceTest extends ApiIntegrationTest {
     }
 
     @Test
+    void provisioningRequiresAndPersistsTheActivePresentedVersion() {
+        ProvisionedGuestView result = service.provision(
+                adminId,
+                "13800138000",
+                "PAY-AUTHORIZATION-EVIDENCE",
+                199_00L,
+                OffsetDateTime.now().minusMinutes(5),
+                "v0.3",
+                "线下付款",
+                "authorization-evidence-test");
+
+        PaymentRecordEntity payment = paymentRecordMapper.selectOne(
+                Wrappers.<PaymentRecordEntity>lambdaQuery()
+                        .eq(PaymentRecordEntity::getUserAccountId, result.accountId()));
+
+        assertThat(payment.getPresentedAuthorizationDocumentId()).isNotNull();
+    }
+
+    @Test
+    void rejectsUnknownAuthorizationVersionWithDocumentNotFound() {
+        assertThatThrownBy(() -> service.provision(
+                adminId,
+                "13800138000",
+                "PAY-UNKNOWN-AUTHORIZATION",
+                199_00L,
+                OffsetDateTime.now().minusMinutes(5),
+                "v9.9",
+                "线下付款",
+                "unknown-authorization-test"))
+                .isInstanceOfSatisfying(ApiException.class,
+                        exception -> assertThat(exception.code()).isEqualTo("AUTHORIZATION_DOCUMENT_NOT_FOUND"));
+    }
+
+    @Test
+    void rejectsDraftAuthorizationVersionWithDocumentNotActive() throws SQLException {
+        insertAuthorizationDocument("draft-v1", "DRAFT");
+
+        assertThatThrownBy(() -> service.provision(
+                adminId,
+                "13800138000",
+                "PAY-DRAFT-AUTHORIZATION",
+                199_00L,
+                OffsetDateTime.now().minusMinutes(5),
+                "draft-v1",
+                "线下付款",
+                "draft-authorization-test"))
+                .isInstanceOfSatisfying(ApiException.class,
+                        exception -> assertThat(exception.code()).isEqualTo("AUTHORIZATION_DOCUMENT_NOT_ACTIVE"));
+    }
+
+    @Test
+    void reportsMissingEvidenceForHistoricalNullPaymentVersion() {
+        UserAccountEntity account = new UserAccountEntity();
+        account.setPhoneCiphertext(new byte[] {1, 2, 3});
+        account.setPhoneHmac("historical-payment-without-document");
+        account.setStatus(AccountStatus.PAID_PENDING_ACTIVATION);
+        account.setCreatedByAdminId(adminId);
+        account.setCreatedAt(OffsetDateTime.now());
+        account.setUpdatedAt(OffsetDateTime.now());
+        userAccountMapper.insert(account);
+
+        PaymentRecordEntity payment = new PaymentRecordEntity();
+        payment.setUserAccountId(account.getId());
+        payment.setPaymentReference("PAY-HISTORICAL-NULL-AUTHORIZATION");
+        payment.setAmountMinor(199_00L);
+        payment.setCurrency("CNY");
+        payment.setStatus(PaymentStatus.PAID);
+        payment.setPaidAt(OffsetDateTime.now().minusMinutes(5));
+        payment.setOperatorAdminId(adminId);
+        payment.setCreatedAt(OffsetDateTime.now());
+        paymentRecordMapper.insert(payment);
+
+        assertThat(paymentAuthorizationEvidence.findPaidAuthorization(account.getId())).isEmpty();
+    }
+
+    @Test
     void reissuesActivationCredentialAndInvalidatesThePreviousHashAtomically() {
         ProvisionedGuestView original = provision("13800138000", "PAY-REISSUE");
 
@@ -130,7 +215,45 @@ class GuestProvisioningServiceTest extends ApiIntegrationTest {
                 paymentReference,
                 199_00L,
                 OffsetDateTime.now().minusMinutes(5),
+                "v0.3",
                 "线下付款",
                 "provisioning-service-test");
+    }
+
+    private void resetAuthorizationDocuments() {
+        try (Connection owner = DriverManager.getConnection(
+                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                PreparedStatement delete = owner.prepareStatement("""
+                        DELETE FROM authorization_document
+                        WHERE document_code = 'PAID_PROFILE_LIVE_CONTENT' AND version <> 'v0.3'
+                        """);
+                PreparedStatement activate = owner.prepareStatement("""
+                        UPDATE authorization_document
+                        SET status = 'ACTIVE'
+                        WHERE document_code = 'PAID_PROFILE_LIVE_CONTENT' AND version = 'v0.3'
+                        """)) {
+            delete.executeUpdate();
+            activate.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("测试授权文档重置失败", exception);
+        }
+    }
+
+    private void insertAuthorizationDocument(String version, String status) throws SQLException {
+        try (Connection owner = DriverManager.getConnection(
+                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                PreparedStatement insert = owner.prepareStatement("""
+                        INSERT INTO authorization_document
+                            (document_code, version, title, content, content_sha256, status, effective_at)
+                        VALUES (
+                            'PAID_PROFILE_LIVE_CONTENT', ?, '测试授权书', '测试授权书内容',
+                            encode(digest(convert_to('测试授权书内容', 'UTF8'), 'sha256'), 'hex'),
+                            ?, CURRENT_TIMESTAMP
+                        )
+                        """)) {
+            insert.setString(1, version);
+            insert.setString(2, status);
+            insert.executeUpdate();
+        }
     }
 }
