@@ -13,6 +13,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 
 @Testcontainers
 @ActiveProfiles("test")
@@ -23,12 +25,16 @@ import org.testcontainers.utility.DockerImageName;
         webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 public abstract class ApiIntegrationTest {
 
+    private static final String OWNER_PASSWORD = "integration-owner-only";
+    private static final String RUNTIME_PASSWORD = "integration-runtime-only";
+
     @Container
     protected static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:18-alpine")
                     .withDatabaseName("marriage_archive")
-                    .withUsername("archive_app")
-                    .withPassword("integration-test-only");
+                    .withUsername("archive_owner")
+                    .withPassword(OWNER_PASSWORD)
+                    .withInitScript("db/test-init/create-runtime-role.sql");
 
     @Container
     protected static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:8-alpine"))
@@ -44,8 +50,11 @@ public abstract class ApiIntegrationTest {
     @DynamicPropertySource
     static void registerInfrastructureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.datasource.username", () -> "archive_app");
+        registry.add("spring.datasource.password", () -> RUNTIME_PASSWORD);
+        registry.add("spring.flyway.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.flyway.user", POSTGRES::getUsername);
+        registry.add("spring.flyway.password", POSTGRES::getPassword);
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
         registry.add("spring.data.redis.password", () -> "");
@@ -55,5 +64,18 @@ public abstract class ApiIntegrationTest {
                 () -> "//////////////////////////////////////////8=");
         registry.add("app.identity.security.argon2.memory-ki-b", () -> "1024");
         registry.add("app.identity.security.argon2.iterations", () -> "1");
+    }
+
+    protected final void resetDatabase() {
+        try (var connection = DriverManager.getConnection(
+                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                var statement = connection.createStatement()) {
+            statement.execute("""
+                    TRUNCATE TABLE audit_log, activation_credential, payment_record,
+                        external_identity, user_account, admin_user RESTART IDENTITY CASCADE
+                    """);
+        } catch (SQLException exception) {
+            throw new IllegalStateException("测试数据库清理失败", exception);
+        }
     }
 }

@@ -37,4 +37,3 @@ class Argon2PasswordHasherTest {
         assertThat(hasher.matches("password".toCharArray(), null)).isFalse();
     }
 }
-

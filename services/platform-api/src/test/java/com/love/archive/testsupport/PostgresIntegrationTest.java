@@ -15,12 +15,16 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(classes = PlatformApiApplication.class)
 public abstract class PostgresIntegrationTest {
 
+    private static final String OWNER_PASSWORD = "integration-owner-only";
+    private static final String RUNTIME_PASSWORD = "integration-runtime-only";
+
     @Container
     protected static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:18-alpine")
                     .withDatabaseName("marriage_archive")
-                    .withUsername("archive_app")
-                    .withPassword("integration-test-only");
+                    .withUsername("archive_owner")
+                    .withPassword(OWNER_PASSWORD)
+                    .withInitScript("db/test-init/create-runtime-role.sql");
 
     @BeforeAll
     static void verifyContainerIsRunning() {
@@ -32,8 +36,10 @@ public abstract class PostgresIntegrationTest {
     @DynamicPropertySource
     static void registerDatabaseProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.datasource.username", () -> "archive_app");
+        registry.add("spring.datasource.password", () -> RUNTIME_PASSWORD);
+        registry.add("spring.flyway.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.flyway.user", POSTGRES::getUsername);
+        registry.add("spring.flyway.password", POSTGRES::getPassword);
     }
 }
-

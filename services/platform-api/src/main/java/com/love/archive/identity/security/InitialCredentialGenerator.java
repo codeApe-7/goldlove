@@ -26,4 +26,3 @@ public final class InitialCredentialGenerator {
         return new String(value);
     }
 }
-

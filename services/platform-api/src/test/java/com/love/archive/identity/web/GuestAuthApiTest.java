@@ -18,7 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -27,17 +26,13 @@ class GuestAuthApiTest extends ApiIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private GuestProvisioningService provisioningService;
     @Autowired private AdminUserMapper adminUserMapper;
-    @Autowired private JdbcClient jdbcClient;
     @Autowired private StringRedisTemplate redis;
 
     private Long adminId;
 
     @BeforeEach
     void cleanState() {
-        jdbcClient.sql("""
-                TRUNCATE TABLE audit_log, activation_credential, payment_record,
-                    external_identity, user_account, admin_user RESTART IDENTITY CASCADE
-                """).update();
+        resetDatabase();
         redis.getConnectionFactory().getConnection().serverCommands().flushDb();
         OffsetDateTime now = OffsetDateTime.now();
         AdminUserEntity admin = new AdminUserEntity();
@@ -91,7 +86,7 @@ class GuestAuthApiTest extends ApiIntegrationTest {
     }
 
     @Test
-    void rejectsInactiveAccountAndUsesUniformInvalidCredentialErrors() throws Exception {
+    void hidesPendingAccountsAndUsesUniformInvalidCredentialErrors() throws Exception {
         provision("13800138000", "PAY-GUEST-API-002");
 
         mockMvc.perform(post("/api/v1/guest/auth/login")
@@ -99,8 +94,8 @@ class GuestAuthApiTest extends ApiIntegrationTest {
                         .content("""
                                 {"phone":"13800138000","password":"any-password-2026"}
                                 """))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("AUTH_ACCOUNT_INACTIVE"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_INVALID_CREDENTIALS"));
 
         ProvisionedGuestView active = provision("13900139000", "PAY-GUEST-API-003");
         mockMvc.perform(post("/api/v1/guest/auth/activate")

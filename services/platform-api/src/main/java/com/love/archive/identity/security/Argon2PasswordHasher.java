@@ -171,4 +171,3 @@ public final class Argon2PasswordHasher implements PasswordHasher {
         }
     }
 }
-

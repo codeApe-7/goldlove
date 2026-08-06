@@ -64,6 +64,28 @@ class IdentityPersistenceTest extends PostgresIntegrationTest {
         assertThat(tableCount("audit_log")).isOne();
     }
 
+    @Test
+    void runtimeRoleCanAppendButCannotMutateAuditOrCreateTables() {
+        assertThat(jdbcClient.sql("SELECT current_user").query(String.class).single())
+                .isEqualTo("archive_app");
+        assertThat(hasTablePrivilege("audit_log", "SELECT")).isTrue();
+        assertThat(hasTablePrivilege("audit_log", "INSERT")).isTrue();
+        assertThat(hasTablePrivilege("audit_log", "UPDATE")).isFalse();
+        assertThat(hasTablePrivilege("audit_log", "DELETE")).isFalse();
+        assertThat(hasTablePrivilege("audit_log", "TRUNCATE")).isFalse();
+        assertThat(jdbcClient.sql("SELECT has_schema_privilege(current_user, 'public', 'CREATE')")
+                .query(Boolean.class)
+                .single()).isFalse();
+    }
+
+    private boolean hasTablePrivilege(String table, String privilege) {
+        return jdbcClient.sql("SELECT has_table_privilege(current_user, :table, :privilege)")
+                .param("table", table)
+                .param("privilege", privilege)
+                .query(Boolean.class)
+                .single();
+    }
+
     private long tableCount(String tableName) {
         return jdbcClient.sql("""
                         SELECT count(*)

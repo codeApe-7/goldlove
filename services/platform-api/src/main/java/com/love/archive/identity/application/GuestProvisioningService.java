@@ -20,12 +20,14 @@ import com.love.archive.payment.application.PaymentRecorder;
 import com.love.archive.payment.application.PaymentReferenceConflictException;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class GuestProvisioningService {
 
     private final UserAccountMapper userAccountMapper;
@@ -37,27 +39,6 @@ public class GuestProvisioningService {
     private final InitialCredentialGenerator credentialGenerator;
     private final PasswordHasher passwordHasher;
     private final IdentitySecurityProperties securityProperties;
-
-    public GuestProvisioningService(
-            UserAccountMapper userAccountMapper,
-            PaymentRecorder paymentRecorder,
-            ActivationCredentialMapper activationCredentialMapper,
-            AuditTrail auditTrail,
-            PhoneNormalizer phoneNormalizer,
-            PhoneProtector phoneProtector,
-            InitialCredentialGenerator credentialGenerator,
-            PasswordHasher passwordHasher,
-            IdentitySecurityProperties securityProperties) {
-        this.userAccountMapper = userAccountMapper;
-        this.paymentRecorder = paymentRecorder;
-        this.activationCredentialMapper = activationCredentialMapper;
-        this.auditTrail = auditTrail;
-        this.phoneNormalizer = phoneNormalizer;
-        this.phoneProtector = phoneProtector;
-        this.credentialGenerator = credentialGenerator;
-        this.passwordHasher = passwordHasher;
-        this.securityProperties = securityProperties;
-    }
 
     @Transactional
     public ProvisionedGuestView provision(
@@ -134,6 +115,69 @@ public class GuestProvisioningService {
 
         return new ProvisionedGuestView(
                 account.getId(), AccountStatus.PAID_PENDING_ACTIVATION, initialCredential, expiresAt);
+    }
+
+    @Transactional
+    public ProvisionedGuestView reissueActivationCredential(long adminId, String rawPhone, String requestId) {
+        String phone;
+        try {
+            phone = phoneNormalizer.normalize(rawPhone);
+        } catch (IllegalArgumentException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PHONE_INVALID", "手机号格式不正确");
+        }
+        UserAccountEntity account = userAccountMapper.selectOne(
+                Wrappers.<UserAccountEntity>lambdaQuery()
+                        .eq(UserAccountEntity::getPhoneHmac, phoneProtector.searchHash(phone))
+                        .last("FOR UPDATE"));
+        if (account == null || account.getStatus() != AccountStatus.PAID_PENDING_ACTIVATION) {
+            throw reissueUnavailable();
+        }
+
+        OffsetDateTime now = OffsetDateTime.now();
+        int consumed = activationCredentialMapper.update(
+                Wrappers.<ActivationCredentialEntity>lambdaUpdate()
+                        .eq(ActivationCredentialEntity::getUserAccountId, account.getId())
+                        .isNull(ActivationCredentialEntity::getConsumedAt)
+                        .set(ActivationCredentialEntity::getConsumedAt, now));
+        if (consumed != 1) {
+            throw reissueUnavailable();
+        }
+
+        String initialCredential = credentialGenerator.generate();
+        char[] credentialChars = initialCredential.toCharArray();
+        String credentialHash;
+        try {
+            credentialHash = passwordHasher.hash(credentialChars);
+        } finally {
+            Arrays.fill(credentialChars, '\0');
+        }
+        OffsetDateTime expiresAt = now.plus(securityProperties.getActivationTtl());
+        ActivationCredentialEntity replacement = new ActivationCredentialEntity();
+        replacement.setUserAccountId(account.getId());
+        replacement.setCredentialHash(credentialHash);
+        replacement.setExpiresAt(expiresAt);
+        replacement.setCreatedByAdminId(adminId);
+        replacement.setCreatedAt(now);
+        activationCredentialMapper.insert(replacement);
+
+        auditTrail.append(new AuditEvent(
+                AuditEvent.ActorType.ADMIN,
+                adminId,
+                "ACTIVATION_CREDENTIAL_REISSUED",
+                "USER_ACCOUNT",
+                account.getId(),
+                requestId,
+                "{}",
+                now));
+        return new ProvisionedGuestView(
+                account.getId(), AccountStatus.PAID_PENDING_ACTIVATION, initialCredential, expiresAt);
+    }
+
+    private static ApiException reissueUnavailable() {
+        return new ApiException(
+                HttpStatus.CONFLICT,
+                "ACTIVATION_REISSUE_NOT_AVAILABLE",
+                "账号当前不可补发激活凭证");
     }
 
     private static boolean containsConstraint(Throwable exception, String constraintName) {

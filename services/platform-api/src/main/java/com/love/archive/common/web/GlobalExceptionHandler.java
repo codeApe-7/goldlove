@@ -6,6 +6,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -25,6 +28,24 @@ public final class GlobalExceptionHandler {
     ResponseEntity<ApiResponse<Void>> handleValidation(HttpServletRequest request) {
         return ResponseEntity.badRequest().body(ApiResponse.failure(
                 "VALIDATION_FAILED", "请求参数不正确", RequestIdFilter.current(request)));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<ApiResponse<Void>> handleUnreadableBody(HttpServletRequest request) {
+        return ResponseEntity.badRequest().body(ApiResponse.failure(
+                "INVALID_REQUEST_BODY", "请求内容无法解析", RequestIdFilter.current(request)));
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    ResponseEntity<ApiResponse<Void>> handleUnsupportedMediaType(HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(ApiResponse.failure(
+                "UNSUPPORTED_MEDIA_TYPE", "请求内容类型不受支持", RequestIdFilter.current(request)));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    ResponseEntity<ApiResponse<Void>> handleUnsupportedMethod(HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(ApiResponse.failure(
+                "METHOD_NOT_ALLOWED", "请求方法不受支持", RequestIdFilter.current(request)));
     }
 
     @ExceptionHandler(NotLoginException.class)

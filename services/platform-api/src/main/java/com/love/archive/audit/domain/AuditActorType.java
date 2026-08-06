@@ -14,4 +14,3 @@ public enum AuditActorType {
         this.databaseValue = databaseValue;
     }
 }
-

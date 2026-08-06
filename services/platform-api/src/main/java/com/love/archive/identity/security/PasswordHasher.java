@@ -6,4 +6,3 @@ public interface PasswordHasher {
 
     boolean matches(char[] password, String encodedHash);
 }
-

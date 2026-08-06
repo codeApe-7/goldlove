@@ -31,4 +31,3 @@ class PhoneNormalizerTest {
                 .withMessage("手机号格式不正确");
     }
 }
-

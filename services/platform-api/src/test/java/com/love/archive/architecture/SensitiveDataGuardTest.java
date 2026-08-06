@@ -27,6 +27,11 @@ class SensitiveDataGuardTest {
         String modulePom = Files.readString(MODULE_ROOT.resolve("pom.xml"));
         String parentPom = Files.readString(MODULE_ROOT.resolve("../../pom.xml").normalize());
         assertThat(productionSources).doesNotContain("org.springframework.security");
+        assertThat(productionSources)
+                .doesNotContain("lombok.Data")
+                .doesNotContain("lombok.ToString")
+                .doesNotContain("@Data")
+                .doesNotContain("@ToString");
         assertThat(modulePom + parentPom).doesNotContain("spring-security");
     }
 

@@ -58,11 +58,20 @@ public class AdminAuthService {
         int updated = adminUserMapper.update(
                 Wrappers.<AdminUserEntity>lambdaUpdate()
                         .eq(AdminUserEntity::getId, admin.getId())
+                        .eq(AdminUserEntity::getStatus, AdminStatus.ACTIVE)
                         .set(AdminUserEntity::getLastLoginAt, now)
                         .set(AdminUserEntity::getUpdatedAt, now));
         if (updated != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "ADMIN_UPDATE_CONFLICT", "管理员状态已发生变化，请重试");
         }
         return new AdminSessionView(admin.getId(), admin.getUsername(), admin.getDisplayName());
+    }
+
+    @Transactional(readOnly = true)
+    public void requireActive(long adminId) {
+        AdminUserEntity admin = adminUserMapper.selectById(adminId);
+        if (admin == null || admin.getStatus() != AdminStatus.ACTIVE) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "AUTH_ACCOUNT_DISABLED", "管理员账号已停用");
+        }
     }
 }

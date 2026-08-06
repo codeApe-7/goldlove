@@ -39,10 +39,7 @@ class GuestAuthServiceTest extends ApiIntegrationTest {
 
     @BeforeEach
     void cleanAndCreateAdmin() {
-        jdbcClient.sql("""
-                TRUNCATE TABLE audit_log, activation_credential, payment_record,
-                    external_identity, user_account, admin_user RESTART IDENTITY CASCADE
-                """).update();
+        resetDatabase();
         OffsetDateTime now = OffsetDateTime.now();
         AdminUserEntity admin = new AdminUserEntity();
         admin.setUsername("guest-auth-admin");
@@ -83,7 +80,7 @@ class GuestAuthServiceTest extends ApiIntegrationTest {
         assertThatThrownBy(() -> guestAuthService.activate(
                 "13800138000", "wrong-initial-credential", "New-password-2026", "wrong-request"))
                 .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.code()).isEqualTo("ACTIVATION_INVALID_CREDENTIAL"));
+                        exception -> assertThat(exception.code()).isEqualTo("ACTIVATION_INVALID"));
 
         assertThat(userAccountMapper.selectById(provisioned.accountId()).getStatus())
                 .isEqualTo(AccountStatus.PAID_PENDING_ACTIVATION);
@@ -104,13 +101,16 @@ class GuestAuthServiceTest extends ApiIntegrationTest {
                 """).param("accountId", expired.accountId()).update();
 
         assertActivationError(
-                "13800138000", expired.initialCredential(), "New-password-2026", "ACTIVATION_CREDENTIAL_EXPIRED");
+                "13800138000", expired.initialCredential(), "New-password-2026", "ACTIVATION_INVALID");
 
         ProvisionedGuestView used = provision("13900139000", "PAY-ACTIVATE-004");
         guestAuthService.activate(
                 "13900139000", used.initialCredential(), "New-password-2026", "first-activation");
         assertActivationError(
-                "13900139000", used.initialCredential(), "Another-password-2026", "ACTIVATION_NOT_AVAILABLE");
+                "13900139000", used.initialCredential(), "Another-password-2026", "ACTIVATION_INVALID");
+
+        assertActivationError(
+                "13600136000", "unknown-account-credential", "Another-password-2026", "ACTIVATION_INVALID");
 
         ProvisionedGuestView weak = provision("13700137000", "PAY-ACTIVATE-005");
         assertActivationError(

@@ -1,6 +1,7 @@
 package com.love.archive.admin.web;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,7 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 
 class AdminAuthApiTest extends ApiIntegrationTest {
@@ -32,14 +32,11 @@ class AdminAuthApiTest extends ApiIntegrationTest {
     private PasswordHasher passwordHasher;
 
     @Autowired
-    private JdbcClient jdbcClient;
-
-    @Autowired
     private StringRedisTemplate redis;
 
     @BeforeEach
     void cleanState() {
-        jdbcClient.sql("DELETE FROM admin_user").update();
+        resetDatabase();
         redis.getConnectionFactory().getConnection().serverCommands().flushDb();
     }
 
@@ -88,6 +85,58 @@ class AdminAuthApiTest extends ApiIntegrationTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.code").value("AUTH_ACCOUNT_DISABLED"))
                 .andExpect(jsonPath("$.requestId").isNotEmpty());
+    }
+
+    @Test
+    void rateLimitsRepeatedAttemptsBeforeAcceptingAnotherPasswordHash() throws Exception {
+        insertAdmin("rate-limited", "correct-password", AdminStatus.ACTIVE);
+
+        assertInvalidCredentials("rate-limited", "wrong-password-1");
+        assertInvalidCredentials("rate-limited", "wrong-password-2");
+        assertInvalidCredentials("rate-limited", "wrong-password-3");
+
+        mockMvc.perform(post("/api/v1/admin/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"rate-limited","password":"correct-password"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("AUTH_RATE_LIMITED"));
+    }
+
+    @Test
+    void rateLimitsOneClientAcrossDifferentAccountIdentifiers() throws Exception {
+        assertInvalidCredentials("missing-1", "wrong-password");
+        assertInvalidCredentials("missing-2", "wrong-password");
+        assertInvalidCredentials("missing-3", "wrong-password");
+        assertInvalidCredentials("missing-4", "wrong-password");
+
+        mockMvc.perform(post("/api/v1/admin/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"missing-5","password":"wrong-password"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("AUTH_RATE_LIMITED"));
+    }
+
+    @Test
+    void mapsMalformedJsonAndUnsupportedMediaTypeToStableClientErrors() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_BODY"));
+
+        mockMvc.perform(post("/api/v1/admin/auth/login")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("operator:password"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"));
+
+        mockMvc.perform(get("/api/v1/admin/auth/login"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
     }
 
     private void assertInvalidCredentials(String username, String password) throws Exception {

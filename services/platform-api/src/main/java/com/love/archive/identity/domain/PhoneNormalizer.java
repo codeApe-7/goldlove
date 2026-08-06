@@ -30,4 +30,3 @@ public final class PhoneNormalizer {
         return new IllegalArgumentException("手机号格式不正确");
     }
 }
-

@@ -125,4 +125,3 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER audit_log_immutable
     BEFORE UPDATE OR DELETE ON audit_log
     FOR EACH ROW EXECUTE FUNCTION reject_audit_log_mutation();
-

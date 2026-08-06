@@ -12,4 +12,3 @@ public enum IdentityProvider {
         this.databaseValue = databaseValue;
     }
 }
-

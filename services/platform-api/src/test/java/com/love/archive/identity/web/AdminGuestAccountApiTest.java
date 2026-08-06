@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.love.archive.admin.domain.AdminStatus;
 import com.love.archive.admin.persistence.AdminUserEntity;
 import com.love.archive.admin.persistence.AdminUserMapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.love.archive.identity.security.PasswordHasher;
 import com.love.archive.testsupport.ApiIntegrationTest;
 import jakarta.servlet.http.Cookie;
@@ -17,7 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -26,15 +26,11 @@ class AdminGuestAccountApiTest extends ApiIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private AdminUserMapper adminUserMapper;
     @Autowired private PasswordHasher passwordHasher;
-    @Autowired private JdbcClient jdbcClient;
     @Autowired private StringRedisTemplate redis;
 
     @BeforeEach
     void cleanState() {
-        jdbcClient.sql("""
-                TRUNCATE TABLE audit_log, activation_credential, payment_record,
-                    external_identity, user_account, admin_user RESTART IDENTITY CASCADE
-                """).update();
+        resetDatabase();
         redis.getConnectionFactory().getConnection().serverCommands().flushDb();
         insertAdmin();
     }
@@ -106,6 +102,53 @@ class AdminGuestAccountApiTest extends ApiIntegrationTest {
                         .content(validRequest("PAY-API-CSRF")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("CSRF_ORIGIN_REJECTED"));
+    }
+
+    @Test
+    void rejectsAndRevokesAnExistingSessionAfterAdministratorIsDisabled() throws Exception {
+        Cookie adminCookie = login();
+        adminUserMapper.update(Wrappers.<AdminUserEntity>lambdaUpdate()
+                .eq(AdminUserEntity::getUsername, "operator")
+                .set(AdminUserEntity::getStatus, AdminStatus.DISABLED));
+
+        mockMvc.perform(post("/api/v1/admin/accounts")
+                        .cookie(adminCookie)
+                        .header("Origin", "https://h5.example.test")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequest("PAY-DISABLED-ADMIN")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("AUTH_ACCOUNT_DISABLED"));
+
+        mockMvc.perform(post("/api/v1/admin/accounts")
+                        .cookie(adminCookie)
+                        .header("Origin", "https://h5.example.test")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequest("PAY-REVOKED-ADMIN")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_NOT_LOGGED_IN"));
+    }
+
+    @Test
+    void reissuesALostActivationCredentialForAPendingAccount() throws Exception {
+        Cookie adminCookie = login();
+        mockMvc.perform(post("/api/v1/admin/accounts")
+                        .cookie(adminCookie)
+                        .header("Origin", "https://h5.example.test")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequest("PAY-REISSUE-API")))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/admin/accounts/activation-credentials/reissue")
+                        .cookie(adminCookie)
+                        .header("Origin", "https://h5.example.test")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"phone":"13800138000"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accountId").isNumber())
+                .andExpect(jsonPath("$.data.initialCredential").isNotEmpty())
+                .andExpect(jsonPath("$.data.status").value("PAID_PENDING_ACTIVATION"));
     }
 
     private Cookie login() throws Exception {

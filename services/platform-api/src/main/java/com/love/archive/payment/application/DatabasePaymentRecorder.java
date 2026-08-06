@@ -3,17 +3,15 @@ package com.love.archive.payment.application;
 import com.love.archive.payment.domain.PaymentStatus;
 import com.love.archive.payment.persistence.PaymentRecordEntity;
 import com.love.archive.payment.persistence.PaymentRecordMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 class DatabasePaymentRecorder implements PaymentRecorder {
 
     private final PaymentRecordMapper paymentRecordMapper;
-
-    DatabasePaymentRecorder(PaymentRecordMapper paymentRecordMapper) {
-        this.paymentRecordMapper = paymentRecordMapper;
-    }
 
     @Override
     public void recordPaid(PaidPayment command) {

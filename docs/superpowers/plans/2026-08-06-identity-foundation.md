@@ -188,6 +188,31 @@
 
 Verification record: Java 25 full suite passed 43 tests with zero failures/errors; the 56 MB executable JAR and non-root Docker image built successfully; Compose validation and `git diff --check` passed; resolved dependencies and the runnable JAR contain Sa-Token but no Spring Security.
 
+## Task 9: Pre-release Security Review Remediation
+
+**Files:**
+
+- Create: `.gitattributes`
+- Create: `docker/postgres/init/001-create-runtime-role.sql`
+- Create: `services/platform-api/src/main/resources/db/migration/V2__runtime_database_privileges.sql`
+- Create: `services/platform-api/src/main/java/com/love/archive/identity/application/AuthenticationAttemptLimiter.java`
+- Create: `services/platform-api/src/main/java/com/love/archive/identity/config/AuthenticationRateLimitProperties.java`
+- Create: `services/platform-api/src/main/java/com/love/archive/admin/web/AdminStatusInterceptorConfiguration.java`
+- Create: activation-credential reissue request/response endpoint and tests
+- Modify: authentication services/controllers, Compose/environment configuration, error mapping, tests, and README
+
+- [x] Write failing integration tests proving the runtime database role cannot mutate/truncate audit rows or perform DDL, while Flyway uses a separate owner role; then implement least-privilege grants.
+- [x] Write a failing test for the shipped administrator placeholder and make `.env.example` bootstrap-disabled by default; reject placeholder-shaped credentials at startup.
+- [x] Write failing Redis/API tests for account and client login throttling before Argon2 work; implement atomic fixed-window counters with privacy-safe HMAC keys and stable `429` responses.
+- [x] Write a failing API test proving a disabled administrator's existing token cannot provision; add active-status enforcement and a conditional `ACTIVE` login update.
+- [x] Write failing tests proving unknown, used, expired, and wrong activation attempts share one external status/code and perform a dummy Argon2 check; implement the uniform response.
+- [x] Write failing service/API tests for administrator credential reissue on pending accounts; atomically consume the old credential, create a new hash, return plaintext once, and append audit.
+- [x] Restrict public Actuator exposure to health only and add stable `4xx` mappings/tests for malformed JSON and unsupported media types.
+- [x] Normalize tracked line endings with `.gitattributes`, remove trailing blank lines, and require whole-branch `git diff --check` success.
+- [x] Run the complete Java 25 test suite, package the runnable JAR, build the Docker image, re-run the source/dependency guards, and commit the remediation.
+
+Verification record: after security remediation and Lombok adoption, the Java 25 full suite passed 54 tests with zero failures, errors, or skips; the executable JAR and non-root Docker image built successfully; Compose and whole-branch whitespace checks passed.
+
 ## Deferred Follow-up Plans
 
 - Guest profile fields, immutable revisions, and review workflow.

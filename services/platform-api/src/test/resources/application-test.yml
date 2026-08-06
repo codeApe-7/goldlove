@@ -4,6 +4,7 @@ spring:
       repositories:
         enabled: false
   flyway:
+    enabled: true
     clean-disabled: true
 
 logging:
@@ -12,6 +13,11 @@ logging:
 
 app:
   identity:
+    authentication-rate-limit:
+      account-max-attempts: 3
+      account-window: 15m
+      client-max-attempts: 4
+      client-window: 1m
     browser-security:
       allowed-origins:
         - https://h5.example.test

@@ -9,6 +9,7 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -18,6 +19,7 @@ import org.springframework.util.StringUtils;
 
 @Component
 @ConditionalOnProperty(prefix = "app.admin.bootstrap", name = "enabled", havingValue = "true")
+@RequiredArgsConstructor
 public class AdminBootstrapRunner implements ApplicationRunner {
 
     private static final Set<String> FORBIDDEN_PASSWORDS = Set.of("password", "changeme", "admin123", "123456");
@@ -26,22 +28,17 @@ public class AdminBootstrapRunner implements ApplicationRunner {
     private final AdminUserMapper adminUserMapper;
     private final PasswordHasher passwordHasher;
 
-    public AdminBootstrapRunner(
-            AdminBootstrapProperties properties,
-            AdminUserMapper adminUserMapper,
-            PasswordHasher passwordHasher) {
-        this.properties = properties;
-        this.adminUserMapper = adminUserMapper;
-        this.passwordHasher = passwordHasher;
-    }
-
     @Override
     @Transactional
     public void run(ApplicationArguments arguments) {
         String username = requireText(properties.getUsername(), "初始管理员用户名不能为空").trim();
         String displayName = requireText(properties.getDisplayName(), "初始管理员显示名不能为空").trim();
         String rawPassword = requireText(properties.getPassword(), "初始管理员密码不能为空");
-        if (rawPassword.length() < 12 || FORBIDDEN_PASSWORDS.contains(rawPassword.toLowerCase(Locale.ROOT))) {
+        String normalizedPassword = rawPassword.toLowerCase(Locale.ROOT);
+        if (rawPassword.length() < 12
+                || FORBIDDEN_PASSWORDS.contains(normalizedPassword)
+                || normalizedPassword.contains("replace-with")
+                || normalizedPassword.contains("placeholder")) {
             throw new IllegalStateException("初始管理员密码不符合安全要求");
         }
 

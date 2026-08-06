@@ -3,16 +3,14 @@ package com.love.archive.audit.application;
 import com.love.archive.audit.domain.AuditActorType;
 import com.love.archive.audit.persistence.AuditLogEntity;
 import com.love.archive.audit.persistence.AuditLogMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 class DatabaseAuditTrail implements AuditTrail {
 
     private final AuditLogMapper auditLogMapper;
-
-    DatabaseAuditTrail(AuditLogMapper auditLogMapper) {
-        this.auditLogMapper = auditLogMapper;
-    }
 
     @Override
     public void append(AuditEvent event) {

@@ -21,10 +21,10 @@ import com.love.archive.identity.web.ProvisionedGuestView;
 import com.love.archive.payment.persistence.PaymentRecordMapper;
 import com.love.archive.testsupport.ApiIntegrationTest;
 import java.time.OffsetDateTime;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.simple.JdbcClient;
 
 class GuestProvisioningServiceTest extends ApiIntegrationTest {
 
@@ -37,16 +37,12 @@ class GuestProvisioningServiceTest extends ApiIntegrationTest {
     @Autowired private PasswordHasher passwordHasher;
     @Autowired private PhoneProtector phoneProtector;
     @Autowired private PhoneNormalizer phoneNormalizer;
-    @Autowired private JdbcClient jdbcClient;
 
     private Long adminId;
 
     @BeforeEach
     void cleanAndCreateAdmin() {
-        jdbcClient.sql("""
-                TRUNCATE TABLE audit_log, activation_credential, payment_record,
-                    external_identity, user_account, admin_user RESTART IDENTITY CASCADE
-                """).update();
+        resetDatabase();
 
         OffsetDateTime now = OffsetDateTime.now();
         AdminUserEntity admin = new AdminUserEntity();
@@ -104,6 +100,27 @@ class GuestProvisioningServiceTest extends ApiIntegrationTest {
         assertThat(paymentRecordMapper.selectCount(null)).isOne();
         assertThat(activationCredentialMapper.selectCount(null)).isOne();
         assertThat(auditLogMapper.selectCount(null)).isOne();
+    }
+
+    @Test
+    void reissuesActivationCredentialAndInvalidatesThePreviousHashAtomically() {
+        ProvisionedGuestView original = provision("13800138000", "PAY-REISSUE");
+
+        ProvisionedGuestView reissued = service.reissueActivationCredential(
+                adminId, "138 0013 8000", "reissue-request");
+
+        List<ActivationCredentialEntity> credentials = activationCredentialMapper.selectList(
+                Wrappers.<ActivationCredentialEntity>lambdaQuery()
+                        .eq(ActivationCredentialEntity::getUserAccountId, original.accountId())
+                        .orderByAsc(ActivationCredentialEntity::getId));
+        assertThat(reissued.accountId()).isEqualTo(original.accountId());
+        assertThat(reissued.initialCredential()).isNotEqualTo(original.initialCredential());
+        assertThat(credentials).hasSize(2);
+        assertThat(credentials.getFirst().getConsumedAt()).isNotNull();
+        assertThat(credentials.getLast().getConsumedAt()).isNull();
+        assertThat(passwordHasher.matches(
+                reissued.initialCredential().toCharArray(), credentials.getLast().getCredentialHash())).isTrue();
+        assertThat(auditLogMapper.selectCount(null)).isEqualTo(2);
     }
 
     private ProvisionedGuestView provision(String phone, String paymentReference) {

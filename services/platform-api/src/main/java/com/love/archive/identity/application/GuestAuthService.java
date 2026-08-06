@@ -63,33 +63,29 @@ public class GuestAuthService {
             String requestId) {
         validateNewPassword(newPassword, initialCredential);
         UserAccountEntity account = findByPhoneForActivation(rawPhone);
-        if (account == null || account.getStatus() != AccountStatus.PAID_PENDING_ACTIVATION) {
-            throw new ApiException(HttpStatus.CONFLICT, "ACTIVATION_NOT_AVAILABLE", "账号当前不可激活");
-        }
-
-        ActivationCredentialEntity credential = activationCredentialMapper.selectOne(
-                Wrappers.<ActivationCredentialEntity>lambdaQuery()
-                        .eq(ActivationCredentialEntity::getUserAccountId, account.getId())
-                        .isNull(ActivationCredentialEntity::getConsumedAt));
-        if (credential == null) {
-            throw new ApiException(HttpStatus.CONFLICT, "ACTIVATION_NOT_AVAILABLE", "账号当前不可激活");
-        }
+        boolean pending = account != null && account.getStatus() == AccountStatus.PAID_PENDING_ACTIVATION;
+        ActivationCredentialEntity credential = pending
+                ? activationCredentialMapper.selectOne(
+                        Wrappers.<ActivationCredentialEntity>lambdaQuery()
+                                .eq(ActivationCredentialEntity::getUserAccountId, account.getId())
+                                .isNull(ActivationCredentialEntity::getConsumedAt))
+                : null;
 
         OffsetDateTime now = OffsetDateTime.now();
-        if (!credential.getExpiresAt().isAfter(now)) {
-            throw new ApiException(
-                    HttpStatus.GONE, "ACTIVATION_CREDENTIAL_EXPIRED", "初始凭证已过期，请联系管理员重新签发");
-        }
-
         char[] initialChars = initialCredential.toCharArray();
         boolean initialMatches;
         try {
-            initialMatches = passwordHasher.matches(initialChars, credential.getCredentialHash());
+            initialMatches = passwordHasher.matches(
+                    initialChars,
+                    credential == null ? dummyPasswordHash : credential.getCredentialHash());
         } finally {
             Arrays.fill(initialChars, '\0');
         }
-        if (!initialMatches) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "ACTIVATION_INVALID_CREDENTIAL", "初始凭证不正确");
+        if (!pending
+                || credential == null
+                || !credential.getExpiresAt().isAfter(now)
+                || !initialMatches) {
+            throw invalidActivation();
         }
 
         char[] passwordChars = newPassword.toCharArray();
@@ -132,21 +128,23 @@ public class GuestAuthService {
     @Transactional
     public GuestSessionView authenticate(String rawPhone, String rawPassword) {
         UserAccountEntity account = findByPhoneForLogin(rawPhone);
-        if (account != null && account.getStatus() != AccountStatus.ACTIVE) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "AUTH_ACCOUNT_INACTIVE", "账号尚未激活或已停用");
-        }
 
         char[] password = rawPassword.toCharArray();
         boolean matches;
         try {
             matches = passwordHasher.matches(
                     password,
-                    account == null ? dummyPasswordHash : account.getPasswordHash());
+                    account == null || account.getPasswordHash() == null
+                            ? dummyPasswordHash
+                            : account.getPasswordHash());
         } finally {
             Arrays.fill(password, '\0');
         }
         if (account == null || !matches) {
             throw invalidLogin();
+        }
+        if (account.getStatus() != AccountStatus.ACTIVE) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "AUTH_ACCOUNT_INACTIVE", "账号尚未激活或已停用");
         }
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -175,7 +173,8 @@ public class GuestAuthService {
         try {
             String phone = phoneNormalizer.normalize(rawPhone);
             return userAccountMapper.selectOne(Wrappers.<UserAccountEntity>lambdaQuery()
-                    .eq(UserAccountEntity::getPhoneHmac, phoneProtector.searchHash(phone)));
+                    .eq(UserAccountEntity::getPhoneHmac, phoneProtector.searchHash(phone))
+                    .last("FOR UPDATE"));
         } catch (IllegalArgumentException exception) {
             return null;
         }
@@ -207,5 +206,9 @@ public class GuestAuthService {
 
     private static ApiException invalidLogin() {
         return new ApiException(HttpStatus.UNAUTHORIZED, "AUTH_INVALID_CREDENTIALS", "手机号或密码错误");
+    }
+
+    private static ApiException invalidActivation() {
+        return new ApiException(HttpStatus.UNAUTHORIZED, "ACTIVATION_INVALID", "手机号或初始凭证无效");
     }
 }
