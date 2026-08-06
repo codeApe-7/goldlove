@@ -126,11 +126,11 @@
 - Create: `services/platform-api/src/main/java/com/love/archive/admin/config/AdminBootstrapRunner.java`
 - Test: `services/platform-api/src/test/java/com/love/archive/admin/web/AdminAuthApiTest.java`
 
-- [ ] Write failing API tests for valid login, uniform invalid-credential responses, disabled administrators, request IDs, and an HttpOnly `SameSite=Lax` cookie.
-- [ ] Implement transactional administrator authentication with Argon2id and the `admin` Sa-Token logic; return no password-related fields.
-- [ ] Add optional environment-driven first-admin bootstrap that stores only a password hash and refuses blank/default credentials.
-- [ ] Add the stable error envelope and request ID propagation; make the API tests pass.
-- [ ] Commit administrator authentication.
+- [x] Write failing API tests for valid login, uniform invalid-credential responses, disabled administrators, request IDs, and an HttpOnly `SameSite=Lax` cookie.
+- [x] Implement transactional administrator authentication with Argon2id and the `admin` Sa-Token logic; return no password-related fields.
+- [x] Add optional environment-driven first-admin bootstrap that stores only a password hash and refuses blank/default credentials.
+- [x] Add the stable error envelope and request ID propagation; make the API tests pass.
+- [x] Commit administrator authentication.
 
 ## Task 6: Paid Guest Provisioning
 

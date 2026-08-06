@@ -37,8 +37,19 @@ sa-token:
   is-share: false
   token-style: tik
   is-log: false
+  cookie:
+    path: /
+    secure: ${AUTH_COOKIE_SECURE:true}
+    http-only: true
+    same-site: Lax
 
 app:
+  admin:
+    bootstrap:
+      enabled: ${ADMIN_BOOTSTRAP_ENABLED:false}
+      username: ${ADMIN_BOOTSTRAP_USERNAME:}
+      display-name: ${ADMIN_BOOTSTRAP_DISPLAY_NAME:}
+      password: ${ADMIN_BOOTSTRAP_PASSWORD:}
   identity:
     security:
       phone-encryption-key: ${PHONE_ENCRYPTION_KEY:}
@@ -60,4 +71,3 @@ management:
   endpoint:
     health:
       show-details: never
-
