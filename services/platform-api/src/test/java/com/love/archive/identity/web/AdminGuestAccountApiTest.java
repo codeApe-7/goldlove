@@ -54,6 +54,7 @@ class AdminGuestAccountApiTest extends ApiIntegrationTest {
 
         mockMvc.perform(post("/api/v1/admin/accounts")
                         .cookie(adminCookie)
+                        .header("Origin", "https://h5.example.test")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRequest("PAY-API-002")))
                 .andExpect(status().isCreated())
@@ -70,12 +71,14 @@ class AdminGuestAccountApiTest extends ApiIntegrationTest {
 
         mockMvc.perform(post("/api/v1/admin/accounts")
                         .cookie(adminCookie)
+                        .header("Origin", "https://h5.example.test")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRequest("PAY-API-003")))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/v1/admin/accounts")
                         .cookie(adminCookie)
+                        .header("Origin", "https://h5.example.test")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRequest("PAY-API-004")))
                 .andExpect(status().isConflict())
@@ -83,6 +86,7 @@ class AdminGuestAccountApiTest extends ApiIntegrationTest {
 
         mockMvc.perform(post("/api/v1/admin/accounts")
                         .cookie(adminCookie)
+                        .header("Origin", "https://h5.example.test")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"phone":"13900139000","paymentReference":"PAY-API-005",\
@@ -90,6 +94,18 @@ class AdminGuestAccountApiTest extends ApiIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void rejectsCookieAuthenticatedMutationWithoutTrustedOrigin() throws Exception {
+        Cookie adminCookie = login();
+
+        mockMvc.perform(post("/api/v1/admin/accounts")
+                        .cookie(adminCookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequest("PAY-API-CSRF")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CSRF_ORIGIN_REJECTED"));
     }
 
     private Cookie login() throws Exception {

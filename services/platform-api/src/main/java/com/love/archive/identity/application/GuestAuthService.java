@@ -1,9 +1,8 @@
 package com.love.archive.identity.application;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.love.archive.audit.domain.AuditActorType;
-import com.love.archive.audit.persistence.AuditLogEntity;
-import com.love.archive.audit.persistence.AuditLogMapper;
+import com.love.archive.audit.application.AuditEvent;
+import com.love.archive.audit.application.AuditTrail;
 import com.love.archive.common.web.ApiException;
 import com.love.archive.identity.domain.AccountStatus;
 import com.love.archive.identity.domain.PhoneNormalizer;
@@ -29,7 +28,7 @@ public class GuestAuthService {
 
     private final UserAccountMapper userAccountMapper;
     private final ActivationCredentialMapper activationCredentialMapper;
-    private final AuditLogMapper auditLogMapper;
+    private final AuditTrail auditTrail;
     private final PhoneNormalizer phoneNormalizer;
     private final PhoneProtector phoneProtector;
     private final PasswordHasher passwordHasher;
@@ -38,13 +37,13 @@ public class GuestAuthService {
     public GuestAuthService(
             UserAccountMapper userAccountMapper,
             ActivationCredentialMapper activationCredentialMapper,
-            AuditLogMapper auditLogMapper,
+            AuditTrail auditTrail,
             PhoneNormalizer phoneNormalizer,
             PhoneProtector phoneProtector,
             PasswordHasher passwordHasher) {
         this.userAccountMapper = userAccountMapper;
         this.activationCredentialMapper = activationCredentialMapper;
-        this.auditLogMapper = auditLogMapper;
+        this.auditTrail = auditTrail;
         this.phoneNormalizer = phoneNormalizer;
         this.phoneProtector = phoneProtector;
         this.passwordHasher = passwordHasher;
@@ -118,16 +117,15 @@ public class GuestAuthService {
             throw new ApiException(HttpStatus.CONFLICT, "ACTIVATION_CONFLICT", "账号状态已变化，请重试");
         }
 
-        AuditLogEntity audit = new AuditLogEntity();
-        audit.setActorType(AuditActorType.GUEST);
-        audit.setActorId(account.getId());
-        audit.setAction("GUEST_ACCOUNT_ACTIVATED");
-        audit.setTargetType("USER_ACCOUNT");
-        audit.setTargetId(account.getId());
-        audit.setRequestId(requestId);
-        audit.setMetadata("{}");
-        audit.setOccurredAt(now);
-        auditLogMapper.insert(audit);
+        auditTrail.append(new AuditEvent(
+                AuditEvent.ActorType.GUEST,
+                account.getId(),
+                "GUEST_ACCOUNT_ACTIVATED",
+                "USER_ACCOUNT",
+                account.getId(),
+                requestId,
+                "{}",
+                now));
         return new GuestSessionView(account.getId(), AccountStatus.ACTIVE);
     }
 

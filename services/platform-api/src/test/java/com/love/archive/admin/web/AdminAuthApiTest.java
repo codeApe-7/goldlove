@@ -56,6 +56,7 @@ class AdminAuthApiTest extends ApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Request-ID", "admin-login-request"))
                 .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("archive-token-admin="),
                         org.hamcrest.Matchers.containsString("Secure"),
                         org.hamcrest.Matchers.containsString("HttpOnly"),
                         org.hamcrest.Matchers.containsString("SameSite=Lax"))))

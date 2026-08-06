@@ -68,6 +68,7 @@ class GuestAuthApiTest extends ApiIntegrationTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("archive-token-guest="),
                         org.hamcrest.Matchers.containsString("Secure"),
                         org.hamcrest.Matchers.containsString("HttpOnly"),
                         org.hamcrest.Matchers.containsString("SameSite=Lax"))))
@@ -79,7 +80,9 @@ class GuestAuthApiTest extends ApiIntegrationTest {
                 .andExpect(jsonPath("$.data.accountId").value(provisioned.accountId()))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"));
 
-        mockMvc.perform(post("/api/v1/guest/auth/logout").cookie(guestCookie))
+        mockMvc.perform(post("/api/v1/guest/auth/logout")
+                        .cookie(guestCookie)
+                        .header("Origin", "https://h5.example.test"))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/guest/auth/me").cookie(guestCookie))

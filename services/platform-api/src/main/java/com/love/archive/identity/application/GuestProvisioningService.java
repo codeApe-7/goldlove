@@ -1,9 +1,8 @@
 package com.love.archive.identity.application;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.love.archive.audit.domain.AuditActorType;
-import com.love.archive.audit.persistence.AuditLogEntity;
-import com.love.archive.audit.persistence.AuditLogMapper;
+import com.love.archive.audit.application.AuditEvent;
+import com.love.archive.audit.application.AuditTrail;
 import com.love.archive.common.web.ApiException;
 import com.love.archive.identity.config.IdentitySecurityProperties;
 import com.love.archive.identity.domain.AccountStatus;
@@ -16,9 +15,9 @@ import com.love.archive.identity.security.InitialCredentialGenerator;
 import com.love.archive.identity.security.PasswordHasher;
 import com.love.archive.identity.security.PhoneProtector;
 import com.love.archive.identity.web.ProvisionedGuestView;
-import com.love.archive.payment.domain.PaymentStatus;
-import com.love.archive.payment.persistence.PaymentRecordEntity;
-import com.love.archive.payment.persistence.PaymentRecordMapper;
+import com.love.archive.payment.application.PaidPayment;
+import com.love.archive.payment.application.PaymentRecorder;
+import com.love.archive.payment.application.PaymentReferenceConflictException;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -30,9 +29,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class GuestProvisioningService {
 
     private final UserAccountMapper userAccountMapper;
-    private final PaymentRecordMapper paymentRecordMapper;
+    private final PaymentRecorder paymentRecorder;
     private final ActivationCredentialMapper activationCredentialMapper;
-    private final AuditLogMapper auditLogMapper;
+    private final AuditTrail auditTrail;
     private final PhoneNormalizer phoneNormalizer;
     private final PhoneProtector phoneProtector;
     private final InitialCredentialGenerator credentialGenerator;
@@ -41,18 +40,18 @@ public class GuestProvisioningService {
 
     public GuestProvisioningService(
             UserAccountMapper userAccountMapper,
-            PaymentRecordMapper paymentRecordMapper,
+            PaymentRecorder paymentRecorder,
             ActivationCredentialMapper activationCredentialMapper,
-            AuditLogMapper auditLogMapper,
+            AuditTrail auditTrail,
             PhoneNormalizer phoneNormalizer,
             PhoneProtector phoneProtector,
             InitialCredentialGenerator credentialGenerator,
             PasswordHasher passwordHasher,
             IdentitySecurityProperties securityProperties) {
         this.userAccountMapper = userAccountMapper;
-        this.paymentRecordMapper = paymentRecordMapper;
+        this.paymentRecorder = paymentRecorder;
         this.activationCredentialMapper = activationCredentialMapper;
-        this.auditLogMapper = auditLogMapper;
+        this.auditTrail = auditTrail;
         this.phoneNormalizer = phoneNormalizer;
         this.phoneProtector = phoneProtector;
         this.credentialGenerator = credentialGenerator;
@@ -98,23 +97,11 @@ public class GuestProvisioningService {
             throw exception;
         }
 
-        PaymentRecordEntity payment = new PaymentRecordEntity();
-        payment.setUserAccountId(account.getId());
-        payment.setPaymentReference(paymentReference);
-        payment.setAmountMinor(amountMinor);
-        payment.setCurrency("CNY");
-        payment.setStatus(PaymentStatus.PAID);
-        payment.setPaidAt(paidAt);
-        payment.setOperatorAdminId(adminId);
-        payment.setNote(note);
-        payment.setCreatedAt(now);
         try {
-            paymentRecordMapper.insert(payment);
-        } catch (DataIntegrityViolationException exception) {
-            if (containsConstraint(exception, "uq_payment_record_reference")) {
-                throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_REFERENCE_EXISTS", "支付流水号已存在");
-            }
-            throw exception;
+            paymentRecorder.recordPaid(new PaidPayment(
+                    account.getId(), paymentReference, amountMinor, paidAt, adminId, note, now));
+        } catch (PaymentReferenceConflictException exception) {
+            throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_REFERENCE_EXISTS", "支付流水号已存在");
         }
 
         String initialCredential = credentialGenerator.generate();
@@ -135,16 +122,15 @@ public class GuestProvisioningService {
         credential.setCreatedAt(now);
         activationCredentialMapper.insert(credential);
 
-        AuditLogEntity audit = new AuditLogEntity();
-        audit.setActorType(AuditActorType.ADMIN);
-        audit.setActorId(adminId);
-        audit.setAction("GUEST_ACCOUNT_PROVISIONED");
-        audit.setTargetType("USER_ACCOUNT");
-        audit.setTargetId(account.getId());
-        audit.setRequestId(requestId);
-        audit.setMetadata("{\"paymentReference\":\"" + paymentReference + "\"}");
-        audit.setOccurredAt(now);
-        auditLogMapper.insert(audit);
+        auditTrail.append(new AuditEvent(
+                AuditEvent.ActorType.ADMIN,
+                adminId,
+                "GUEST_ACCOUNT_PROVISIONED",
+                "USER_ACCOUNT",
+                account.getId(),
+                requestId,
+                "{\"paymentReference\":\"" + paymentReference + "\"}",
+                now));
 
         return new ProvisionedGuestView(
                 account.getId(), AccountStatus.PAID_PENDING_ACTIVATION, initialCredential, expiresAt);

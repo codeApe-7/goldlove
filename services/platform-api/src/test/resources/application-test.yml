@@ -12,6 +12,9 @@ logging:
 
 app:
   identity:
+    browser-security:
+      allowed-origins:
+        - https://h5.example.test
     security:
       phone-encryption-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       phone-search-key: //////////////////////////////////////////8=

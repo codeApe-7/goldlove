@@ -51,6 +51,8 @@ app:
       display-name: ${ADMIN_BOOTSTRAP_DISPLAY_NAME:}
       password: ${ADMIN_BOOTSTRAP_PASSWORD:}
   identity:
+    browser-security:
+      allowed-origins: ${BROWSER_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174}
     security:
       phone-encryption-key: ${PHONE_ENCRYPTION_KEY:}
       phone-search-key: ${PHONE_SEARCH_KEY:}

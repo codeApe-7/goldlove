@@ -10,13 +10,13 @@
 
 ## Global Constraints
 
-- [ ] Keep Spring Security and its transitive application APIs out of production code.
-- [ ] Use MyBatis-Plus built-in CRUD or wrappers for simple single-table access.
-- [ ] Do not create Mapper XML files. Any future complex join must use `@Select` or `@SelectProvider` and a typed result DTO.
-- [ ] Never persist or log plaintext passwords, activation credentials, phone numbers, OpenID, or UnionID.
-- [ ] Do not require object-storage, WeChat, SMS, email, or AI keys in this slice.
-- [ ] Use `ApiResponse<T>` with a stable error code and request ID for public endpoints.
-- [ ] Run each implementation change through a witnessed failing test before production code is added.
+- [x] Keep Spring Security and its transitive application APIs out of production code.
+- [x] Use MyBatis-Plus built-in CRUD or wrappers for simple single-table access.
+- [x] Do not create Mapper XML files. Any future complex join must use `@Select` or `@SelectProvider` and a typed result DTO.
+- [x] Never persist or log plaintext passwords, activation credentials, phone numbers, OpenID, or UnionID.
+- [x] Do not require object-storage, WeChat, SMS, email, or AI keys in this slice.
+- [x] Use `ApiResponse<T>` with a stable error code and request ID for public endpoints.
+- [x] Run each implementation change through a witnessed failing test before production code is added.
 
 ---
 
@@ -178,13 +178,15 @@
 - Create: `services/platform-api/src/test/java/com/love/archive/architecture/ModularityTest.java`
 - Create: `services/platform-api/src/test/java/com/love/archive/architecture/SensitiveDataGuardTest.java`
 
-- [ ] Write a failing Spring Modulith test for module-boundary verification; expose only deliberate application interfaces and make the test pass.
-- [ ] Write a failing source/resource guard test that detects Mapper XML, Spring Security imports/dependencies, committed plaintext secret defaults, and logging of sensitive request fields; make it pass.
-- [ ] Add local PostgreSQL/Redis Compose services, environment placeholders, container build, and operating instructions without real secrets.
-- [ ] Run `./mvnw -pl services/platform-api test` on Java 25 and require zero failures.
-- [ ] Run `./mvnw -pl services/platform-api package -DskipTests` and require a successful runnable JAR.
-- [ ] Review `git diff --check`, repository status, dependency tree, and the OpenAPI endpoint surface; record any environmental limitation rather than claiming unverified success.
-- [ ] Commit the verified identity-foundation slice.
+- [x] Write a failing Spring Modulith test for module-boundary verification; expose only deliberate application interfaces and make the test pass.
+- [x] Write a failing source/resource guard test that detects Mapper XML, Spring Security imports/dependencies, committed plaintext secret defaults, and logging of sensitive request fields; make it pass.
+- [x] Add local PostgreSQL/Redis Compose services, environment placeholders, container build, and operating instructions without real secrets.
+- [x] Run `./mvnw -pl services/platform-api test` on Java 25 and require zero failures.
+- [x] Run `./mvnw -pl services/platform-api package -DskipTests` and require a successful runnable JAR.
+- [x] Review `git diff --check`, repository status, dependency tree, and the documented endpoint surface; no OpenAPI generator is included in this backend-only slice.
+- [x] Commit the verified identity-foundation slice.
+
+Verification record: Java 25 full suite passed 43 tests with zero failures/errors; the 56 MB executable JAR and non-root Docker image built successfully; Compose validation and `git diff --check` passed; resolved dependencies and the runnable JAR contain Sa-Token but no Spring Security.
 
 ## Deferred Follow-up Plans
 

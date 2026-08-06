@@ -1,0 +1,7 @@
+.git
+.idea
+.toolchains
+.env
+**/target
+**/node_modules
+*.log

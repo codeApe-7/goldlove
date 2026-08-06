@@ -1,8 +1,11 @@
 package com.love.archive.testsupport;
 
-import com.love.archive.PlatformApiApplication;
+import com.love.archive.identity.config.AuthLogicConfiguration;
 import org.junit.jupiter.api.BeforeAll;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -14,7 +17,7 @@ import org.testcontainers.utility.DockerImageName;
 @Testcontainers
 @ActiveProfiles("test")
 @SpringBootTest(
-        classes = PlatformApiApplication.class,
+        classes = RedisIntegrationTest.RedisTestApplication.class,
         webEnvironment = SpringBootTest.WebEnvironment.NONE,
         properties = {
                 "spring.autoconfigure.exclude="
@@ -23,6 +26,12 @@ import org.testcontainers.utility.DockerImageName;
                         + "com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration"
         })
 public abstract class RedisIntegrationTest {
+
+    @SpringBootConfiguration
+    @EnableAutoConfiguration
+    @Import(AuthLogicConfiguration.class)
+    static class RedisTestApplication {
+    }
 
     @Container
     protected static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:8-alpine"))

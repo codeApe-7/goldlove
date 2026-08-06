@@ -31,6 +31,9 @@ class AuthLogicIntegrationTest extends RedisIntegrationTest {
 
     @Test
     void guestAndAdminWithSameNumericIdHaveIsolatedRedisSessions() {
+        assertThat(guest.getTokenName()).isEqualTo("archive-token-guest");
+        assertThat(admin.getTokenName()).isEqualTo("archive-token-admin");
+
         String guestToken = guest.createLoginSession(42L);
         String adminToken = admin.createLoginSession(42L);
 
