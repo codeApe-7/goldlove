@@ -16,6 +16,9 @@ import com.love.archive.consent.persistence.AuthorizationRecordEntity;
 import com.love.archive.consent.persistence.AuthorizationRecordMapper;
 import com.love.archive.identity.application.GuestProvisioningService;
 import com.love.archive.identity.web.ProvisionedGuestView;
+import com.love.archive.payment.domain.PaymentStatus;
+import com.love.archive.payment.persistence.PaymentRecordEntity;
+import com.love.archive.payment.persistence.PaymentRecordMapper;
 import com.love.archive.testsupport.ApiIntegrationTest;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -25,6 +28,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +54,7 @@ class ConsentServiceTest extends ApiIntegrationTest {
     @Autowired private AuditLogMapper auditLogMapper;
     @Autowired private AdminUserMapper adminUserMapper;
     @Autowired private GuestProvisioningService provisioningService;
+    @Autowired private PaymentRecordMapper paymentRecordMapper;
 
     private long accountId;
     private long authorizationDocumentId;
@@ -171,6 +181,53 @@ class ConsentServiceTest extends ApiIntegrationTest {
                 .isEqualTo("CONSENT_EXPIRED");
     }
 
+    @Test
+    void rejectsOldConsentWhenCurrentPaidEvidenceReferencesAnotherDocument() throws SQLException {
+        service.accept(accountId, new ConsentEvidenceCommand(
+                "v0.3", true, "guest-consent", "203.0.113.8", "Mozilla/5.0", "token-value"));
+        retireV03AndActivate("v0.4");
+        recordPaidDocument("PAY-CONSENT-SERVICE-V04", document("v0.4").getId());
+
+        assertThat(service.current(accountId)).isEmpty();
+        assertThatThrownBy(() -> eligibility.requireValid(accountId, authorizationDocumentId, NOW))
+                .isInstanceOf(ApiException.class)
+                .extracting(exception -> ((ApiException) exception).code())
+                .isEqualTo("PREPAYMENT_AUTHORIZATION_EVIDENCE_MISSING");
+    }
+
+    @Test
+    void serializesConcurrentAcceptancesIntoOneEvidenceRecord() throws Exception {
+        installAuthorizationRecordInsertDelay();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            CyclicBarrier start = new CyclicBarrier(2);
+            Callable<ConsentView> acceptance = () -> {
+                start.await();
+                return service.accept(accountId, new ConsentEvidenceCommand(
+                        "v0.3", true, "guest-consent", "203.0.113.8", "Mozilla/5.0", "token-value"));
+            };
+            Future<ConsentView> first = executor.submit(acceptance);
+            Future<ConsentView> second = executor.submit(acceptance);
+
+            ConsentView firstConsent = first.get(5, TimeUnit.SECONDS);
+            ConsentView secondConsent = second.get(5, TimeUnit.SECONDS);
+
+            assertThat(firstConsent.id()).isEqualTo(secondConsent.id());
+            assertThat(recordMapper.selectCount(Wrappers.<AuthorizationRecordEntity>lambdaQuery()
+                            .eq(AuthorizationRecordEntity::getUserAccountId, accountId)
+                            .eq(AuthorizationRecordEntity::getAuthorizationDocumentId, authorizationDocumentId)))
+                    .isEqualTo(1);
+            assertThat(auditLogMapper.selectCount(Wrappers.lambdaQuery(
+                            com.love.archive.audit.persistence.AuditLogEntity.class)
+                    .eq(com.love.archive.audit.persistence.AuditLogEntity::getAction, "CONSENT_ACCEPTED")
+                    .eq(com.love.archive.audit.persistence.AuditLogEntity::getActorId, accountId)))
+                    .isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+            removeAuthorizationRecordInsertDelay();
+        }
+    }
+
     private AuthorizationDocumentEntity document(String version) {
         return documentMapper.selectOne(Wrappers.<AuthorizationDocumentEntity>lambdaQuery()
                 .eq(AuthorizationDocumentEntity::getDocumentCode, "PAID_PROFILE_LIVE_CONTENT")
@@ -205,6 +262,56 @@ class ConsentServiceTest extends ApiIntegrationTest {
             insert.setString(1, version);
             insert.setString(2, status.name());
             insert.executeUpdate();
+        }
+    }
+
+    private void recordPaidDocument(String paymentReference, long documentId) {
+        PaymentRecordEntity payment = new PaymentRecordEntity();
+        payment.setUserAccountId(accountId);
+        payment.setPaymentReference(paymentReference);
+        payment.setAmountMinor(199_00L);
+        payment.setCurrency("CNY");
+        payment.setStatus(PaymentStatus.PAID);
+        payment.setPaidAt(NOW);
+        payment.setOperatorAdminId(adminId);
+        payment.setPresentedAuthorizationDocumentId(documentId);
+        payment.setCreatedAt(NOW);
+        paymentRecordMapper.insert(payment);
+    }
+
+    private void installAuthorizationRecordInsertDelay() throws SQLException {
+        try (Connection owner = DriverManager.getConnection(
+                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                PreparedStatement createFunction = owner.prepareStatement("""
+                        CREATE OR REPLACE FUNCTION delay_consent_record_insert_for_test()
+                        RETURNS trigger AS $$
+                        BEGIN
+                            PERFORM pg_sleep(0.25);
+                            RETURN NEW;
+                        END;
+                        $$ LANGUAGE plpgsql
+                        """);
+                PreparedStatement createTrigger = owner.prepareStatement("""
+                        CREATE TRIGGER delay_consent_record_insert_for_test
+                        BEFORE INSERT ON authorization_record
+                        FOR EACH ROW EXECUTE FUNCTION delay_consent_record_insert_for_test()
+                        """)) {
+            createFunction.executeUpdate();
+            createTrigger.executeUpdate();
+        }
+    }
+
+    private void removeAuthorizationRecordInsertDelay() throws SQLException {
+        try (Connection owner = DriverManager.getConnection(
+                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                PreparedStatement dropTrigger = owner.prepareStatement("""
+                        DROP TRIGGER IF EXISTS delay_consent_record_insert_for_test ON authorization_record
+                        """);
+                PreparedStatement dropFunction = owner.prepareStatement("""
+                        DROP FUNCTION IF EXISTS delay_consent_record_insert_for_test()
+                        """)) {
+            dropTrigger.executeUpdate();
+            dropFunction.executeUpdate();
         }
     }
 

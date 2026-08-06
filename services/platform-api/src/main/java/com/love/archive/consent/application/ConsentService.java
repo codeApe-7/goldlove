@@ -8,6 +8,7 @@ import com.love.archive.common.security.SensitiveValueProtector;
 import com.love.archive.common.web.ApiException;
 import com.love.archive.consent.persistence.AuthorizationDocumentEntity;
 import com.love.archive.consent.persistence.AuthorizationDocumentMapper;
+import com.love.archive.consent.persistence.ConsentAccountLockMapper;
 import com.love.archive.consent.persistence.AuthorizationRecordEntity;
 import com.love.archive.consent.persistence.AuthorizationRecordMapper;
 import com.love.archive.payment.application.PaymentAuthorizationEvidence;
@@ -33,6 +34,7 @@ public class ConsentService {
 
     private final AuthorizationDocumentQuery authorizationDocumentQuery;
     private final AuthorizationDocumentMapper authorizationDocumentMapper;
+    private final ConsentAccountLockMapper consentAccountLockMapper;
     private final PaymentAuthorizationEvidence paymentAuthorizationEvidence;
     private final AuthorizationRecordMapper authorizationRecordMapper;
     private final SensitiveValueProtector sensitiveValueProtector;
@@ -43,6 +45,7 @@ public class ConsentService {
     public ConsentView accept(long accountId, ConsentEvidenceCommand command) {
         validateAccepted(command.accepted());
         validateSourcePage(command.sourcePage());
+        consentAccountLockMapper.lockAccount(accountId);
         AuthorizationDocumentView document = authorizationDocumentQuery.requireVisibleToGuest(
                 accountId, DOCUMENT_CODE, command.authorizationDocumentVersion());
         requirePaidDocument(accountId, document.id());
