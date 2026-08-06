@@ -1,0 +1,14 @@
+.toolchains/
+.idea/
+.vscode/
+.DS_Store
+target/
+**/target/
+node_modules/
+.env
+.env.*
+!.env.example
+application-local.yml
+application-local.yaml
+*.log
+
