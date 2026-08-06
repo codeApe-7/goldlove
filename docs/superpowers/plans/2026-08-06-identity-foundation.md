@@ -143,11 +143,11 @@
 - Test: `services/platform-api/src/test/java/com/love/archive/identity/application/GuestProvisioningServiceTest.java`
 - Test: `services/platform-api/src/test/java/com/love/archive/identity/web/AdminGuestAccountApiTest.java`
 
-- [ ] Write failing service tests for atomic payment/account/activation/audit creation, duplicate phone rejection, and rollback on a duplicate payment reference.
-- [ ] Implement `GuestProvisioningService.provision(...)` with one transaction; persist encrypted phone plus HMAC and only the Argon2id hash of the generated initial credential.
-- [ ] Return the plaintext initial credential exactly once in `ProvisionedGuestView`; ensure it is absent from all subsequent reads and logs.
-- [ ] Write failing API tests for admin authorization, validation, and duplicate handling, then implement `POST /api/v1/admin/accounts` and make them pass.
-- [ ] Commit paid guest provisioning.
+- [x] Write failing service tests for atomic payment/account/activation/audit creation, duplicate phone rejection, and rollback on a duplicate payment reference.
+- [x] Implement `GuestProvisioningService.provision(...)` with one transaction; persist encrypted phone plus HMAC and only the Argon2id hash of the generated initial credential.
+- [x] Return the plaintext initial credential exactly once in `ProvisionedGuestView`; ensure it is absent from all subsequent reads and logs.
+- [x] Write failing API tests for admin authorization, validation, and duplicate handling, then implement `POST /api/v1/admin/accounts` and make them pass.
+- [x] Commit paid guest provisioning.
 
 ## Task 7: Guest Activation and Session APIs
 

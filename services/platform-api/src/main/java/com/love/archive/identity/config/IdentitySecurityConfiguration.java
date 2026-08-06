@@ -4,6 +4,7 @@ import com.love.archive.identity.domain.PhoneNormalizer;
 import com.love.archive.identity.security.Argon2PasswordHasher;
 import com.love.archive.identity.security.InitialCredentialGenerator;
 import com.love.archive.identity.security.PasswordHasher;
+import com.love.archive.identity.security.PhoneProtector;
 import java.security.SecureRandom;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,5 +39,13 @@ public class IdentitySecurityConfiguration {
     @Bean
     PhoneNormalizer phoneNormalizer() {
         return new PhoneNormalizer();
+    }
+
+    @Bean
+    PhoneProtector phoneProtector(SecureRandom secureRandom, IdentitySecurityProperties properties) {
+        return new PhoneProtector(
+                properties.getPhoneEncryptionKey(),
+                properties.getPhoneSearchKey(),
+                secureRandom);
     }
 }

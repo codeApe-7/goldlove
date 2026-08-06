@@ -10,3 +10,11 @@ logging:
   level:
     root: WARN
 
+app:
+  identity:
+    security:
+      phone-encryption-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      phone-search-key: //////////////////////////////////////////8=
+      argon2:
+        memory-ki-b: 1024
+        iterations: 1
