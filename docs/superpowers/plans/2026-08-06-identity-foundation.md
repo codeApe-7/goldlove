@@ -104,11 +104,11 @@
 - Create: `services/platform-api/src/test/java/com/love/archive/testsupport/RedisIntegrationTest.java`
 - Test: `services/platform-api/src/test/java/com/love/archive/identity/security/AuthLogicIntegrationTest.java`
 
-- [ ] Write a failing Redis-backed integration test proving guest and admin can use the same numeric ID without sharing login state or token namespace.
-- [ ] Define named `StpLogic` instances with login types `guest` and `admin`, persisted through the Sa-Token Redis DAO.
-- [ ] Add route guards: `/api/v1/admin/**` requires admin login except `/auth/login`; `/api/v1/guest/**` requires guest login except `/auth/login` and `/auth/activate`.
-- [ ] Make isolation, logout, and Redis persistence tests pass.
-- [ ] Commit Sa-Token session integration.
+- [x] Write a failing Redis-backed integration test proving guest and admin can use the same numeric ID without sharing login state or token namespace.
+- [x] Define named `StpLogic` instances with login types `guest` and `admin`, persisted through the Sa-Token Redis DAO.
+- [x] Add route guards: `/api/v1/admin/**` requires admin login except `/auth/login`; `/api/v1/guest/**` requires guest login except `/auth/login` and `/auth/activate`.
+- [x] Make isolation, logout, and Redis persistence tests pass.
+- [x] Commit Sa-Token session integration.
 
 ## Task 5: Common HTTP Contract and Administrator Login
 
