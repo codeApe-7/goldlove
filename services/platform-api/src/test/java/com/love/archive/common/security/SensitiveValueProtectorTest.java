@@ -32,7 +32,16 @@ class SensitiveValueProtectorTest {
     }
 
     @Test
+    void hmacUsesColonSeparatedInputAndUnpaddedUrlSafeBase64() {
+        assertThat(protector.hmac("consent:ip", "203.0.113.8"))
+                .isEqualTo("6QcreNtGgIyLJMEwf93D_qH2FcYAy0YkvmXYNFRGQk4");
+    }
+
+    @Test
     void rejectsInvalidKeysDomainsValuesAndCiphertext() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new SensitiveValueProtector(
+                        "not-base64", HMAC_KEY, new SecureRandom()));
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new SensitiveValueProtector(
                         base64Key(16, (byte) 0x43), HMAC_KEY, new SecureRandom()));
@@ -49,6 +58,8 @@ class SensitiveValueProtectorTest {
         unsupportedVersionCiphertext[0] = 2;
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> protector.decrypt("profile:wechat-id", unsupportedVersionCiphertext));
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> protector.hmac("consent:ip", " "));
     }
 
     private static String base64Key(int length, byte value) {
