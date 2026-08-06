@@ -161,11 +161,11 @@
 - Test: `services/platform-api/src/test/java/com/love/archive/identity/application/GuestAuthServiceTest.java`
 - Test: `services/platform-api/src/test/java/com/love/archive/identity/web/GuestAuthApiTest.java`
 
-- [ ] Write failing service tests for successful activation, expired/used/wrong credentials, password policy, atomic status change, and audit creation.
-- [ ] Implement activation so it verifies the initial Argon2id hash, saves the new Argon2id password hash, marks the credential consumed, changes status to `ACTIVE`, and writes audit in one transaction.
-- [ ] Write failing API tests for activation, login, `/me`, logout, inactive account rejection, uniform login errors, and guest cookies.
-- [ ] Implement `POST /api/v1/guest/auth/activate`, `POST /login`, `POST /logout`, and `GET /me`; make the tests pass.
-- [ ] Commit guest activation and login.
+- [x] Write failing service tests for successful activation, expired/used/wrong credentials, password policy, atomic status change, and audit creation.
+- [x] Implement activation so it verifies the initial Argon2id hash, saves the new Argon2id password hash, marks the credential consumed, changes status to `ACTIVE`, and writes audit in one transaction.
+- [x] Write failing API tests for activation, login, `/me`, logout, inactive account rejection, uniform login errors, and guest cookies.
+- [x] Implement `POST /api/v1/guest/auth/activate`, `POST /login`, `POST /logout`, and `GET /me`; make the tests pass.
+- [x] Commit guest activation and login.
 
 ## Task 8: Local Runtime, Security Checks, and Release Verification
 
