@@ -7,10 +7,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
-@Testcontainers
 @ActiveProfiles("test")
 @SpringBootTest(classes = PlatformApiApplication.class)
 public abstract class PostgresIntegrationTest {
@@ -18,13 +15,16 @@ public abstract class PostgresIntegrationTest {
     private static final String OWNER_PASSWORD = "integration-owner-only";
     private static final String RUNTIME_PASSWORD = "integration-runtime-only";
 
-    @Container
     protected static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:18-alpine")
                     .withDatabaseName("marriage_archive")
                     .withUsername("archive_owner")
                     .withPassword(OWNER_PASSWORD)
                     .withInitScript("db/test-init/create-runtime-role.sql");
+
+    static {
+        POSTGRES.start();
+    }
 
     @BeforeAll
     static void verifyContainerIsRunning() {

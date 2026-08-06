@@ -27,3 +27,6 @@ app:
       argon2:
         memory-ki-b: 1024
         iterations: 1
+  sensitive-security:
+    encryption-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    hmac-key: //////////////////////////////////////////8=

@@ -75,6 +75,9 @@ app:
         parallelism: 1
         salt-length: 16
         hash-length: 32
+  sensitive-security:
+    encryption-key: ${PROFILE_ENCRYPTION_KEY:}
+    hmac-key: ${PROFILE_HMAC_KEY:}
 
 management:
   endpoints:

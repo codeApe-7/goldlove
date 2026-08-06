@@ -64,6 +64,10 @@ public abstract class ApiIntegrationTest {
                 () -> "//////////////////////////////////////////8=");
         registry.add("app.identity.security.argon2.memory-ki-b", () -> "1024");
         registry.add("app.identity.security.argon2.iterations", () -> "1");
+        registry.add("app.sensitive-security.encryption-key",
+                () -> "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");
+        registry.add("app.sensitive-security.hmac-key",
+                () -> "//////////////////////////////////////////8=");
     }
 
     protected final void resetDatabase() {
@@ -71,8 +75,10 @@ public abstract class ApiIntegrationTest {
                         POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
                 var statement = connection.createStatement()) {
             statement.execute("""
-                    TRUNCATE TABLE audit_log, activation_credential, payment_record,
-                        external_identity, user_account, admin_user RESTART IDENTITY CASCADE
+                    TRUNCATE TABLE audit_log, profile_review_record, profile_revision_field_value,
+                        profile_revision, profile_field_value, guest_profile, authorization_record,
+                        activation_credential, payment_record, external_identity, user_account,
+                        admin_user RESTART IDENTITY CASCADE
                     """);
         } catch (SQLException exception) {
             throw new IllegalStateException("测试数据库清理失败", exception);
