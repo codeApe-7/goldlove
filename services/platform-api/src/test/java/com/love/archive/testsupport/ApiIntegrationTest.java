@@ -76,7 +76,8 @@ public abstract class ApiIntegrationTest {
                 var statement = connection.createStatement()) {
             statement.execute("""
                     TRUNCATE TABLE audit_log, profile_review_record, profile_revision_field_value,
-                        profile_revision, profile_field_value, guest_profile, authorization_record,
+                        profile_revision, profile_revision_photo, profile_photo,
+                        profile_field_value, guest_profile, authorization_record,
                         activation_credential, payment_record, external_identity, user_account,
                         admin_user RESTART IDENTITY CASCADE
                     """);
