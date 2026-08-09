@@ -287,6 +287,68 @@ class ProfileConsentPersistenceTest extends PostgresIntegrationTest {
         }
     }
 
+    @Test
+    void runtimeValueInsertPermanentlyMarksDefinitionUsed() throws SQLException {
+        try (Connection owner = ownerConnection(); Connection runtime = runtimeConnection()) {
+            RuntimeFieldFixture fixture = createRuntimeFieldFixture(owner, runtime);
+            try {
+                assertThat(queryBoolean(runtime, "SELECT ever_used FROM profile_field_definition WHERE id = %d"
+                        .formatted(fixture.fieldDefinitionId()))).isTrue();
+                assertSqlRejected(
+                        () -> execute(runtime, "UPDATE profile_field_definition SET ever_used = FALSE WHERE id = %d"
+                                .formatted(fixture.fieldDefinitionId())),
+                        "profile field definition usage cannot be reset");
+            } finally {
+                deleteRuntimeFieldFixture(owner, fixture);
+            }
+        }
+    }
+
+    @Test
+    void runtimeCannotChangeFieldCodeAfterFirstUse() throws SQLException {
+        try (Connection owner = ownerConnection(); Connection runtime = runtimeConnection()) {
+            RuntimeFieldFixture fixture = createRuntimeFieldFixture(owner, runtime);
+            try {
+                assertSqlRejected(
+                        () -> execute(runtime, "UPDATE profile_field_definition SET field_code = 'renamed-%s' WHERE id = %d"
+                                .formatted(uniqueSuffix(), fixture.fieldDefinitionId())),
+                        "used profile field definition identity is immutable");
+            } finally {
+                deleteRuntimeFieldFixture(owner, fixture);
+            }
+        }
+    }
+
+    @Test
+    void runtimeCannotChangeDataTypeAfterFirstUse() throws SQLException {
+        try (Connection owner = ownerConnection(); Connection runtime = runtimeConnection()) {
+            RuntimeFieldFixture fixture = createRuntimeFieldFixture(owner, runtime);
+            try {
+                assertSqlRejected(
+                        () -> execute(runtime, "UPDATE profile_field_definition SET data_type = 'INTEGER' WHERE id = %d"
+                                .formatted(fixture.fieldDefinitionId())),
+                        "used profile field definition identity is immutable");
+            } finally {
+                deleteRuntimeFieldFixture(owner, fixture);
+            }
+        }
+    }
+
+    @Test
+    void runtimeCannotChangeStorageKindAfterFirstUse() throws SQLException {
+        try (Connection owner = ownerConnection(); Connection runtime = runtimeConnection()) {
+            RuntimeFieldFixture fixture = createRuntimeFieldFixture(owner, runtime);
+            try {
+                assertSqlRejected(
+                        () -> execute(runtime, "UPDATE profile_field_definition SET storage_kind = 'CORE' WHERE id = %d"
+                                .formatted(fixture.fieldDefinitionId())),
+                        "profile field definition storage kind is immutable");
+            } finally {
+                deleteRuntimeFieldFixture(owner, fixture);
+            }
+        }
+    }
+
     private static OwnerFixture createOwnerFixture(Connection owner) throws SQLException {
         String suffix = uniqueSuffix();
         long adminId = insertOwnerAdmin(owner, suffix);
@@ -335,6 +397,38 @@ class ProfileConsentPersistenceTest extends PostgresIntegrationTest {
                 authorizationRecordId,
                 revisionFieldValueId,
                 reviewRecordId);
+    }
+
+    private static RuntimeFieldFixture createRuntimeFieldFixture(Connection owner, Connection runtime)
+            throws SQLException {
+        String suffix = uniqueSuffix();
+        long adminId = insertOwnerAdmin(owner, suffix);
+        long accountId = insertOwnerAccount(owner, suffix, adminId);
+        long profileId = insertReturningId(runtime, """
+                INSERT INTO guest_profile (profile_no, user_account_id, status)
+                VALUES (gen_random_uuid(), %d, 'DRAFT')
+                RETURNING id
+                """.formatted(accountId));
+        long fieldDefinitionId = insertReturningId(runtime, """
+                INSERT INTO profile_field_definition
+                    (field_code, label, storage_kind, data_type, required, enabled, sort_order)
+                VALUES ('runtime-invariant-%s', 'Runtime invariant', 'DYNAMIC', 'TEXT', FALSE, TRUE, 950)
+                RETURNING id
+                """.formatted(suffix));
+        long fieldValueId = insertReturningId(runtime, """
+                INSERT INTO profile_field_value (guest_profile_id, field_definition_id, text_value)
+                VALUES (%d, %d, 'first value')
+                RETURNING id
+                """.formatted(profileId, fieldDefinitionId));
+        return new RuntimeFieldFixture(adminId, accountId, profileId, fieldDefinitionId, fieldValueId);
+    }
+
+    private static void deleteRuntimeFieldFixture(Connection owner, RuntimeFieldFixture fixture) throws SQLException {
+        execute(owner, "DELETE FROM profile_field_value WHERE id = %d".formatted(fixture.fieldValueId()));
+        execute(owner, "DELETE FROM guest_profile WHERE id = %d".formatted(fixture.profileId()));
+        execute(owner, "DELETE FROM profile_field_definition WHERE id = %d".formatted(fixture.fieldDefinitionId()));
+        execute(owner, "DELETE FROM user_account WHERE id = %d".formatted(fixture.accountId()));
+        execute(owner, "DELETE FROM admin_user WHERE id = %d".formatted(fixture.adminId()));
     }
 
     private static long insertOwnerAdmin(Connection connection, String suffix) throws SQLException {
@@ -405,6 +499,13 @@ class ProfileConsentPersistenceTest extends PostgresIntegrationTest {
         }
     }
 
+    private static boolean queryBoolean(Connection connection, String sql) throws SQLException {
+        try (Statement statement = connection.createStatement(); ResultSet resultSet = statement.executeQuery(sql)) {
+            resultSet.next();
+            return resultSet.getBoolean(1);
+        }
+    }
+
     private static int execute(Connection connection, String sql) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             return statement.executeUpdate(sql);
@@ -436,5 +537,13 @@ class ProfileConsentPersistenceTest extends PostgresIntegrationTest {
             long authorizationRecordId,
             long revisionFieldValueId,
             long reviewRecordId) {
+    }
+
+    private record RuntimeFieldFixture(
+            long adminId,
+            long accountId,
+            long profileId,
+            long fieldDefinitionId,
+            long fieldValueId) {
     }
 }
