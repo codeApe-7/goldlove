@@ -1,6 +1,6 @@
 # 婚恋智能档案库
 
-当前仓库已实现第一阶段后端身份闭环：管理员登录、管理员登记已付费访客、一次性初始凭证激活、访客登录/会话查询/退出。对象存储、微信网络调用、档案内容、审核工作流和 AI 能力暂未接入，因此当前不需要任何云厂商 Key。
+当前仓库已实现后端身份与建档审核闭环：管理员登录、登记已付费访客、一次性初始凭证激活、访客登录/会话查询/退出、付费前授权书展示与主动同意、档案草稿保存、不可变提交与幂等重试、管理员审核通过与退回。对象存储（照片上传）、微信网络调用和 AI 能力暂未接入，因此当前不需要任何云厂商 Key，只需本地生成档案敏感字段的加解密密钥。
 
 ## 已选技术栈
 
@@ -20,9 +20,11 @@
 cp .env.example .env
 openssl rand -base64 32
 openssl rand -base64 32
+openssl rand -base64 32
+openssl rand -base64 32
 ```
 
-将两次生成的不同值分别填入 `.env` 的 `PHONE_ENCRYPTION_KEY` 与 `PHONE_SEARCH_KEY`，并替换 PostgreSQL 所有者、应用运行账号、Redis 和初始管理员密码。只有首次需要创建管理员时才把 `ADMIN_BOOTSTRAP_ENABLED` 改为 `true`；创建成功后立即恢复为 `false`。随后启动：
+将四次生成的不同值分别填入 `.env` 的 `PHONE_ENCRYPTION_KEY`、`PHONE_SEARCH_KEY`、`PROFILE_ENCRYPTION_KEY` 与 `PROFILE_HMAC_KEY`，并替换 PostgreSQL 所有者、应用运行账号、Redis 和初始管理员密码。手机号密钥与档案密钥必须互相独立；`PROFILE_ENCRYPTION_KEY` 用于加密微信号、抖音号、抖音昵称和主页链接，`PROFILE_HMAC_KEY` 用于生成微信号/抖音号等值查询索引和幂等键摘要。只有首次需要创建管理员时才把 `ADMIN_BOOTSTRAP_ENABLED` 改为 `true`；创建成功后立即恢复为 `false`。随后启动：
 
 ```bash
 docker compose up --build
@@ -45,6 +47,22 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | POST | `/api/v1/admin/auth/login` | 无 | 管理员登录 |
 | POST | `/api/v1/admin/accounts` | 管理员 | 登记已付款访客并仅本次返回初始凭证 |
 | POST | `/api/v1/admin/accounts/activation-credentials/reissue` | 管理员 | 初始响应丢失时补发一次性凭证并作废旧凭证 |
+| GET | `/api/v1/public/authorization-documents/current` | 无 | 获取当前生效的授权书 |
+| GET | `/api/v1/guest/authorization-documents/{version}` | 访客 | 查看当前或本人付款记录引用的历史授权书 |
+| GET | `/api/v1/guest/consents/current` | 访客 | 查询当前有效授权 |
+| POST | `/api/v1/guest/consents` | 访客 | 主动同意当前授权书版本 |
+| GET | `/api/v1/guest/profile/draft` | 访客 | 查询本人档案草稿（含解密后的本人敏感标识） |
+| PUT | `/api/v1/guest/profile/draft` | 访客 | 保存/更新档案草稿（乐观锁 `expectedVersion`） |
+| GET | `/api/v1/guest/profile/status` | 访客 | 查询建档状态 |
+| POST | `/api/v1/guest/profile/submissions` | 访客 | 提交不可变档案版本（必须携带 `Idempotency-Key` 请求头） |
+| GET | `/api/v1/guest/profile/revisions/{revisionId}` | 访客 | 查询本人提交的版本详情 |
+| GET | `/api/v1/admin/profile-field-definitions` | 管理员 | 分页查询档案字段定义 |
+| POST | `/api/v1/admin/profile-field-definitions` | 管理员 | 新增动态字段定义 |
+| PATCH | `/api/v1/admin/profile-field-definitions/{id}` | 管理员 | 更新字段定义（受保护属性不可修改） |
+| GET | `/api/v1/admin/profile-reviews` | 管理员 | 分页查询待审版本（支持状态、超时、提交时间、档案编号筛选） |
+| GET | `/api/v1/admin/profile-reviews/{revisionId}` | 管理员 | 版本审核详情与相对最后已通过版本的字段差异 |
+| POST | `/api/v1/admin/profile-reviews/{revisionId}/approve` | 管理员 | 审核通过（请求体携带 `expectedVersion`） |
+| POST | `/api/v1/admin/profile-reviews/{revisionId}/reject` | 管理员 | 审核退回（必须提供面向嘉宾的说明） |
 | POST | `/api/v1/guest/auth/activate` | 无 | 使用手机号、初始凭证设置正式密码 |
 | POST | `/api/v1/guest/auth/login` | 无 | 访客登录 |
 | GET | `/api/v1/guest/auth/me` | 访客 | 查询当前会话 |
@@ -53,6 +71,16 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 所有响应统一包含 `success`、`code`、`message`、`data` 和 `requestId`。客户端可以传入安全格式的 `X-Request-ID`，否则服务端自动生成。
 
 管理员和访客分别使用 `archive-token-admin`、`archive-token-guest`，即便主键数值相同也不会共享会话。浏览器 Cookie 默认启用 `Secure`、`HttpOnly`、`SameSite=Lax`。携带 Cookie 的写请求必须提供可信 `Origin` 或 `Referer`；未来微信小程序使用请求头令牌，不受浏览器来源校验影响，但仍复用同一套 Sa-Token 会话与账号状态校验。
+
+## 建档与审核流程
+
+1. 管理员登记已付款访客时，系统会把付款记录绑定到创建访客时传入的授权书版本（`authorizationDocumentVersion`），付款前展示给用户的是同一份授权书。
+2. 访客激活后主动同意该版本授权书（一年有效期），然后保存档案草稿；微信号、抖音号、抖音昵称和主页链接以 AES-256-GCM 随机加密存储，查询索引和幂等键只保存 HMAC。
+3. 访客提交时生成不可变版本快照和 24 小时审核截止时间；`Idempotency-Key` 绑定“账号 + 键 + 规范化内容摘要”，相同内容重试返回原版本，键被用于不同内容时返回 `IDEMPOTENCY_KEY_REUSED`。
+4. 管理员在审核列表按状态/即将超时/已超时/提交时间/档案编号筛选，查看相对最后已通过版本的字段级差异后通过或退回；退回必须附带面向嘉宾的说明。通过会切换档案的已通过版本指针，退回保留最后已通过版本并将档案置为待修改。
+5. 审核记录只追加、版本快照不可变；重复提交相同审核结果幂等返回，把已完成版本改成另一结果返回 `PROFILE_REVIEW_ALREADY_COMPLETED`。
+
+照片字段在本阶段仅展示为“未接入”状态；待提供对象存储凭据后再实现上传闭环，不会把对象存储 Key 下发到 H5 或小程序。
 
 ## 本机 Java 构建
 
@@ -71,6 +99,9 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 - 持久化实体不使用 Lombok `@Data` 或类级 `@ToString`，避免敏感字段进入日志；密文字节数组继续防御性复制。
 - 初始凭证仅在管理员创建访客账号的响应中出现一次，库内只保存 Argon2id 摘要。
 - 手机号使用 AES-256-GCM 随机加密，并以独立 HMAC 密钥生成查询索引。
+- 微信号、抖音号、抖音昵称和主页链接使用独立于手机号的 AES-256-GCM 密钥加密，只对确需精确查询的标识生成 HMAC。
+- 档案提交版本与审核记录在数据库层不可变；审核退回保留最后已通过版本，不覆盖历史审核结果。
+- 提交接口必须携带 `Idempotency-Key`，键与请求内容摘要绑定，避免重复提交产生重复版本。
 - 审计记录在数据库层禁止更新和删除。
 - Flyway 使用 `archive_owner`，业务进程使用无 DDL 权限的 `archive_app`；运行账号对审计表只有查询和追加权限。
 - 首管理员初始化默认关闭；开启时拒绝空白、过短和常见默认密码。

@@ -43,6 +43,8 @@ class SensitiveDataGuardTest {
                 .contains("${REDIS_PASSWORD:}")
                 .contains("${PHONE_ENCRYPTION_KEY:}")
                 .contains("${PHONE_SEARCH_KEY:}")
+                .contains("${PROFILE_ENCRYPTION_KEY:}")
+                .contains("${PROFILE_HMAC_KEY:}")
                 .contains("${ADMIN_BOOTSTRAP_PASSWORD:}");
     }
 
@@ -50,7 +52,60 @@ class SensitiveDataGuardTest {
     void productionLoggingDoesNotReferenceSensitiveRequestFields() throws IOException {
         String productionJava = readTree(MODULE_ROOT.resolve("src/main/java"));
         assertThat(productionJava)
-                .doesNotContainPattern("(?i)LOGGER\\.(trace|debug|info|warn|error)\\([^;]*(password|phone|credential|openid|unionid)");
+                .doesNotContainPattern("(?i)LOGGER\\.(trace|debug|info|warn|error)\\("
+                        + "[^;]*(password|phone|credential|openid|unionid"
+                        + "|wechat|douyin|clientIp|sessionReference)");
+    }
+
+    @Test
+    void localEnvExampleDocumentsProfileEncryptionKeys() throws IOException {
+        String envExample = Files.readString(
+                MODULE_ROOT.resolve("../../.env.example").normalize());
+        assertThat(envExample)
+                .contains("PROFILE_ENCRYPTION_KEY=")
+                .contains("PROFILE_HMAC_KEY=");
+    }
+
+    @Test
+    void everyCustomMapperDeclaresAnnotatedStatements() throws IOException {
+        List<Path> mappers;
+        try (var files = Files.walk(MODULE_ROOT.resolve("src/main/java"))) {
+            mappers = files.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith("Mapper.java"))
+                    .toList();
+        }
+        assertThat(mappers).isNotEmpty();
+        for (Path mapper : mappers) {
+            String source = Files.readString(mapper);
+            String body = source.substring(source.indexOf('{'), source.lastIndexOf('}'));
+            if (!body.contains(";")) {
+                continue;
+            }
+            assertThat(source)
+                    .withFailMessage("Mapper %s declares custom statements without annotations",
+                            mapper)
+                    .containsAnyOf(
+                            "@Select", "@SelectProvider", "@Insert", "@Update", "@Delete");
+        }
+    }
+
+    @Test
+    void sourceAndResourceTreesContainNoMapperXml() throws IOException {
+        List<Path> xmlFiles;
+        try (var files = Files.walk(MODULE_ROOT.resolve("src"))) {
+            xmlFiles = files.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName()
+                            .toString()
+                            .toLowerCase(Locale.ROOT)
+                            .endsWith(".xml"))
+                    .toList();
+        }
+        assertThat(xmlFiles).isEmpty();
+
+        String modulePom = Files.readString(MODULE_ROOT.resolve("pom.xml"));
+        assertThat(modulePom)
+                .doesNotContain("mapper-locations")
+                .doesNotContain("Mapper.xml");
     }
 
     private static String readTree(Path root) throws IOException {
