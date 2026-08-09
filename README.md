@@ -147,6 +147,22 @@ location /api/ {
 
 管理后台功能：管理员登录/退出、工作台四项统计（待审核、今日登记、今日审核、累计建档）、访客登记与补发初始凭证、档案字段配置、审核列表/详情/通过/退回（含照片预览与字段差异）。
 
+## 嘉宾端（apps/guest-app）
+
+uni-app（Vue 3 + TypeScript），第一期发布 H5，后续适配微信小程序：
+
+```bash
+cd apps/guest-app
+npm install          # 项目含 .npmrc（legacy-peer-deps），按配置安装即可
+npm run dev:h5       # 开发：/api 代理到 http://localhost:8080
+npx vitest run --config vitest.config.ts
+npm run build:h5     # 产物 dist/build/h5
+```
+
+部署：H5 静态托管 + Nginx 同源反代 `/api`，并确保后端 `BROWSER_ALLOWED_ORIGINS` 包含 H5 域名（浏览器 Cookie 写请求的可信来源校验）。
+
+嘉宾端功能：激活登录、授权书查看与主动同意、动态档案表单（核心 + 自定义字段）、头像/生活照上传与删除、保存草稿、幂等提交（`Idempotency-Key`）、状态查看与退回修改重提、个人中心（授权有效期、重新授权、退出）。
+
 ## 安全约束
 
 - 数据库不保存或记录明文密码、初始凭证、手机号、OpenID 或 UnionID。
