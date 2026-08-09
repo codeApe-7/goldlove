@@ -2,6 +2,9 @@ package com.love.archive.review.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.love.archive.admin.domain.AdminStatus;
@@ -19,12 +22,15 @@ import com.love.archive.guest.application.GuestProfileDraftService;
 import com.love.archive.guest.application.SaveGuestProfileCommand;
 import com.love.archive.guest.application.TextFieldInput;
 import com.love.archive.guest.domain.FieldStorageKind;
+import com.love.archive.guest.domain.PhotoCategory;
 import com.love.archive.guest.domain.ProfileFieldType;
 import com.love.archive.guest.domain.ProfileStatus;
 import com.love.archive.guest.persistence.GuestProfileEntity;
 import com.love.archive.guest.persistence.GuestProfileMapper;
 import com.love.archive.guest.persistence.ProfileFieldDefinitionEntity;
 import com.love.archive.guest.persistence.ProfileFieldDefinitionMapper;
+import com.love.archive.guest.persistence.ProfilePhotoEntity;
+import com.love.archive.guest.persistence.ProfilePhotoMapper;
 import com.love.archive.identity.domain.AccountStatus;
 import com.love.archive.identity.persistence.UserAccountEntity;
 import com.love.archive.identity.persistence.UserAccountMapper;
@@ -36,6 +42,9 @@ import com.love.archive.review.persistence.ProfileRevisionEntity;
 import com.love.archive.review.persistence.ProfileRevisionFieldValueEntity;
 import com.love.archive.review.persistence.ProfileRevisionFieldValueMapper;
 import com.love.archive.review.persistence.ProfileRevisionMapper;
+import com.love.archive.review.persistence.ProfileRevisionPhotoEntity;
+import com.love.archive.review.persistence.ProfileRevisionPhotoMapper;
+import com.love.archive.storage.application.ObjectStorageService;
 import com.love.archive.testsupport.ApiIntegrationTest;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -60,6 +69,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.dao.DataAccessException;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @Import(ProfileSubmissionServiceTest.FixedClockConfiguration.class)
 class ProfileSubmissionServiceTest extends ApiIntegrationTest {
@@ -74,6 +84,8 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
     @Autowired private ProfileFieldDefinitionMapper definitionMapper;
     @Autowired private ProfileRevisionMapper revisionMapper;
     @Autowired private ProfileRevisionFieldValueMapper revisionFieldMapper;
+    @Autowired private ProfilePhotoMapper photoMapper;
+    @Autowired private ProfileRevisionPhotoMapper revisionPhotoMapper;
     @Autowired private AuthorizationDocumentMapper documentMapper;
     @Autowired private AuthorizationRecordMapper authorizationRecordMapper;
     @Autowired private PaymentRecordMapper paymentMapper;
@@ -81,6 +93,7 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
     @Autowired private AdminUserMapper adminMapper;
     @Autowired private AuditLogMapper auditMapper;
     @Autowired private SensitiveValueProtector sensitiveValueProtector;
+    @MockitoBean private ObjectStorageService storageService;
 
     private long adminId;
     private long accountId;
@@ -93,6 +106,8 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
         accountId = insertAccount(AccountStatus.ACTIVE, "task5-primary");
         authorizationDocumentId = currentAuthorizationDocument().getId();
         ensureDynamicDefinition(false);
+        when(storageService.signDownloadUrl(anyString(), any()))
+                .thenReturn("https://loveplatform-1314980040.cos.ap-guangzhou.myqcloud.com/signed");
     }
 
     @Test
@@ -249,6 +264,39 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
     }
 
     @Test
+    void rejectsSubmissionWithoutAvatarPhoto() {
+        draftService.save(accountId, completeCommand(null, null), REQUEST_ID);
+        recordPaidAuthorization(authorizationDocumentId);
+        recordConsent(authorizationDocumentId, NOW.plusDays(1));
+
+        assertCode(() -> service.submit(accountId, "submit-no-avatar", REQUEST_ID),
+                "PROFILE_VALIDATION_FAILED");
+    }
+
+    @Test
+    void snapshotsCurrentPhotosIntoImmutableRevision() {
+        saveCompleteDraft();
+        recordPaidAuthorization(authorizationDocumentId);
+        recordConsent(authorizationDocumentId, NOW.plusDays(1));
+
+        ProfileRevisionView revision = service.submit(
+                accountId, "submit-photo", REQUEST_ID);
+
+        assertThat(revision.photos()).hasSize(1);
+        assertThat(revision.photos().getFirst().category()).isEqualTo("AVATAR");
+        assertThat(revisionPhotoMapper.selectCount(
+                        Wrappers.<ProfileRevisionPhotoEntity>lambdaQuery()
+                                .eq(ProfileRevisionPhotoEntity::getProfileRevisionId,
+                                        revision.id())))
+                .isEqualTo(1);
+        ProfileRevisionPhotoEntity snapshot = revisionPhotoMapper.selectOne(
+                Wrappers.<ProfileRevisionPhotoEntity>lambdaQuery()
+                        .eq(ProfileRevisionPhotoEntity::getProfileRevisionId, revision.id()));
+        assertThat(snapshot.getObjectKey())
+                .isEqualTo("profiles/" + profile().getId() + "/avatar/fixture.jpg");
+    }
+
+    @Test
     void rejectsSecondPendingRevision() {
         saveCompleteDraft();
         recordPaidAuthorization(authorizationDocumentId);
@@ -315,6 +363,24 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
 
     private void saveCompleteDraft() {
         draftService.save(accountId, completeCommand(null, null), REQUEST_ID);
+        insertAvatarPhoto(profile().getId());
+    }
+
+    private void insertAvatarPhoto(long profileId) {
+        ProfilePhotoEntity photo = new ProfilePhotoEntity();
+        photo.setGuestProfileId(profileId);
+        photo.setCategory(PhotoCategory.AVATAR);
+        photo.setObjectKey("profiles/" + profileId + "/avatar/fixture.jpg");
+        photo.setSha256("e".repeat(64));
+        photo.setSizeBytes(10L);
+        photo.setContentType("image/jpeg");
+        photo.setWidth(100);
+        photo.setHeight(100);
+        photo.setSortOrder(0);
+        OffsetDateTime now = OffsetDateTime.now();
+        photo.setCreatedAt(now);
+        photo.setUpdatedAt(now);
+        photoMapper.insert(photo);
     }
 
     private SaveGuestProfileCommand completeCommand(

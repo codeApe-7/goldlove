@@ -149,7 +149,8 @@ class CanonicalSnapshotHasherTest {
                         null,
                         null,
                         null,
-                        null)));
+                        null)),
+                List.of());
     }
 
     private byte[] encrypt(String domain, String value) {

@@ -21,10 +21,12 @@ public record ProfileRevisionView(
         OffsetDateTime reviewDeadlineAt,
         OffsetDateTime reviewedAt,
         long version,
-        List<FieldValue> dynamicFields) {
+        List<FieldValue> dynamicFields,
+        List<Photo> photos) {
 
     public ProfileRevisionView {
         dynamicFields = List.copyOf(dynamicFields);
+        photos = List.copyOf(photos);
     }
 
     public record FieldValue(
@@ -38,5 +40,16 @@ public record ProfileRevisionView(
             LocalDate dateValue,
             Boolean booleanValue,
             String optionValue) {
+    }
+
+    public record Photo(
+            String category,
+            String sha256,
+            long sizeBytes,
+            String contentType,
+            int width,
+            int height,
+            int sortOrder,
+            String downloadUrl) {
     }
 }

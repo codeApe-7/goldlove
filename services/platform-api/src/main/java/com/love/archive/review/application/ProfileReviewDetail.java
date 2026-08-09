@@ -29,10 +29,12 @@ public record ProfileReviewDetail(
         long version,
         List<ProfileRevisionView.FieldValue> dynamicFields,
         Long lastApprovedRevisionId,
+        List<ProfileRevisionView.Photo> photos,
         List<ProfileFieldDifference> differences) {
 
     public ProfileReviewDetail {
         dynamicFields = List.copyOf(dynamicFields);
+        photos = List.copyOf(photos);
         differences = List.copyOf(differences);
     }
 }

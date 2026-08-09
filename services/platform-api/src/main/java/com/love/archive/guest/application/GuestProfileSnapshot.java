@@ -22,7 +22,8 @@ public record GuestProfileSnapshot(
         String douyinIdHmac,
         byte[] douyinNicknameCiphertext,
         byte[] douyinProfileUrlCiphertext,
-        List<FieldValue> dynamicFields) {
+        List<FieldValue> dynamicFields,
+        List<Photo> photos) {
 
     public GuestProfileSnapshot {
         wechatIdCiphertext = cloneOrNull(wechatIdCiphertext);
@@ -30,6 +31,7 @@ public record GuestProfileSnapshot(
         douyinNicknameCiphertext = cloneOrNull(douyinNicknameCiphertext);
         douyinProfileUrlCiphertext = cloneOrNull(douyinProfileUrlCiphertext);
         dynamicFields = List.copyOf(dynamicFields);
+        photos = List.copyOf(photos);
     }
 
     @Override
@@ -67,5 +69,16 @@ public record GuestProfileSnapshot(
             LocalDate dateValue,
             Boolean booleanValue,
             String optionValue) {
+    }
+
+    public record Photo(
+            String category,
+            String objectKey,
+            String sha256,
+            long sizeBytes,
+            String contentType,
+            int width,
+            int height,
+            int sortOrder) {
     }
 }

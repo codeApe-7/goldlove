@@ -2,6 +2,9 @@ package com.love.archive.review.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.love.archive.admin.domain.AdminStatus;
@@ -20,12 +23,15 @@ import com.love.archive.guest.application.GuestProfileDraftService;
 import com.love.archive.guest.application.SaveGuestProfileCommand;
 import com.love.archive.guest.application.TextFieldInput;
 import com.love.archive.guest.domain.FieldStorageKind;
+import com.love.archive.guest.domain.PhotoCategory;
 import com.love.archive.guest.domain.ProfileFieldType;
 import com.love.archive.guest.domain.ProfileStatus;
 import com.love.archive.guest.persistence.GuestProfileEntity;
 import com.love.archive.guest.persistence.GuestProfileMapper;
 import com.love.archive.guest.persistence.ProfileFieldDefinitionEntity;
 import com.love.archive.guest.persistence.ProfileFieldDefinitionMapper;
+import com.love.archive.guest.persistence.ProfilePhotoEntity;
+import com.love.archive.guest.persistence.ProfilePhotoMapper;
 import com.love.archive.identity.domain.AccountStatus;
 import com.love.archive.identity.persistence.UserAccountEntity;
 import com.love.archive.identity.persistence.UserAccountMapper;
@@ -38,6 +44,7 @@ import com.love.archive.review.persistence.ProfileReviewRecordEntity;
 import com.love.archive.review.persistence.ProfileReviewRecordMapper;
 import com.love.archive.review.persistence.ProfileRevisionEntity;
 import com.love.archive.review.persistence.ProfileRevisionMapper;
+import com.love.archive.storage.application.ObjectStorageService;
 import com.love.archive.testsupport.ApiIntegrationTest;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -54,6 +61,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @Import(ProfileReviewServiceTest.FixedClockConfiguration.class)
 class ProfileReviewServiceTest extends ApiIntegrationTest {
@@ -67,6 +75,7 @@ class ProfileReviewServiceTest extends ApiIntegrationTest {
     @Autowired private GuestProfileDraftService draftService;
     @Autowired private GuestProfileMapper profileMapper;
     @Autowired private ProfileFieldDefinitionMapper definitionMapper;
+    @Autowired private ProfilePhotoMapper photoMapper;
     @Autowired private ProfileRevisionMapper revisionMapper;
     @Autowired private ProfileReviewRecordMapper reviewRecordMapper;
     @Autowired private AuthorizationDocumentMapper documentMapper;
@@ -76,6 +85,7 @@ class ProfileReviewServiceTest extends ApiIntegrationTest {
     @Autowired private AdminUserMapper adminMapper;
     @Autowired private AuditLogMapper auditMapper;
     @Autowired private SensitiveValueProtector sensitiveValueProtector;
+    @MockitoBean private ObjectStorageService storageService;
 
     private long adminId;
     private long accountId;
@@ -88,6 +98,8 @@ class ProfileReviewServiceTest extends ApiIntegrationTest {
         accountId = insertAccount(AccountStatus.ACTIVE, "task6-primary");
         authorizationDocumentId = currentAuthorizationDocument().getId();
         ensureDynamicDefinition(false);
+        when(storageService.signDownloadUrl(anyString(), any()))
+                .thenReturn("https://loveplatform-1314980040.cos.ap-guangzhou.myqcloud.com/signed");
     }
 
     @Test
@@ -142,6 +154,16 @@ class ProfileReviewServiceTest extends ApiIntegrationTest {
                 .orElseThrow();
         assertThat(bio.oldValue()).isEqualTo("喜欢徒步");
         assertThat(bio.newValue()).isEqualTo("喜欢跑步");
+    }
+
+    @Test
+    void detailReturnsSnapshottedPhotos() {
+        long revisionId = submitPending("review-photo-detail");
+
+        ProfileReviewDetail detail = service.detail(revisionId);
+
+        assertThat(detail.photos()).hasSize(1);
+        assertThat(detail.photos().getFirst().category()).isEqualTo("AVATAR");
     }
 
     @Test
@@ -283,6 +305,24 @@ class ProfileReviewServiceTest extends ApiIntegrationTest {
                 URI.create("https://www.douyin.com/user/task6-private"),
                 List.of(new TextFieldInput(DYNAMIC_FIELD_CODE, "喜欢徒步"))),
                 REQUEST_ID);
+        insertAvatarPhoto(profile().getId());
+    }
+
+    private void insertAvatarPhoto(long profileId) {
+        ProfilePhotoEntity photo = new ProfilePhotoEntity();
+        photo.setGuestProfileId(profileId);
+        photo.setCategory(PhotoCategory.AVATAR);
+        photo.setObjectKey("profiles/" + profileId + "/avatar/fixture.jpg");
+        photo.setSha256("e".repeat(64));
+        photo.setSizeBytes(10L);
+        photo.setContentType("image/jpeg");
+        photo.setWidth(100);
+        photo.setHeight(100);
+        photo.setSortOrder(0);
+        OffsetDateTime now = OffsetDateTime.now();
+        photo.setCreatedAt(now);
+        photo.setUpdatedAt(now);
+        photoMapper.insert(photo);
     }
 
     private void ensureDynamicDefinition(boolean required) {

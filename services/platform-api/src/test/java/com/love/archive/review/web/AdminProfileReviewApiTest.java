@@ -1,6 +1,9 @@
 package com.love.archive.review.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -14,8 +17,11 @@ import com.love.archive.consent.application.ConsentEvidenceCommand;
 import com.love.archive.consent.application.ConsentService;
 import com.love.archive.guest.application.GuestProfileDraftService;
 import com.love.archive.guest.application.SaveGuestProfileCommand;
+import com.love.archive.guest.domain.PhotoCategory;
 import com.love.archive.guest.persistence.GuestProfileEntity;
 import com.love.archive.guest.persistence.GuestProfileMapper;
+import com.love.archive.guest.persistence.ProfilePhotoEntity;
+import com.love.archive.guest.persistence.ProfilePhotoMapper;
 import com.love.archive.identity.application.GuestProvisioningService;
 import com.love.archive.identity.security.PasswordHasher;
 import com.love.archive.identity.web.ProvisionedGuestView;
@@ -23,6 +29,7 @@ import com.love.archive.review.application.ProfileReviewService;
 import com.love.archive.review.application.ProfileSubmissionService;
 import com.love.archive.review.persistence.ProfileRevisionEntity;
 import com.love.archive.review.persistence.ProfileRevisionMapper;
+import com.love.archive.storage.application.ObjectStorageService;
 import com.love.archive.testsupport.ApiIntegrationTest;
 import jakarta.servlet.http.Cookie;
 import java.net.URI;
@@ -35,6 +42,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -46,11 +54,13 @@ class AdminProfileReviewApiTest extends ApiIntegrationTest {
     @Autowired private GuestProvisioningService provisioningService;
     @Autowired private GuestProfileDraftService draftService;
     @Autowired private GuestProfileMapper guestProfileMapper;
+    @Autowired private ProfilePhotoMapper photoMapper;
     @Autowired private ConsentService consentService;
     @Autowired private ProfileSubmissionService submissionService;
     @Autowired private ProfileReviewService reviewService;
     @Autowired private ProfileRevisionMapper revisionMapper;
     @Autowired private StringRedisTemplate redis;
+    @MockitoBean private ObjectStorageService storageService;
 
     private long adminId;
     private Cookie adminCookie;
@@ -70,6 +80,8 @@ class AdminProfileReviewApiTest extends ApiIntegrationTest {
         revisionId = submissionService.submit(
                         guestAccountId, "review-api-submit", "review-api-request")
                 .id();
+        when(storageService.signDownloadUrl(anyString(), any()))
+                .thenReturn("https://loveplatform-1314980040.cos.ap-guangzhou.myqcloud.com/signed");
     }
 
     @Test
@@ -195,6 +207,10 @@ class AdminProfileReviewApiTest extends ApiIntegrationTest {
                 URI.create("https://www.douyin.com/user/task6-api"),
                 List.of()),
                 "review-api-draft");
+        GuestProfileEntity profile = guestProfileMapper.selectOne(
+                Wrappers.<GuestProfileEntity>lambdaQuery()
+                        .eq(GuestProfileEntity::getUserAccountId, accountId));
+        insertAvatarPhoto(profile.getId());
         consentService.accept(accountId, new ConsentEvidenceCommand(
                 "v0.3",
                 true,
@@ -202,6 +218,23 @@ class AdminProfileReviewApiTest extends ApiIntegrationTest {
                 "203.0.113.8",
                 "Mozilla/5.0",
                 "task6-api-session"));
+    }
+
+    private void insertAvatarPhoto(long profileId) {
+        ProfilePhotoEntity photo = new ProfilePhotoEntity();
+        photo.setGuestProfileId(profileId);
+        photo.setCategory(PhotoCategory.AVATAR);
+        photo.setObjectKey("profiles/" + profileId + "/avatar/fixture.jpg");
+        photo.setSha256("e".repeat(64));
+        photo.setSizeBytes(10L);
+        photo.setContentType("image/jpeg");
+        photo.setWidth(100);
+        photo.setHeight(100);
+        photo.setSortOrder(0);
+        OffsetDateTime now = OffsetDateTime.now();
+        photo.setCreatedAt(now);
+        photo.setUpdatedAt(now);
+        photoMapper.insert(photo);
     }
 
     private ProvisionedGuestView provision(String phone, String paymentReference) {

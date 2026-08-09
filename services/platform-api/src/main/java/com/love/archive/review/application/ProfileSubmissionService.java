@@ -6,6 +6,7 @@ import com.love.archive.audit.application.AuditTrail;
 import com.love.archive.common.security.SensitiveValueProtector;
 import com.love.archive.common.web.ApiException;
 import com.love.archive.consent.application.ConsentEligibility;
+import com.love.archive.guest.domain.PhotoCategory;
 import com.love.archive.guest.application.GuestProfileApprovalPort;
 import com.love.archive.guest.application.GuestProfileSnapshot;
 import com.love.archive.guest.application.GuestProfileSnapshotProvider;
@@ -17,6 +18,10 @@ import com.love.archive.review.persistence.ProfileRevisionEntity;
 import com.love.archive.review.persistence.ProfileRevisionFieldValueEntity;
 import com.love.archive.review.persistence.ProfileRevisionFieldValueMapper;
 import com.love.archive.review.persistence.ProfileRevisionMapper;
+import com.love.archive.review.persistence.ProfileRevisionPhotoEntity;
+import com.love.archive.review.persistence.ProfileRevisionPhotoMapper;
+import com.love.archive.storage.application.ObjectStorageService;
+import java.time.Duration;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -53,7 +58,9 @@ public class ProfileSubmissionService {
     private final CanonicalSnapshotHasher canonicalSnapshotHasher;
     private final ProfileRevisionMapper revisionMapper;
     private final ProfileRevisionFieldValueMapper revisionFieldMapper;
+    private final ProfileRevisionPhotoMapper revisionPhotoMapper;
     private final AuditTrail auditTrail;
+    private final ObjectStorageService storageService;
     private final Clock clock;
 
     @Transactional
@@ -182,6 +189,21 @@ public class ProfileSubmissionService {
             revisionFieldMapper.insert(stored);
         }
 
+        for (GuestProfileSnapshot.Photo photo : snapshot.photos()) {
+            ProfileRevisionPhotoEntity stored = new ProfileRevisionPhotoEntity();
+            stored.setProfileRevisionId(revision.getId());
+            stored.setCategory(PhotoCategory.valueOf(photo.category()));
+            stored.setObjectKey(photo.objectKey());
+            stored.setSha256(photo.sha256());
+            stored.setSizeBytes(photo.sizeBytes());
+            stored.setContentType(photo.contentType());
+            stored.setWidth(photo.width());
+            stored.setHeight(photo.height());
+            stored.setSortOrder(photo.sortOrder());
+            stored.setCreatedAt(submittedAt);
+            revisionPhotoMapper.insert(stored);
+        }
+
         profileApprovalPort.markPending(
                 snapshot.profileId(), revision.getId(), snapshot.profileVersion());
         auditTrail.append(new AuditEvent(
@@ -215,6 +237,24 @@ public class ProfileSubmissionService {
                         field.getBooleanValue(),
                         field.getOptionValue()))
                 .toList();
+        List<ProfileRevisionView.Photo> photos = revisionPhotoMapper.selectList(
+                        Wrappers.<ProfileRevisionPhotoEntity>lambdaQuery()
+                                .eq(ProfileRevisionPhotoEntity::getProfileRevisionId,
+                                        revision.getId())
+                                .orderByAsc(ProfileRevisionPhotoEntity::getCategory)
+                                .orderByAsc(ProfileRevisionPhotoEntity::getSortOrder))
+                .stream()
+                .map(photo -> new ProfileRevisionView.Photo(
+                        photo.getCategory().name(),
+                        photo.getSha256(),
+                        photo.getSizeBytes(),
+                        photo.getContentType(),
+                        photo.getWidth(),
+                        photo.getHeight(),
+                        photo.getSortOrder(),
+                        storageService.signDownloadUrl(
+                                photo.getObjectKey(), Duration.ofMinutes(15))))
+                .toList();
         return new ProfileRevisionView(
                 revision.getId(),
                 revision.getRevisionNumber(),
@@ -230,7 +270,8 @@ public class ProfileSubmissionService {
                 revision.getReviewDeadlineAt(),
                 revision.getReviewedAt(),
                 revision.getVersion(),
-                fields);
+                fields,
+                photos);
     }
 }
 
@@ -284,6 +325,22 @@ final class CanonicalSnapshotHasher {
                 writeEntry(output, "date_value", field.dateValue());
                 writeEntry(output, "boolean_value", field.booleanValue());
                 writeEntry(output, "option_value", field.optionValue());
+            }
+
+            List<GuestProfileSnapshot.Photo> photos = snapshot.photos().stream()
+                    .sorted(Comparator.comparing(GuestProfileSnapshot.Photo::category)
+                            .thenComparing(GuestProfileSnapshot.Photo::sortOrder))
+                    .toList();
+            output.writeInt(photos.size());
+            for (GuestProfileSnapshot.Photo photo : photos) {
+                writeEntry(output, "photo_category", photo.category());
+                writeEntry(output, "photo_object_key", photo.objectKey());
+                writeEntry(output, "photo_sha256", photo.sha256());
+                writeEntry(output, "photo_size_bytes", photo.sizeBytes());
+                writeEntry(output, "photo_content_type", photo.contentType());
+                writeEntry(output, "photo_width", photo.width());
+                writeEntry(output, "photo_height", photo.height());
+                writeEntry(output, "photo_sort_order", photo.sortOrder());
             }
         } catch (IOException exception) {
             throw new IllegalStateException("档案快照摘要计算失败", exception);

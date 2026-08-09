@@ -15,11 +15,15 @@ import com.love.archive.review.persistence.ProfileReviewRecordEntity;
 import com.love.archive.review.persistence.ProfileReviewRecordMapper;
 import com.love.archive.review.persistence.ProfileRevisionEntity;
 import com.love.archive.review.persistence.ProfileRevisionMapper;
+import com.love.archive.review.persistence.ProfileRevisionPhotoEntity;
+import com.love.archive.review.persistence.ProfileRevisionPhotoMapper;
 import com.love.archive.review.persistence.query.ProfileRevisionFieldRow;
 import com.love.archive.review.persistence.query.ProfileReviewHeaderRow;
 import com.love.archive.review.persistence.query.ProfileReviewListRow;
+import com.love.archive.storage.application.ObjectStorageService;
 import java.net.URI;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,10 +53,12 @@ public class ProfileReviewService {
 
     private final ProfileReviewQueryMapper queryMapper;
     private final ProfileRevisionMapper revisionMapper;
+    private final ProfileRevisionPhotoMapper revisionPhotoMapper;
     private final ProfileReviewRecordMapper reviewRecordMapper;
     private final GuestProfileApprovalPort profileApprovalPort;
     private final SensitiveValueProtector protector;
     private final AuditTrail auditTrail;
+    private final ObjectStorageService storageService;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -95,7 +101,25 @@ public class ProfileReviewService {
         List<ProfileFieldDifference> differences = approved == null
                 ? List.of()
                 : buildDifferences(pending, approved, pendingFields, approvedFields);
-        return toDetail(header, pending, pendingFields, differences);
+        List<ProfileRevisionView.Photo> photos = revisionPhotoMapper.selectList(
+                        Wrappers.<ProfileRevisionPhotoEntity>lambdaQuery()
+                                .eq(ProfileRevisionPhotoEntity::getProfileRevisionId,
+                                        revisionId)
+                                .orderByAsc(ProfileRevisionPhotoEntity::getCategory)
+                                .orderByAsc(ProfileRevisionPhotoEntity::getSortOrder))
+                .stream()
+                .map(photo -> new ProfileRevisionView.Photo(
+                        photo.getCategory().name(),
+                        photo.getSha256(),
+                        photo.getSizeBytes(),
+                        photo.getContentType(),
+                        photo.getWidth(),
+                        photo.getHeight(),
+                        photo.getSortOrder(),
+                        storageService.signDownloadUrl(
+                                photo.getObjectKey(), Duration.ofMinutes(15))))
+                .toList();
+        return toDetail(header, pending, pendingFields, photos, differences);
     }
 
     @Transactional
@@ -263,6 +287,7 @@ public class ProfileReviewService {
             ProfileReviewHeaderRow header,
             ProfileRevisionEntity pending,
             List<ProfileRevisionFieldRow> pendingFields,
+            List<ProfileRevisionView.Photo> photos,
             List<ProfileFieldDifference> differences) {
         return new ProfileReviewDetail(
                 header.profileNo(),
@@ -286,6 +311,7 @@ public class ProfileReviewService {
                 pending.getVersion(),
                 toFieldValues(pendingFields),
                 header.currentApprovedRevisionId(),
+                photos,
                 differences);
     }
 
