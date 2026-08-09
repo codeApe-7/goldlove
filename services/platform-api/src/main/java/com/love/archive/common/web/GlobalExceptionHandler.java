@@ -7,6 +7,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -34,6 +37,24 @@ public final class GlobalExceptionHandler {
     ResponseEntity<ApiResponse<Void>> handleUnreadableBody(HttpServletRequest request) {
         return ResponseEntity.badRequest().body(ApiResponse.failure(
                 "INVALID_REQUEST_BODY", "请求内容无法解析", RequestIdFilter.current(request)));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ResponseEntity<ApiResponse<Void>> handleUploadSize(HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(ApiResponse.failure(
+                "PHOTO_TOO_LARGE", "单张照片不能超过 10 MiB", RequestIdFilter.current(request)));
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    ResponseEntity<ApiResponse<Void>> handleMissingPart(HttpServletRequest request) {
+        return ResponseEntity.badRequest().body(ApiResponse.failure(
+                "PHOTO_CONTENT_INVALID", "文件内容不能为空", RequestIdFilter.current(request)));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ApiResponse<Void>> handleTypeMismatch(HttpServletRequest request) {
+        return ResponseEntity.badRequest().body(ApiResponse.failure(
+                "PHOTO_CATEGORY_INVALID", "照片类别不正确", RequestIdFilter.current(request)));
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)

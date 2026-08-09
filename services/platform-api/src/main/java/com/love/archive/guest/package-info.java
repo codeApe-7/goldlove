@@ -4,6 +4,7 @@
                 "common::security",
                 "audit::application",
                 "identity::application",
-                "identity::security"
+                "identity::security",
+                "storage::application"
         })
 package com.love.archive.guest;

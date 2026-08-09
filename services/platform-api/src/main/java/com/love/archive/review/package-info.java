@@ -7,7 +7,9 @@
                 "identity::application",
                 "identity::security",
                 "guest::application",
+                "guest::domain",
                 "consent::application",
-                "payment::application"
+                "payment::application",
+                "storage::application"
         })
 package com.love.archive.review;
