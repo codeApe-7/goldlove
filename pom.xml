@@ -29,6 +29,7 @@
         <mybatis-plus.version>3.5.17</mybatis-plus.version>
         <sa-token.version>1.45.0</sa-token.version>
         <bouncycastle.version>1.81</bouncycastle.version>
+        <cos-api.version>5.6.275</cos-api.version>
     </properties>
 
     <dependencyManagement>
