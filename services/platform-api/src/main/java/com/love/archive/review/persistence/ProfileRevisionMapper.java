@@ -32,4 +32,19 @@ public interface ProfileRevisionMapper extends BaseMapper<ProfileRevisionEntity>
     ProfileRevisionEntity selectOwnedRevision(
             @Param("accountId") long accountId,
             @Param("revisionId") long revisionId);
+
+    @Select("""
+            SELECT id, guest_profile_id, revision_number, gender, birth_date,
+                   height_cm, education, occupation, income_range, city,
+                   wechat_id_ciphertext, wechat_id_hmac, douyin_id_ciphertext,
+                   douyin_id_hmac, douyin_nickname_ciphertext,
+                   douyin_profile_url_ciphertext, status,
+                   submitted_by_account_id, submitted_at, review_deadline_at,
+                   reviewed_at, submission_key_hmac, request_payload_sha256,
+                   version, created_at
+            FROM profile_revision
+            WHERE id = #{revisionId}
+            FOR UPDATE
+            """)
+    ProfileRevisionEntity selectByIdForUpdate(@Param("revisionId") long revisionId);
 }
