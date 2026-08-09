@@ -25,4 +25,28 @@ describe('uploadPhoto', () => {
     const result = await uploadPhoto('/tmp/a.png', 'AVATAR')
     expect(result.data).toMatchObject({ id: 1, category: 'AVATAR' })
   })
+
+  it('uploads via files with the raw File on H5', async () => {
+    vi.stubGlobal('uni', {
+      uploadFile: vi.fn((options: UniApp.UploadFileOption) => {
+        expect(options.files).toEqual([{ name: 'file', file: expect.any(File) }])
+        expect(options.filePath).toBeUndefined()
+        options.success?.({
+          statusCode: 200,
+          data: JSON.stringify({
+            success: true,
+            code: 'OK',
+            message: '成功',
+            data: { id: 2, category: 'LIFE' },
+            requestId: 'r2',
+          }),
+        } as UniApp.UploadFileSuccessCallbackResult)
+      }),
+    })
+    const result = await uploadPhoto(
+      { file: new File(['y'], 'life.png', { type: 'image/png' }) },
+      'LIFE',
+    )
+    expect(result.data).toMatchObject({ id: 2, category: 'LIFE' })
+  })
 })

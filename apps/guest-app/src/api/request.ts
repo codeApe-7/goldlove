@@ -19,6 +19,11 @@ export interface ProfilePhotoView {
   createdAt: string
 }
 
+export interface PhotoUploadSource {
+  file?: File
+  filePath?: string
+}
+
 const BASE_URL = '/api/v1'
 
 let unauthorizedHandler: () => void = () => undefined
@@ -52,13 +57,12 @@ export function request<T>(options: UniApp.RequestOptions): Promise<T> {
 }
 
 export function uploadPhoto(
-  filePath: string,
+  source: PhotoUploadSource | string,
   category: 'AVATAR' | 'LIFE',
 ): Promise<ApiEnvelope<ProfilePhotoView>> {
   return new Promise((resolve, reject) => {
-    uni.uploadFile({
+    const options: UniApp.UploadFileOption = {
       url: BASE_URL + '/guest/profile/photos',
-      filePath,
       name: 'file',
       formData: { category },
       success: (response) => {
@@ -69,6 +73,14 @@ export function uploadPhoto(
         }
       },
       fail: (error) => reject(new Error(error.errMsg || '上传失败')),
-    })
+    }
+    const resolved = typeof source === 'string' ? { filePath: source } : source
+    if (resolved.file) {
+      // H5：直接传 File 对象最可靠
+      options.files = [{ name: 'file', file: resolved.file }]
+    } else {
+      options.filePath = resolved.filePath
+    }
+    uni.uploadFile(options)
   })
 }

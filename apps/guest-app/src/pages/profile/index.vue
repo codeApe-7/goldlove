@@ -4,6 +4,7 @@ import { onShow } from '@dcloudio/uni-app'
 import { fieldDefinitions, uploadPhoto } from '@/api'
 import { useProfileStore } from '@/stores/profile'
 import { validateProfileForm } from '@/validators/profile'
+import { choosePhotos } from '@/adapters/media'
 import type { GuestFieldDefinition, ProfilePhotoView } from '@/types'
 
 const store = useProfileStore()
@@ -69,9 +70,9 @@ async function choosePhoto(category: 'AVATAR' | 'LIFE'): Promise<void> {
     return
   }
   try {
-    const result = await uni.chooseMedia({ count, mediaType: ['image'] })
-    for (const file of result.tempFiles) {
-      const uploaded = await uploadPhoto(file.tempFilePath, category)
+    const photos = await choosePhotos(count)
+    for (const photo of photos) {
+      const uploaded = await uploadPhoto(photo, category)
       store.photos.push(uploaded.data as ProfilePhotoView)
     }
   } catch {
