@@ -73,10 +73,14 @@ async function choosePhoto(category: 'AVATAR' | 'LIFE'): Promise<void> {
     const photos = await choosePhotos(count)
     for (const photo of photos) {
       const uploaded = await uploadPhoto(photo, category)
-      store.photos.push(uploaded.data as ProfilePhotoView)
+      store.addPhoto(uploaded.data as ProfilePhotoView)
     }
-  } catch {
-    uni.showToast({ title: '未选择照片', icon: 'none' })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ''
+    uni.showToast({
+      title: message.includes('cancel') ? '未选择照片' : message || '操作失败',
+      icon: 'none',
+    })
   }
 }
 

@@ -1,22 +1,11 @@
+import type { ProfilePhotoView } from '@/types'
+
 export interface ApiEnvelope<T> {
   success: boolean
   code: string
   message: string
   data: T
   requestId: string
-}
-
-export interface ProfilePhotoView {
-  id: number
-  category: 'AVATAR' | 'LIFE'
-  sha256: string
-  sizeBytes: number
-  contentType: string
-  width: number
-  height: number
-  sortOrder: number
-  downloadUrl: string
-  createdAt: string
 }
 
 export interface PhotoUploadSource {
@@ -67,7 +56,12 @@ export function uploadPhoto(
       formData: { category },
       success: (response) => {
         try {
-          resolve(JSON.parse(response.data) as ApiEnvelope<ProfilePhotoView>)
+          const envelope = JSON.parse(response.data) as ApiEnvelope<ProfilePhotoView>
+          if (envelope.success === false) {
+            reject(new Error(envelope.message || '上传失败'))
+            return
+          }
+          resolve(envelope)
         } catch {
           reject(new Error('上传响应无法解析'))
         }

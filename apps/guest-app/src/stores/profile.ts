@@ -28,6 +28,12 @@ export const useProfileStore = defineStore('guest-profile', {
       await api.deletePhoto(photoId)
       this.photos = this.photos.filter((photo) => photo.id !== photoId)
     },
+    addPhoto(photo: ProfilePhotoView): void {
+      if (photo.category === 'AVATAR') {
+        this.photos = this.photos.filter((item) => item.category !== 'AVATAR')
+      }
+      this.photos.push(photo)
+    },
     async submit(): Promise<{ id: number; status: string; reviewDeadlineAt: string }> {
       const key = idempotencyKey()
       return api.submitProfile(key)

@@ -38,6 +38,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.BeforeEach;
@@ -112,16 +113,42 @@ class ProfilePhotoServiceTest extends ApiIntegrationTest {
     }
 
     @Test
-    void rejectsSecondAvatarAndSeventhLifePhoto() throws Exception {
-        photoService.upload(accountId, PhotoCategory.AVATAR, imageBytes());
-        assertCode(() -> photoService.upload(accountId, PhotoCategory.AVATAR, imageBytes()),
-                "PHOTO_COUNT_LIMIT_EXCEEDED");
+    void avatarUploadReplacesExistingAvatarAndLifeStillCapsAtSix() throws Exception {
+        ProfilePhotoView first = photoService.upload(accountId, PhotoCategory.AVATAR, imageBytes());
+
+        ProfilePhotoView second = photoService.upload(accountId, PhotoCategory.AVATAR, imageBytes());
+
+        assertThat(second.id()).isNotEqualTo(first.id());
+        List<ProfilePhotoEntity> avatars = photoMapper.selectList(
+                Wrappers.<ProfilePhotoEntity>lambdaQuery()
+                        .eq(ProfilePhotoEntity::getGuestProfileId, profileId)
+                        .eq(ProfilePhotoEntity::getCategory, PhotoCategory.AVATAR));
+        assertThat(avatars).hasSize(1);
+        assertThat(avatars.getFirst().getId()).isEqualTo(second.id());
+        verify(storageService).delete(anyString());
 
         for (int i = 0; i < 6; i++) {
             photoService.upload(accountId, PhotoCategory.LIFE, imageBytes());
         }
         assertCode(() -> photoService.upload(accountId, PhotoCategory.LIFE, imageBytes()),
                 "PHOTO_COUNT_LIMIT_EXCEEDED");
+    }
+
+    @Test
+    void avatarReplacementKeepsOldObjectWhenSnapshotted() throws Exception {
+        ProfilePhotoView first = photoService.upload(accountId, PhotoCategory.AVATAR, imageBytes());
+        ProfilePhotoEntity oldPhoto = photoMapper.selectById(first.id());
+        insertRevisionSnapshot(oldPhoto.getObjectKey());
+
+        ProfilePhotoView second = photoService.upload(accountId, PhotoCategory.AVATAR, imageBytes());
+
+        verify(storageService, never()).delete(anyString());
+        List<ProfilePhotoEntity> avatars = photoMapper.selectList(
+                Wrappers.<ProfilePhotoEntity>lambdaQuery()
+                        .eq(ProfilePhotoEntity::getGuestProfileId, profileId)
+                        .eq(ProfilePhotoEntity::getCategory, PhotoCategory.AVATAR));
+        assertThat(avatars).hasSize(1);
+        assertThat(avatars.getFirst().getId()).isEqualTo(second.id());
     }
 
     @Test

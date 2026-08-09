@@ -49,4 +49,25 @@ describe('uploadPhoto', () => {
     )
     expect(result.data).toMatchObject({ id: 2, category: 'LIFE' })
   })
+
+  it('rejects when the response envelope reports failure', async () => {
+    vi.stubGlobal('uni', {
+      uploadFile: vi.fn((options: UniApp.UploadFileOption) => {
+        options.success?.({
+          statusCode: 409,
+          data: JSON.stringify({
+            success: false,
+            code: 'PHOTO_COUNT_LIMIT_EXCEEDED',
+            message: '头像最多 1 张，生活照最多 6 张',
+            data: null,
+            requestId: 'r3',
+          }),
+        } as UniApp.UploadFileSuccessCallbackResult)
+      }),
+    })
+
+    await expect(
+      uploadPhoto({ filePath: '/tmp/a.png' }, 'AVATAR'),
+    ).rejects.toThrow('头像最多 1 张，生活照最多 6 张')
+  })
 })

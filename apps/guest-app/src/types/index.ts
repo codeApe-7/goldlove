@@ -48,3 +48,16 @@ export interface GuestProfileDraft {
   currentApprovedRevisionId: number | null
   dynamicFields: unknown[]
 }
+
+export interface ProfilePhotoView {
+  id: number
+  category: 'AVATAR' | 'LIFE'
+  sha256: string
+  sizeBytes: number
+  contentType: string
+  width: number
+  height: number
+  sortOrder: number
+  downloadUrl: string
+  createdAt: string
+}

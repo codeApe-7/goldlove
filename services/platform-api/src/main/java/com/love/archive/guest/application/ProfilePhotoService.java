@@ -39,7 +39,11 @@ public class ProfilePhotoService {
         GuestProfileEntity profile = requireOwnedProfile(accountId);
         requireEditable(profile);
         PhotoFileValidator.ImageInfo image = photoFileValidator.validate(content);
-        requireCountAvailable(profile.getId(), category);
+        if (category == PhotoCategory.AVATAR) {
+            replaceExistingAvatar(profile.getId());
+        } else {
+            requireLifeCountAvailable(profile.getId());
+        }
 
         String objectKey = photoKey(accountId, category, image.contentType());
         StoredObjectView stored = storageService.put(objectKey, content, image.contentType());
@@ -63,6 +67,19 @@ public class ProfilePhotoService {
             throw exception;
         }
         return toView(photo);
+    }
+
+    private void replaceExistingAvatar(long profileId) {
+        List<ProfilePhotoEntity> existing = photoMapper.selectList(
+                Wrappers.<ProfilePhotoEntity>lambdaQuery()
+                        .eq(ProfilePhotoEntity::getGuestProfileId, profileId)
+                        .eq(ProfilePhotoEntity::getCategory, PhotoCategory.AVATAR));
+        for (ProfilePhotoEntity photo : existing) {
+            photoMapper.deleteById(photo.getId());
+            if (photoMapper.countRevisionReferences(photo.getObjectKey()) == 0) {
+                storageService.delete(photo.getObjectKey());
+            }
+        }
     }
 
     @Transactional(readOnly = true)
@@ -121,15 +138,12 @@ public class ProfilePhotoService {
         }
     }
 
-    private void requireCountAvailable(long profileId, PhotoCategory category) {
+    private void requireLifeCountAvailable(long profileId) {
         long existing = photoMapper.selectCount(
                 Wrappers.<ProfilePhotoEntity>lambdaQuery()
                         .eq(ProfilePhotoEntity::getGuestProfileId, profileId)
-                        .eq(ProfilePhotoEntity::getCategory, category));
-        if (category == PhotoCategory.AVATAR && existing >= 1) {
-            throw countLimit();
-        }
-        if (category == PhotoCategory.LIFE && existing >= MAX_LIFE_PHOTOS) {
+                        .eq(ProfilePhotoEntity::getCategory, PhotoCategory.LIFE));
+        if (existing >= MAX_LIFE_PHOTOS) {
             throw countLimit();
         }
     }
