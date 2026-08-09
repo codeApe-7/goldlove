@@ -327,6 +327,20 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
     }
 
     @Test
+    void acceptsIncomeRangeOptionFromTheCoreDefinition() {
+        GuestProfileDraftView saved = service.save(
+                accountId, withIncomeRange(null, "保密"), REQUEST_ID);
+
+        assertThat(saved.incomeRange()).isEqualTo("保密");
+    }
+
+    @Test
+    void rejectsIncomeRangeNotInCoreOptions() {
+        assertCode(() -> service.save(accountId, withIncomeRange(null, "999万"), REQUEST_ID),
+                "FIELD_VALUE_INVALID");
+    }
+
+    @Test
     void rejectsChangingTextDefinitionToOptionWithoutOptions() {
         long definitionId = createDefinition(
                 "task4_text_to_option", ProfileFieldType.TEXT, List.of());
@@ -460,6 +474,15 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
         return new SaveGuestProfileCommand(
                 base.expectedVersion(), gender, base.birthDate(), base.heightCm(),
                 base.education(), base.occupation(), base.incomeRange(), base.city(),
+                base.wechatId(), base.douyinId(), base.douyinNickname(),
+                base.douyinProfileUrl(), base.dynamicFields());
+    }
+
+    private SaveGuestProfileCommand withIncomeRange(Long version, String incomeRange) {
+        SaveGuestProfileCommand base = validCommand(version);
+        return new SaveGuestProfileCommand(
+                base.expectedVersion(), base.gender(), base.birthDate(), base.heightCm(),
+                base.education(), base.occupation(), incomeRange, base.city(),
                 base.wechatId(), base.douyinId(), base.douyinNickname(),
                 base.douyinProfileUrl(), base.dynamicFields());
     }

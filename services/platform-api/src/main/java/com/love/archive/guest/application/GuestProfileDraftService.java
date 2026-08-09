@@ -45,6 +45,7 @@ public class GuestProfileDraftService {
     private static final String DOUYIN_NICKNAME_DOMAIN = "profile:douyin-nickname";
     private static final String DOUYIN_PROFILE_URL_DOMAIN = "profile:douyin-profile-url";
     private static final String CORE_GENDER_FIELD_CODE = "gender";
+    private static final String CORE_INCOME_RANGE_FIELD_CODE = "income_range";
 
     private final GuestProfileMapper profileMapper;
     private final ProfileFieldDefinitionMapper definitionMapper;
@@ -515,6 +516,10 @@ public class GuestProfileDraftService {
                 && (command.heightCm() < 50 || command.heightCm() > 250)) {
             throw invalidFieldValue("身高范围不正确");
         }
+        String incomeRange = optionalText(command.incomeRange(), "年薪", 100);
+        if (incomeRange != null) {
+            validateCoreSingleOption(CORE_INCOME_RANGE_FIELD_CODE, incomeRange);
+        }
         String wechatId = optionalText(command.wechatId(), "微信号", 200);
         String douyinId = optionalText(command.douyinId(), "抖音号", 200);
         String profileUrl = normalizeUrl(command.douyinProfileUrl());
@@ -524,7 +529,7 @@ public class GuestProfileDraftService {
                 command.heightCm(),
                 optionalText(command.education(), "学历", 100),
                 optionalText(command.occupation(), "职业", 200),
-                optionalText(command.incomeRange(), "收入范围", 100),
+                incomeRange,
                 optionalText(command.city(), "所在城市", 100),
                 wechatId,
                 douyinId,

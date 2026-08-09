@@ -81,7 +81,7 @@ onMounted(load)
               <el-descriptions-item label="身高">{{ detail.heightCm ?? '—' }}</el-descriptions-item>
               <el-descriptions-item label="学历">{{ detail.education ?? '—' }}</el-descriptions-item>
               <el-descriptions-item label="职业">{{ detail.occupation ?? '—' }}</el-descriptions-item>
-              <el-descriptions-item label="收入">{{ detail.incomeRange ?? '—' }}</el-descriptions-item>
+              <el-descriptions-item label="年薪">{{ detail.incomeRange ?? '—' }}</el-descriptions-item>
               <el-descriptions-item label="城市">{{ detail.city ?? '—' }}</el-descriptions-item>
               <el-descriptions-item label="微信号">{{ detail.wechatId ?? '—' }}</el-descriptions-item>
               <el-descriptions-item label="抖音号">{{ detail.douyinId ?? '—' }}</el-descriptions-item>

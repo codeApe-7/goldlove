@@ -42,7 +42,7 @@ class ProfileFieldDefinitionMigrationTest extends PostgresIntegrationTest {
             }
 
             Flyway latestFlyway = flyway(databaseUrl, null);
-            assertThat(latestFlyway.migrate().migrationsExecuted).isEqualTo(2);
+            assertThat(latestFlyway.migrate().migrationsExecuted).isEqualTo(3);
 
             try (Connection owner = ownerConnection(databaseUrl)) {
                 assertThat(queryInteger(owner, """
@@ -59,6 +59,19 @@ class ProfileFieldDefinitionMigrationTest extends PostgresIntegrationTest {
                         SELECT count(*)
                         FROM flyway_schema_history
                         WHERE version = '5' AND success
+                        """)).isEqualTo(1);
+                assertThat(queryLong(owner, """
+                        SELECT count(*)
+                        FROM flyway_schema_history
+                        WHERE version = '6' AND success
+                        """)).isEqualTo(1);
+                assertThat(queryLong(owner, """
+                        SELECT count(*)
+                        FROM profile_field_definition
+                        WHERE field_code = 'income_range'
+                          AND label = '年薪'
+                          AND data_type = 'SINGLE_OPTION'
+                          AND options_json = '["小于10万","10-20万","20-30万","30-50万","50-100万","100万以上","保密"]'
                         """)).isEqualTo(1);
                 assertThat(queryLong(owner, """
                         SELECT count(*)
