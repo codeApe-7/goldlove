@@ -42,7 +42,7 @@ class ProfileFieldDefinitionMigrationTest extends PostgresIntegrationTest {
             }
 
             Flyway latestFlyway = flyway(databaseUrl, null);
-            assertThat(latestFlyway.migrate().migrationsExecuted).isEqualTo(1);
+            assertThat(latestFlyway.migrate().migrationsExecuted).isEqualTo(2);
 
             try (Connection owner = ownerConnection(databaseUrl)) {
                 assertThat(queryInteger(owner, """
@@ -54,6 +54,22 @@ class ProfileFieldDefinitionMigrationTest extends PostgresIntegrationTest {
                         SELECT count(*)
                         FROM flyway_schema_history
                         WHERE version = '4' AND success
+                        """)).isEqualTo(1);
+                assertThat(queryLong(owner, """
+                        SELECT count(*)
+                        FROM flyway_schema_history
+                        WHERE version = '5' AND success
+                        """)).isEqualTo(1);
+                assertThat(queryLong(owner, """
+                        SELECT count(*)
+                        FROM information_schema.tables
+                        WHERE table_schema = 'public'
+                          AND table_name IN ('profile_photo', 'profile_revision_photo')
+                        """)).isEqualTo(2);
+                assertThat(queryLong(owner, """
+                        SELECT count(*)
+                        FROM pg_trigger
+                        WHERE tgname = 'profile_revision_photo_immutable' AND NOT tgisinternal
                         """)).isEqualTo(1);
                 assertThat(columnExists(owner, "profile_field_definition", "ever_used")).isTrue();
                 assertThat(queryBoolean(owner, """

@@ -105,6 +105,13 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 
 下一阶段把照片字段接入该服务：上传后保存对象键到档案/版本快照，审核与直播素材按原始、处理、发布三个前缀隔离，并只在需要时签发短时下载地址。
 
+## 照片上传
+
+- 嘉宾接口：`POST /api/v1/guest/profile/photos`（multipart：`file` + `category`，类别 `AVATAR`/`LIFE`）、`GET /api/v1/guest/profile/photos`、`DELETE /api/v1/guest/profile/photos/{photoId}`。
+- 限制：头像 1 张、生活照最多 6 张；单张 ≤ 10 MiB；仅 JPEG/PNG/WebP；服务端校验真实格式与最小 64×64 尺寸，不信任客户端声明的类型。
+- 提交建档时头像必填；照片随草稿保存、随提交固化进不可变版本快照；审核详情与嘉宾版本详情返回照片元数据与 15 分钟短时签名 URL（URL 不落库）。
+- 草稿删除立即删除 COS 对象；进入版本快照后对象保留用于历史追溯；账号注销/授权到期后的批量清理待后续接入。
+
 ## 本机 Java 构建
 
 要求 JDK 25 与 Maven 3.9.11。仓库包含 Maven Wrapper：

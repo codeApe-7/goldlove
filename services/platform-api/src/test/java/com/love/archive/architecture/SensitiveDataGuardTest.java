@@ -54,7 +54,7 @@ class SensitiveDataGuardTest {
         assertThat(productionJava)
                 .doesNotContainPattern("(?i)LOGGER\\.(trace|debug|info|warn|error)\\("
                         + "[^;]*(password|phone|credential|openid|unionid"
-                        + "|wechat|douyin|clientIp|sessionReference)");
+                        + "|wechat|douyin|clientIp|sessionReference|objectKey|object_key)");
     }
 
     @Test
