@@ -52,6 +52,8 @@ import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -139,6 +141,49 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
         assertCode(() -> service.submit(accountId, "submit-002", REQUEST_ID),
                 "IDEMPOTENCY_KEY_REUSED");
         assertThat(revisionMapper.selectCount(Wrappers.lambdaQuery())).isEqualTo(1);
+    }
+
+    @Test
+    void replaysSameKeyAfterNoOpFullSaveRotatesEveryProtectedCiphertext() throws SQLException {
+        saveCompleteDraft();
+        recordPaidAuthorization(authorizationDocumentId);
+        recordConsent(authorizationDocumentId, NOW.plusDays(1));
+        ProfileRevisionView first = service.submit(
+                accountId, "submit-protected-no-op", REQUEST_ID);
+        GuestProfileEntity beforeResave = profile();
+        byte[] firstWechatCiphertext = beforeResave.getWechatIdCiphertext();
+        byte[] firstDouyinCiphertext = beforeResave.getDouyinIdCiphertext();
+        byte[] firstNicknameCiphertext = beforeResave.getDouyinNicknameCiphertext();
+        byte[] firstProfileUrlCiphertext = beforeResave.getDouyinProfileUrlCiphertext();
+        completeRevision(first.id());
+
+        draftService.save(accountId, completeCommand(2L, null), REQUEST_ID);
+
+        GuestProfileEntity resaved = profile();
+        assertThat(resaved.getWechatIdCiphertext()).isNotEqualTo(firstWechatCiphertext);
+        assertThat(resaved.getDouyinIdCiphertext()).isNotEqualTo(firstDouyinCiphertext);
+        assertThat(resaved.getDouyinNicknameCiphertext()).isNotEqualTo(firstNicknameCiphertext);
+        assertThat(resaved.getDouyinProfileUrlCiphertext()).isNotEqualTo(firstProfileUrlCiphertext);
+        assertThat(service.submit(accountId, "submit-protected-no-op", REQUEST_ID).id())
+                .isEqualTo(first.id());
+    }
+
+    @ParameterizedTest
+    @EnumSource(ProtectedField.class)
+    void rejectsSameKeyWhenAnyProtectedPlaintextChanges(ProtectedField changedField)
+            throws SQLException {
+        saveCompleteDraft();
+        recordPaidAuthorization(authorizationDocumentId);
+        recordConsent(authorizationDocumentId, NOW.plusDays(1));
+        ProfileRevisionView first = service.submit(
+                accountId, "submit-protected-change", REQUEST_ID);
+        completeRevision(first.id());
+
+        draftService.save(accountId, completeCommand(2L, changedField), REQUEST_ID);
+
+        assertCode(() -> service.submit(
+                        accountId, "submit-protected-change", REQUEST_ID),
+                "IDEMPOTENCY_KEY_REUSED");
     }
 
     @Test
@@ -269,8 +314,23 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
     }
 
     private void saveCompleteDraft() {
-        draftService.save(accountId, new SaveGuestProfileCommand(
-                null,
+        draftService.save(accountId, completeCommand(null, null), REQUEST_ID);
+    }
+
+    private SaveGuestProfileCommand completeCommand(
+            Long expectedVersion,
+            ProtectedField changedField) {
+        String wechatId = changedField == ProtectedField.WECHAT_ID
+                ? "wx-task5-changed" : "wx-task5-private";
+        String douyinId = changedField == ProtectedField.DOUYIN_ID
+                ? "dy-task5-changed" : "dy-task5-private";
+        String nickname = changedField == ProtectedField.DOUYIN_NICKNAME
+                ? "task5 changed nickname" : "task5 private nickname";
+        URI profileUrl = changedField == ProtectedField.DOUYIN_PROFILE_URL
+                ? URI.create("https://www.douyin.com/user/task5-changed")
+                : URI.create("https://www.douyin.com/user/task5-private");
+        return new SaveGuestProfileCommand(
+                expectedVersion,
                 "男",
                 LocalDate.of(1995, 5, 20),
                 178,
@@ -278,12 +338,11 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
                 "工程师",
                 "20-30万",
                 "杭州",
-                "wx-task5-private",
-                "dy-task5-private",
-                "task5 private nickname",
-                URI.create("https://www.douyin.com/user/task5-private"),
-                List.of(new TextFieldInput(DYNAMIC_FIELD_CODE, "喜欢徒步"))),
-                REQUEST_ID);
+                wechatId,
+                douyinId,
+                nickname,
+                profileUrl,
+                List.of(new TextFieldInput(DYNAMIC_FIELD_CODE, "喜欢徒步")));
     }
 
     private void ensureDynamicDefinition(boolean required) {
@@ -441,6 +500,32 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
         }
     }
 
+    private void completeRevision(long revisionId) throws SQLException {
+        try (Connection connection = ownerConnection();
+                PreparedStatement complete = connection.prepareStatement("""
+                        UPDATE profile_revision
+                        SET status = 'APPROVED', reviewed_at = ?, version = version + 1
+                        WHERE id = ?
+                        """);
+                PreparedStatement approve = connection.prepareStatement("""
+                        UPDATE guest_profile
+                        SET pending_revision_id = NULL,
+                            current_approved_revision_id = ?,
+                            status = 'APPROVED',
+                            version = version + 1,
+                            updated_at = ?
+                        WHERE user_account_id = ?
+                        """)) {
+            complete.setObject(1, NOW);
+            complete.setLong(2, revisionId);
+            complete.executeUpdate();
+            approve.setLong(1, revisionId);
+            approve.setObject(2, NOW);
+            approve.setLong(3, accountId);
+            approve.executeUpdate();
+        }
+    }
+
     private void installRevisionFieldInsertFailure() throws SQLException {
         try (Connection connection = ownerConnection();
                 PreparedStatement function = connection.prepareStatement("""
@@ -490,6 +575,13 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
     @FunctionalInterface
     private interface ThrowingOperation {
         void run();
+    }
+
+    private enum ProtectedField {
+        WECHAT_ID,
+        DOUYIN_ID,
+        DOUYIN_NICKNAME,
+        DOUYIN_PROFILE_URL
     }
 
     @TestConfiguration(proxyBeanMethods = false)

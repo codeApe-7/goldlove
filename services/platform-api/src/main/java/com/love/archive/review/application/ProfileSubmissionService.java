@@ -237,6 +237,17 @@ public class ProfileSubmissionService {
 @Component
 final class CanonicalSnapshotHasher {
 
+    private static final String WECHAT_ID_DOMAIN = "profile:wechat-id";
+    private static final String DOUYIN_ID_DOMAIN = "profile:douyin-id";
+    private static final String DOUYIN_NICKNAME_DOMAIN = "profile:douyin-nickname";
+    private static final String DOUYIN_PROFILE_URL_DOMAIN = "profile:douyin-profile-url";
+
+    private final SensitiveValueProtector protector;
+
+    CanonicalSnapshotHasher(SensitiveValueProtector protector) {
+        this.protector = java.util.Objects.requireNonNull(protector, "protector");
+    }
+
     String sha256(GuestProfileSnapshot snapshot) {
         MessageDigest digest = sha256Digest();
         try (DataOutputStream output = new DataOutputStream(new DigestOutputStream(
@@ -249,14 +260,14 @@ final class CanonicalSnapshotHasher {
             writeEntry(output, "occupation", snapshot.occupation());
             writeEntry(output, "income_range", snapshot.incomeRange());
             writeEntry(output, "city", snapshot.city());
-            writeEntry(output, "wechat_id_ciphertext", snapshot.wechatIdCiphertext());
-            writeEntry(output, "wechat_id_hmac", snapshot.wechatIdHmac());
-            writeEntry(output, "douyin_id_ciphertext", snapshot.douyinIdCiphertext());
-            writeEntry(output, "douyin_id_hmac", snapshot.douyinIdHmac());
-            writeEntry(output, "douyin_nickname_ciphertext",
-                    snapshot.douyinNicknameCiphertext());
-            writeEntry(output, "douyin_profile_url_ciphertext",
-                    snapshot.douyinProfileUrlCiphertext());
+            writeEntry(output, "wechat_id", decrypt(
+                    WECHAT_ID_DOMAIN, snapshot.wechatIdCiphertext()));
+            writeEntry(output, "douyin_id", decrypt(
+                    DOUYIN_ID_DOMAIN, snapshot.douyinIdCiphertext()));
+            writeEntry(output, "douyin_nickname", decrypt(
+                    DOUYIN_NICKNAME_DOMAIN, snapshot.douyinNicknameCiphertext()));
+            writeEntry(output, "douyin_profile_url", decrypt(
+                    DOUYIN_PROFILE_URL_DOMAIN, snapshot.douyinProfileUrlCiphertext()));
 
             List<GuestProfileSnapshot.FieldValue> fields = snapshot.dynamicFields().stream()
                     .sorted(Comparator.comparing(GuestProfileSnapshot.FieldValue::fieldCode))
@@ -278,6 +289,10 @@ final class CanonicalSnapshotHasher {
             throw new IllegalStateException("档案快照摘要计算失败", exception);
         }
         return HexFormat.of().formatHex(digest.digest());
+    }
+
+    private String decrypt(String domain, byte[] ciphertext) {
+        return ciphertext == null ? null : protector.decrypt(domain, ciphertext);
     }
 
     private static void writeEntry(DataOutputStream output, String name, Object value)
