@@ -1,0 +1,26 @@
+:root {
+  --love-rose: #b4556d;
+  --love-gold: #c9a227;
+  --love-green: #4e7a5a;
+  --love-bg: #f7f5f2;
+  --love-deep: #46323a;
+
+  --el-color-primary: var(--love-rose);
+  --el-color-success: var(--love-green);
+  --el-color-warning: var(--love-gold);
+  --el-bg-color-page: var(--love-bg);
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  background: var(--love-bg);
+  color: #3b3034;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
