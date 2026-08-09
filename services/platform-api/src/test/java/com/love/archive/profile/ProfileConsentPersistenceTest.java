@@ -349,6 +349,39 @@ class ProfileConsentPersistenceTest extends PostgresIntegrationTest {
         }
     }
 
+    @Test
+    void runtimeTemporaryTableCannotShadowFirstUseMarker() throws SQLException {
+        try (Connection owner = ownerConnection(); Connection runtime = runtimeConnection()) {
+            RuntimeDefinitionFixture fixture = createRuntimeDefinitionFixture(owner, runtime);
+            try {
+                execute(runtime, "CREATE TEMP TABLE profile_field_definition (id BIGINT, ever_used BOOLEAN)");
+                execute(runtime, "INSERT INTO pg_temp.profile_field_definition (id, ever_used) VALUES (%d, FALSE)"
+                        .formatted(fixture.fieldDefinitionId()));
+
+                insertReturningId(runtime, """
+                        INSERT INTO public.profile_field_value
+                            (guest_profile_id, field_definition_id, text_value)
+                        VALUES (%d, %d, 'shadow attempt')
+                        RETURNING id
+                        """.formatted(fixture.profileId(), fixture.fieldDefinitionId()));
+
+                assertThat(queryBoolean(runtime, "SELECT ever_used FROM pg_temp.profile_field_definition WHERE id = %d"
+                        .formatted(fixture.fieldDefinitionId()))).isFalse();
+                assertThat(queryBoolean(runtime, "SELECT ever_used FROM public.profile_field_definition WHERE id = %d"
+                        .formatted(fixture.fieldDefinitionId()))).isTrue();
+                assertSqlRejected(
+                        () -> execute(runtime, """
+                                UPDATE public.profile_field_definition
+                                SET field_code = 'shadow-renamed-%s', data_type = 'INTEGER'
+                                WHERE id = %d
+                                """.formatted(uniqueSuffix(), fixture.fieldDefinitionId())),
+                        "used profile field definition identity is immutable");
+            } finally {
+                deleteRuntimeDefinitionFixture(owner, fixture);
+            }
+        }
+    }
+
     private static OwnerFixture createOwnerFixture(Connection owner) throws SQLException {
         String suffix = uniqueSuffix();
         long adminId = insertOwnerAdmin(owner, suffix);
@@ -401,6 +434,22 @@ class ProfileConsentPersistenceTest extends PostgresIntegrationTest {
 
     private static RuntimeFieldFixture createRuntimeFieldFixture(Connection owner, Connection runtime)
             throws SQLException {
+        RuntimeDefinitionFixture fixture = createRuntimeDefinitionFixture(owner, runtime);
+        long fieldValueId = insertReturningId(runtime, """
+                INSERT INTO profile_field_value (guest_profile_id, field_definition_id, text_value)
+                VALUES (%d, %d, 'first value')
+                RETURNING id
+                """.formatted(fixture.profileId(), fixture.fieldDefinitionId()));
+        return new RuntimeFieldFixture(
+                fixture.adminId(),
+                fixture.accountId(),
+                fixture.profileId(),
+                fixture.fieldDefinitionId(),
+                fieldValueId);
+    }
+
+    private static RuntimeDefinitionFixture createRuntimeDefinitionFixture(Connection owner, Connection runtime)
+            throws SQLException {
         String suffix = uniqueSuffix();
         long adminId = insertOwnerAdmin(owner, suffix);
         long accountId = insertOwnerAccount(owner, suffix, adminId);
@@ -415,20 +464,24 @@ class ProfileConsentPersistenceTest extends PostgresIntegrationTest {
                 VALUES ('runtime-invariant-%s', 'Runtime invariant', 'DYNAMIC', 'TEXT', FALSE, TRUE, 950)
                 RETURNING id
                 """.formatted(suffix));
-        long fieldValueId = insertReturningId(runtime, """
-                INSERT INTO profile_field_value (guest_profile_id, field_definition_id, text_value)
-                VALUES (%d, %d, 'first value')
-                RETURNING id
-                """.formatted(profileId, fieldDefinitionId));
-        return new RuntimeFieldFixture(adminId, accountId, profileId, fieldDefinitionId, fieldValueId);
+        return new RuntimeDefinitionFixture(adminId, accountId, profileId, fieldDefinitionId);
     }
 
     private static void deleteRuntimeFieldFixture(Connection owner, RuntimeFieldFixture fixture) throws SQLException {
         execute(owner, "DELETE FROM profile_field_value WHERE id = %d".formatted(fixture.fieldValueId()));
-        execute(owner, "DELETE FROM guest_profile WHERE id = %d".formatted(fixture.profileId()));
-        execute(owner, "DELETE FROM profile_field_definition WHERE id = %d".formatted(fixture.fieldDefinitionId()));
-        execute(owner, "DELETE FROM user_account WHERE id = %d".formatted(fixture.accountId()));
-        execute(owner, "DELETE FROM admin_user WHERE id = %d".formatted(fixture.adminId()));
+        deleteRuntimeDefinitionFixture(owner, new RuntimeDefinitionFixture(
+                fixture.adminId(), fixture.accountId(), fixture.profileId(), fixture.fieldDefinitionId()));
+    }
+
+    private static void deleteRuntimeDefinitionFixture(Connection owner, RuntimeDefinitionFixture fixture)
+            throws SQLException {
+        execute(owner, "DELETE FROM public.profile_field_value WHERE field_definition_id = %d"
+                .formatted(fixture.fieldDefinitionId()));
+        execute(owner, "DELETE FROM public.guest_profile WHERE id = %d".formatted(fixture.profileId()));
+        execute(owner, "DELETE FROM public.profile_field_definition WHERE id = %d"
+                .formatted(fixture.fieldDefinitionId()));
+        execute(owner, "DELETE FROM public.user_account WHERE id = %d".formatted(fixture.accountId()));
+        execute(owner, "DELETE FROM public.admin_user WHERE id = %d".formatted(fixture.adminId()));
     }
 
     private static long insertOwnerAdmin(Connection connection, String suffix) throws SQLException {
@@ -545,5 +598,12 @@ class ProfileConsentPersistenceTest extends PostgresIntegrationTest {
             long profileId,
             long fieldDefinitionId,
             long fieldValueId) {
+    }
+
+    private record RuntimeDefinitionFixture(
+            long adminId,
+            long accountId,
+            long profileId,
+            long fieldDefinitionId) {
     }
 }
