@@ -11,15 +11,16 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.ibatis.type.ObjectTypeHandler;
 
 @Getter
 @Setter
-@TableName("guest_profile")
+@TableName(value = "guest_profile", autoResultMap = true)
 public class GuestProfileEntity {
 
     @TableId(type = IdType.AUTO)
     private Long id;
-    @TableField("profile_no")
+    @TableField(value = "profile_no", typeHandler = ObjectTypeHandler.class)
     private UUID profileNo;
     @TableField("user_account_id")
     private Long userAccountId;
