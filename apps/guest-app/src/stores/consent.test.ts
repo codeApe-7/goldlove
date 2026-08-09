@@ -38,6 +38,6 @@ describe('guest consent store', () => {
     const consent = await store.accept('v0.3')
     expect(consent.id).toBe(2)
     expect(store.current?.id).toBe(2)
-    expect(api.acceptConsent).toHaveBeenCalledWith('v0.3', 'guest-h5')
+    expect(api.acceptConsent).toHaveBeenCalledWith('v0.3', 'guest-consent')
   })
 })

@@ -13,7 +13,7 @@ export const useConsentStore = defineStore('guest-consent', {
       this.loaded = true
     },
     async accept(version: string): Promise<ConsentView> {
-      this.current = await api.acceptConsent(version, 'guest-h5')
+      this.current = await api.acceptConsent(version, 'guest-consent')
       return this.current
     },
   },
