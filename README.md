@@ -123,6 +123,30 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 
 测试会通过 Testcontainers 启动临时 PostgreSQL 18 和 Redis 8，不读取 `.env` 中的真实凭据。
 
+## 管理后台（apps/admin-web）
+
+Vue 3 + TypeScript + Vite + Element Plus，位于 `apps/admin-web`：
+
+```bash
+cd apps/admin-web
+npm install
+npm run dev        # 开发：/api 代理到 http://localhost:8080
+npm run test       # Vitest
+npm run build      # 产物 dist/
+```
+
+生产部署：Nginx 托管 `dist/` 静态资源，并把 `/api` 反向代理到后端（同源保证 Cookie 会话可用）：
+
+```nginx
+location /api/ {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+```
+
+管理后台功能：管理员登录/退出、工作台四项统计（待审核、今日登记、今日审核、累计建档）、访客登记与补发初始凭证、档案字段配置、审核列表/详情/通过/退回（含照片预览与字段差异）。
+
 ## 安全约束
 
 - 数据库不保存或记录明文密码、初始凭证、手机号、OpenID 或 UnionID。
