@@ -32,4 +32,10 @@ public class AdminAuthController {
         authLogics.admin().login(session.id());
         return ApiResponse.success(session, RequestIdFilter.current(request));
     }
+
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(HttpServletRequest request) {
+        authLogics.admin().logout();
+        return ApiResponse.success(null, RequestIdFilter.current(request));
+    }
 }
