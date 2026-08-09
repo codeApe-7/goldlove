@@ -2,6 +2,7 @@ package com.love.archive.guest.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.love.archive.admin.domain.AdminStatus;
@@ -14,6 +15,8 @@ import com.love.archive.guest.domain.FieldStorageKind;
 import com.love.archive.guest.domain.ProfileFieldType;
 import com.love.archive.guest.persistence.GuestProfileEntity;
 import com.love.archive.guest.persistence.GuestProfileMapper;
+import com.love.archive.guest.persistence.ProfileFieldDefinitionEntity;
+import com.love.archive.guest.persistence.ProfileFieldDefinitionMapper;
 import com.love.archive.guest.persistence.ProfileFieldValueEntity;
 import com.love.archive.guest.persistence.ProfileFieldValueMapper;
 import com.love.archive.identity.domain.AccountStatus;
@@ -23,9 +26,19 @@ import com.love.archive.testsupport.ApiIntegrationTest;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,10 +46,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 class GuestProfileDraftServiceTest extends ApiIntegrationTest {
 
     private static final String REQUEST_ID = "req-task-4";
+    private static final long FIRST_USE_GATE = 4_004_001L;
 
     @Autowired private GuestProfileDraftService service;
     @Autowired private ProfileFieldDefinitionService definitionService;
     @Autowired private GuestProfileMapper profileMapper;
+    @Autowired private ProfileFieldDefinitionMapper definitionMapper;
     @Autowired private ProfileFieldValueMapper valueMapper;
     @Autowired private UserAccountMapper accountMapper;
     @Autowired private AdminUserMapper adminMapper;
@@ -48,6 +63,7 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
     @BeforeEach
     void cleanState() {
         resetDatabase();
+        resetGenderDefinition();
         adminId = insertAdmin();
         accountId = insertAccount(AccountStatus.ACTIVE, "account-primary");
     }
@@ -213,6 +229,148 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
     }
 
     @Test
+    void rejectsDynamicIdentityChangeAfterItsFirstValueWasCleared() {
+        long definitionId = createDefinition("task4_ever_used", ProfileFieldType.TEXT, List.of());
+        service.save(accountId, withDynamicFields(null,
+                List.of(new TextFieldInput("task4_ever_used", "present"))), REQUEST_ID);
+        service.save(accountId, withDynamicFields(0L, List.of()), REQUEST_ID);
+        UpdateProfileFieldDefinitionCommand metadataOnly =
+                new UpdateProfileFieldDefinitionCommand(0L, "Ever used", null, null,
+                        null, null, null);
+
+        assertCode(() -> definitionService.update(
+                        adminId, definitionId, "task4_ever_used_renamed", FieldStorageKind.DYNAMIC,
+                        ProfileFieldType.TEXT, metadataOnly, REQUEST_ID),
+                "FIELD_DEFINITION_IMMUTABLE");
+        assertCode(() -> definitionService.update(
+                        adminId, definitionId, "task4_ever_used", FieldStorageKind.DYNAMIC,
+                        ProfileFieldType.INTEGER, metadataOnly, REQUEST_ID),
+                "FIELD_DEFINITION_IMMUTABLE");
+    }
+
+    @Test
+    void serializesFirstUseAgainstDefinitionIdentityUpdate() throws Exception {
+        long definitionId = createDefinition("task4_first_use_race", ProfileFieldType.TEXT, List.of());
+        installFirstUseGate();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try (Connection gate = ownerConnection()) {
+            acquireFirstUseGate(gate);
+            Future<GuestProfileDraftView> save = executor.submit(() -> service.save(
+                    accountId,
+                    withDynamicFields(null,
+                            List.of(new TextFieldInput("task4_first_use_race", "present"))),
+                    REQUEST_ID));
+            awaitCondition(() -> hasWaitingAdvisoryLock(gate));
+
+            Future<ProfileFieldDefinitionView> identityUpdate = executor.submit(() ->
+                    definitionService.update(
+                            adminId, definitionId, "task4_first_use_renamed",
+                            FieldStorageKind.DYNAMIC, ProfileFieldType.TEXT,
+                            new UpdateProfileFieldDefinitionCommand(
+                                    0L, null, null, null, null, null, null),
+                            REQUEST_ID));
+            awaitCondition(() -> identityUpdate.isDone() || hasWaitingDefinitionLock(gate));
+            releaseFirstUseGate(gate);
+
+            assertThat(save.get(5, TimeUnit.SECONDS).dynamicFields())
+                    .extracting(ProfileFieldValueView::fieldCode)
+                    .containsExactly("task4_first_use_race");
+            Throwable failure = catchThrowable(() -> identityUpdate.get(5, TimeUnit.SECONDS));
+            assertThat(failure).hasCauseInstanceOf(ApiException.class);
+            assertThat(((ApiException) failure.getCause()).code())
+                    .isEqualTo("FIELD_DEFINITION_IMMUTABLE");
+            assertThat(definitionMapper.selectById(definitionId).getFieldCode())
+                    .isEqualTo("task4_first_use_race");
+        } finally {
+            executor.shutdownNow();
+            removeFirstUseGate();
+        }
+    }
+
+    @Test
+    void acceptsGenderOptionAddedToTheCoreDefinition() {
+        updateGenderOptions(List.of("男", "女", "其他"));
+
+        GuestProfileDraftView saved = service.save(
+                accountId, withGender(null, "其他"), REQUEST_ID);
+
+        assertThat(saved.gender()).isEqualTo("其他");
+    }
+
+    @Test
+    void rejectsGenderOptionRemovedFromTheCoreDefinition() {
+        updateGenderOptions(List.of("男"));
+
+        assertCode(() -> service.save(accountId, withGender(null, "女"), REQUEST_ID),
+                "FIELD_VALUE_INVALID");
+    }
+
+    @Test
+    void rejectsGenderWhenCoreDefinitionOptionsAreMissing() {
+        definitionMapper.update(Wrappers.<ProfileFieldDefinitionEntity>lambdaUpdate()
+                .eq(ProfileFieldDefinitionEntity::getFieldCode, "gender")
+                .set(ProfileFieldDefinitionEntity::getOptionsJson, null));
+
+        assertCode(() -> service.save(accountId, withGender(null, "男"), REQUEST_ID),
+                "FIELD_VALUE_INVALID");
+    }
+
+    @Test
+    void rejectsGenderWhenCoreDefinitionTypeIsMalformed() {
+        definitionMapper.update(Wrappers.<ProfileFieldDefinitionEntity>lambdaUpdate()
+                .eq(ProfileFieldDefinitionEntity::getFieldCode, "gender")
+                .set(ProfileFieldDefinitionEntity::getDataType, ProfileFieldType.TEXT)
+                .set(ProfileFieldDefinitionEntity::getOptionsJson, null));
+
+        assertCode(() -> service.save(accountId, withGender(null, "男"), REQUEST_ID),
+                "FIELD_VALUE_INVALID");
+    }
+
+    @Test
+    void rejectsChangingTextDefinitionToOptionWithoutOptions() {
+        long definitionId = createDefinition(
+                "task4_text_to_option", ProfileFieldType.TEXT, List.of());
+
+        assertCode(() -> definitionService.update(
+                        adminId, definitionId, "task4_text_to_option", FieldStorageKind.DYNAMIC,
+                        ProfileFieldType.SINGLE_OPTION,
+                        new UpdateProfileFieldDefinitionCommand(
+                                0L, null, null, null, null, null, null),
+                        REQUEST_ID),
+                "FIELD_VALUE_INVALID");
+    }
+
+    @Test
+    void rejectsChangingOptionDefinitionToTextWithResidualOptions() {
+        long definitionId = createDefinition(
+                "task4_option_to_text", ProfileFieldType.SINGLE_OPTION, List.of("A", "B"));
+
+        assertCode(() -> definitionService.update(
+                        adminId, definitionId, "task4_option_to_text", FieldStorageKind.DYNAMIC,
+                        ProfileFieldType.TEXT,
+                        new UpdateProfileFieldDefinitionCommand(
+                                0L, null, null, null, null, null, null),
+                        REQUEST_ID),
+                "FIELD_VALUE_INVALID");
+    }
+
+    @Test
+    void acceptsChangingUnusedDefinitionTypeWithValidCandidateOptions() {
+        long definitionId = createDefinition(
+                "task4_valid_type_change", ProfileFieldType.TEXT, List.of());
+
+        ProfileFieldDefinitionView updated = definitionService.update(
+                adminId, definitionId, "task4_valid_type_change", FieldStorageKind.DYNAMIC,
+                ProfileFieldType.SINGLE_OPTION,
+                new UpdateProfileFieldDefinitionCommand(
+                        0L, null, null, null, List.of("A", "B"), null, null),
+                REQUEST_ID);
+
+        assertThat(updated.dataType()).isEqualTo(ProfileFieldType.SINGLE_OPTION);
+        assertThat(updated.options()).containsExactly("A", "B");
+    }
+
+    @Test
     void encryptsSameIdentifierToDifferentCiphertextAcrossSaves() {
         service.save(accountId, validCommand(null), REQUEST_ID);
         byte[] first = profile().getWechatIdCiphertext();
@@ -297,6 +455,132 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
                 base.douyinProfileUrl(), fields);
     }
 
+    private SaveGuestProfileCommand withGender(Long version, String gender) {
+        SaveGuestProfileCommand base = validCommand(version);
+        return new SaveGuestProfileCommand(
+                base.expectedVersion(), gender, base.birthDate(), base.heightCm(),
+                base.education(), base.occupation(), base.incomeRange(), base.city(),
+                base.wechatId(), base.douyinId(), base.douyinNickname(),
+                base.douyinProfileUrl(), base.dynamicFields());
+    }
+
+    private void updateGenderOptions(List<String> options) {
+        ProfileFieldDefinitionView gender = definitionService.list(1, 100).items().stream()
+                .filter(field -> field.fieldCode().equals("gender"))
+                .findFirst()
+                .orElseThrow();
+        definitionService.update(
+                adminId,
+                gender.id(),
+                new UpdateProfileFieldDefinitionCommand(
+                        gender.version(), null, null, null, options, null, null),
+                REQUEST_ID);
+    }
+
+    private void resetGenderDefinition() {
+        definitionMapper.update(Wrappers.<ProfileFieldDefinitionEntity>lambdaUpdate()
+                .eq(ProfileFieldDefinitionEntity::getFieldCode, "gender")
+                .set(ProfileFieldDefinitionEntity::getDataType, ProfileFieldType.SINGLE_OPTION)
+                .set(ProfileFieldDefinitionEntity::getRequired, true)
+                .set(ProfileFieldDefinitionEntity::getEnabled, true)
+                .set(ProfileFieldDefinitionEntity::getOptionsJson, "[\"男\", \"女\"]")
+                .set(ProfileFieldDefinitionEntity::getVersion, 0L));
+    }
+
+    private void installFirstUseGate() throws SQLException {
+        try (Connection owner = ownerConnection();
+                PreparedStatement function = owner.prepareStatement("""
+                        CREATE OR REPLACE FUNCTION gate_profile_field_first_use_for_test()
+                        RETURNS trigger AS $$
+                        BEGIN
+                            PERFORM pg_advisory_xact_lock(4004001);
+                            RETURN NEW;
+                        END;
+                        $$ LANGUAGE plpgsql
+                        """);
+                PreparedStatement trigger = owner.prepareStatement("""
+                        CREATE TRIGGER gate_profile_field_first_use_for_test
+                        BEFORE INSERT ON profile_field_value
+                        FOR EACH ROW EXECUTE FUNCTION gate_profile_field_first_use_for_test()
+                        """)) {
+            function.executeUpdate();
+            trigger.executeUpdate();
+        }
+    }
+
+    private void removeFirstUseGate() throws SQLException {
+        try (Connection owner = ownerConnection();
+                PreparedStatement trigger = owner.prepareStatement("""
+                        DROP TRIGGER IF EXISTS gate_profile_field_first_use_for_test
+                        ON profile_field_value
+                        """);
+                PreparedStatement function = owner.prepareStatement("""
+                        DROP FUNCTION IF EXISTS gate_profile_field_first_use_for_test()
+                        """)) {
+            trigger.executeUpdate();
+            function.executeUpdate();
+        }
+    }
+
+    private static Connection ownerConnection() throws SQLException {
+        return DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+    }
+
+    private static void acquireFirstUseGate(Connection connection) throws SQLException {
+        executeAdvisoryLock(connection, "SELECT pg_advisory_lock(?)");
+    }
+
+    private static void releaseFirstUseGate(Connection connection) throws SQLException {
+        executeAdvisoryLock(connection, "SELECT pg_advisory_unlock(?)");
+    }
+
+    private static void executeAdvisoryLock(Connection connection, String sql) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, FIRST_USE_GATE);
+            statement.execute();
+        }
+    }
+
+    private static boolean hasWaitingAdvisoryLock(Connection connection) throws SQLException {
+        return queryExists(connection, """
+                SELECT EXISTS (
+                    SELECT 1 FROM pg_locks
+                    WHERE locktype = 'advisory' AND NOT granted
+                )
+                """);
+    }
+
+    private static boolean hasWaitingDefinitionLock(Connection connection) throws SQLException {
+        return queryExists(connection, """
+                SELECT EXISTS (
+                    SELECT 1 FROM pg_stat_activity
+                    WHERE pid <> pg_backend_pid()
+                      AND datname = current_database()
+                      AND wait_event_type = 'Lock'
+                      AND query ILIKE '%profile_field_definition%'
+                )
+                """);
+    }
+
+    private static boolean queryExists(Connection connection, String sql) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet result = statement.executeQuery()) {
+            result.next();
+            return result.getBoolean(1);
+        }
+    }
+
+    private static void awaitCondition(CheckedCondition condition) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (!condition.evaluate()) {
+            if (System.nanoTime() >= deadline) {
+                throw new AssertionError("Timed out waiting for controlled database interleaving");
+            }
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+        }
+    }
+
     private long insertAdmin() {
         OffsetDateTime now = OffsetDateTime.now();
         AdminUserEntity admin = new AdminUserEntity();
@@ -335,5 +619,10 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
     @FunctionalInterface
     private interface ThrowingOperation {
         void run();
+    }
+
+    @FunctionalInterface
+    private interface CheckedCondition {
+        boolean evaluate() throws Exception;
     }
 }

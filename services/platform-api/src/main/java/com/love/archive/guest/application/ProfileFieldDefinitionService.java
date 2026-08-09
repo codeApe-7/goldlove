@@ -10,8 +10,6 @@ import com.love.archive.guest.domain.FieldStorageKind;
 import com.love.archive.guest.domain.ProfileFieldType;
 import com.love.archive.guest.persistence.ProfileFieldDefinitionEntity;
 import com.love.archive.guest.persistence.ProfileFieldDefinitionMapper;
-import com.love.archive.guest.persistence.ProfileFieldValueEntity;
-import com.love.archive.guest.persistence.ProfileFieldValueMapper;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -34,7 +32,6 @@ public class ProfileFieldDefinitionService {
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
 
     private final ProfileFieldDefinitionMapper definitionMapper;
-    private final ProfileFieldValueMapper valueMapper;
     private final AuditTrail auditTrail;
     private final ObjectMapper objectMapper;
 
@@ -69,6 +66,7 @@ public class ProfileFieldDefinitionService {
         definition.setDataType(dataType);
         definition.setRequired(command.required());
         definition.setEnabled(true);
+        definition.setEverUsed(false);
         definition.setOptionsJson(writeOptions(options));
         definition.setSortOrder(command.sortOrder());
         definition.setInstructions(instructions);
@@ -105,7 +103,7 @@ public class ProfileFieldDefinitionService {
             ProfileFieldType requestedDataType,
             UpdateProfileFieldDefinitionCommand command,
             String requestId) {
-        ProfileFieldDefinitionEntity current = requireDefinition(definitionId);
+        ProfileFieldDefinitionEntity current = requireDefinitionForUpdate(definitionId);
         if (command.expectedVersion() == null) {
             throw versionConflict();
         }
@@ -124,7 +122,7 @@ public class ProfileFieldDefinitionService {
                 || nextType != current.getDataType();
 
         enforceMutability(current, command, changesIdentity, nextStorage);
-        if (changesIdentity && hasValues(current.getId())) {
+        if (changesIdentity && Boolean.TRUE.equals(current.getEverUsed())) {
             throw immutableDefinition();
         }
 
@@ -133,9 +131,10 @@ public class ProfileFieldDefinitionService {
                 : requireText(command.label(), "字段名称", 100);
         boolean required = command.required() == null ? current.getRequired() : command.required();
         boolean enabled = command.enabled() == null ? current.getEnabled() : command.enabled();
-        List<String> options = command.options() == null
+        List<String> candidateOptions = command.options() == null
                 ? readOptions(current.getOptionsJson())
-                : validateOptions(nextType, command.options());
+                : command.options();
+        List<String> options = validateOptions(nextType, candidateOptions);
         int sortOrder = command.sortOrder() == null ? current.getSortOrder() : command.sortOrder();
         String instructions = command.instructions() == null
                 ? current.getInstructions()
@@ -188,13 +187,17 @@ public class ProfileFieldDefinitionService {
         }
     }
 
-    private boolean hasValues(long definitionId) {
-        return valueMapper.selectCount(Wrappers.<ProfileFieldValueEntity>lambdaQuery()
-                .eq(ProfileFieldValueEntity::getFieldDefinitionId, definitionId)) > 0;
-    }
-
     private ProfileFieldDefinitionEntity requireDefinition(long definitionId) {
         ProfileFieldDefinitionEntity definition = definitionMapper.selectById(definitionId);
+        if (definition == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND,
+                    "FIELD_DEFINITION_NOT_FOUND", "字段定义不存在");
+        }
+        return definition;
+    }
+
+    private ProfileFieldDefinitionEntity requireDefinitionForUpdate(long definitionId) {
+        ProfileFieldDefinitionEntity definition = definitionMapper.selectByIdForUpdate(definitionId);
         if (definition == null) {
             throw new ApiException(HttpStatus.NOT_FOUND,
                     "FIELD_DEFINITION_NOT_FOUND", "字段定义不存在");

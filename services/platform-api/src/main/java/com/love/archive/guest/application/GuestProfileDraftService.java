@@ -44,6 +44,7 @@ public class GuestProfileDraftService {
     private static final String DOUYIN_ID_DOMAIN = "profile:douyin-id";
     private static final String DOUYIN_NICKNAME_DOMAIN = "profile:douyin-nickname";
     private static final String DOUYIN_PROFILE_URL_DOMAIN = "profile:douyin-profile-url";
+    private static final String CORE_GENDER_FIELD_CODE = "gender";
 
     private final GuestProfileMapper profileMapper;
     private final ProfileFieldDefinitionMapper definitionMapper;
@@ -234,11 +235,18 @@ public class GuestProfileDraftService {
             }
         }
 
-        List<ProfileFieldDefinitionEntity> definitions = definitionMapper.selectList(
+        List<ProfileFieldDefinitionEntity> candidates = definitionMapper.selectList(
                 Wrappers.<ProfileFieldDefinitionEntity>lambdaQuery()
                         .in(ProfileFieldDefinitionEntity::getFieldCode, byCode.keySet()));
         Map<String, ProfileFieldDefinitionEntity> definitionsByCode = new HashMap<>();
-        for (ProfileFieldDefinitionEntity definition : definitions) {
+        for (ProfileFieldDefinitionEntity candidate : candidates.stream()
+                .sorted(Comparator.comparing(ProfileFieldDefinitionEntity::getId))
+                .toList()) {
+            ProfileFieldDefinitionEntity definition =
+                    definitionMapper.selectByIdForUpdate(candidate.getId());
+            if (definition == null) {
+                throw invalidFieldValue("动态字段不可用: " + candidate.getFieldCode());
+            }
             definitionsByCode.put(definition.getFieldCode(), definition);
         }
 
@@ -254,7 +262,24 @@ public class GuestProfileDraftService {
                     definition,
                     validatedValue(definition, entry.getValue())));
         }
+        markDefinitionsEverUsed(prepared);
         return List.copyOf(prepared);
+    }
+
+    private void markDefinitionsEverUsed(List<PreparedFieldValue> preparedValues) {
+        for (PreparedFieldValue prepared : preparedValues) {
+            ProfileFieldDefinitionEntity definition = prepared.definition();
+            if (!Boolean.TRUE.equals(definition.getEverUsed())) {
+                int updated = definitionMapper.update(
+                        Wrappers.<ProfileFieldDefinitionEntity>lambdaUpdate()
+                                .eq(ProfileFieldDefinitionEntity::getId, definition.getId())
+                                .set(ProfileFieldDefinitionEntity::getEverUsed, true));
+                if (updated != 1) {
+                    throw new IllegalStateException("动态字段首次使用标记失败");
+                }
+                definition.setEverUsed(true);
+            }
+        }
     }
 
     private TypedValue validatedValue(
@@ -480,8 +505,8 @@ public class GuestProfileDraftService {
     private NormalizedProfile normalizeAndValidate(SaveGuestProfileCommand command) {
         Objects.requireNonNull(command, "command");
         String gender = optionalText(command.gender(), "性别", 32);
-        if (gender != null && !List.of("男", "女").contains(gender)) {
-            throw invalidFieldValue("性别选项不合法");
+        if (gender != null) {
+            validateCoreSingleOption(CORE_GENDER_FIELD_CODE, gender);
         }
         if (command.birthDate() != null && command.birthDate().isAfter(LocalDate.now())) {
             throw invalidFieldValue("出生日期不能晚于今天");
@@ -505,6 +530,27 @@ public class GuestProfileDraftService {
                 douyinId,
                 optionalText(command.douyinNickname(), "抖音昵称", 500),
                 profileUrl);
+    }
+
+    private void validateCoreSingleOption(String fieldCode, String value) {
+        ProfileFieldDefinitionEntity definition = definitionMapper.selectOne(
+                Wrappers.<ProfileFieldDefinitionEntity>lambdaQuery()
+                        .eq(ProfileFieldDefinitionEntity::getFieldCode, fieldCode));
+        if (definition == null
+                || definition.getStorageKind() != FieldStorageKind.CORE
+                || definition.getDataType() != ProfileFieldType.SINGLE_OPTION
+                || !Boolean.TRUE.equals(definition.getEnabled())) {
+            throw invalidFieldValue("核心字段配置不合法: " + fieldCode);
+        }
+        List<String> options;
+        try {
+            options = readOptions(definition.getOptionsJson());
+        } catch (IllegalStateException exception) {
+            throw invalidFieldValue("核心字段配置不合法: " + fieldCode);
+        }
+        if (options.isEmpty() || !options.contains(value)) {
+            throw invalidFieldValue("字段选项不合法: " + fieldCode);
+        }
     }
 
     private static String normalizeUrl(URI uri) {

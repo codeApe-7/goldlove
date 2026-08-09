@@ -30,6 +30,8 @@ public class ProfileFieldDefinitionEntity {
     private Boolean required;
     @TableField("enabled")
     private Boolean enabled;
+    @TableField("ever_used")
+    private Boolean everUsed;
     @TableField("options_json")
     private String optionsJson;
     @TableField("sort_order")
