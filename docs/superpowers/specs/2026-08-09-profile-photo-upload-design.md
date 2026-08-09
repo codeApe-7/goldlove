@@ -18,6 +18,7 @@
 ## 架构与模块边界
 
 - `storage` 模块保持不变：`ObjectStorageService` 继续负责对象上传、存在性查询、签名下载 URL 与删除；照片按精确对象键操作，不新增批量接口。
+- COS 访问域名使用腾讯云默认虚拟主机地址 `https://{bucket}.cos.{region}.myqcloud.com`（本桶即 `https://loveplatform-1314980040.cos.ap-guangzhou.myqcloud.com`），由 SDK 依据桶名与地域自动推导，不在代码或配置中硬编码。
 - `guest` 模块新增照片业务：`ProfilePhotoService` 负责上传校验、草稿照片列表、删除，以及照片归属校验。
 - `review` 模块改造提交与详情链路：提交时校验头像必填并把草稿照片快照固化进 `profile_revision_photo`；审核详情与嘉宾版本详情返回照片元数据与签名 URL。
 - `guest` 与 `review` 继续通过既有公开应用接口协作；`storage` 模块保持 CLOSED，仅依赖 `common::web`。
