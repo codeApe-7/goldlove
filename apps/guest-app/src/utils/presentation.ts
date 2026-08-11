@@ -30,6 +30,12 @@ export function profileCompletion(
   return total === 0 ? 0 : Math.round(((completedFields + Number(hasAvatar)) / total) * 100)
 }
 
+export function remainingLifePhotoSlots(
+  photos: ReadonlyArray<{ category: string }>,
+): number {
+  return Math.max(0, 6 - photos.filter(({ category }) => category === 'LIFE').length)
+}
+
 function isFilled(value: unknown): boolean {
   return value !== null && value !== undefined && (typeof value !== 'string' || value.trim() !== '')
 }

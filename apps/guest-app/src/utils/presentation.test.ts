@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { guestStatusMeta, profileCompletion, profileGroup } from './presentation'
+import {
+  guestStatusMeta,
+  profileCompletion,
+  profileGroup,
+  remainingLifePhotoSlots,
+} from './presentation'
 
 describe('guest presentation helpers', () => {
   it('groups known fields and falls back to more', () => {
@@ -24,5 +29,10 @@ describe('guest presentation helpers', () => {
     expect(guestStatusMeta('PENDING_REVIEW').label).toBe('审核中')
     expect(guestStatusMeta('CHANGES_REQUESTED').tone).toBe('danger')
     expect(guestStatusMeta('APPROVED').label).toBe('已通过')
+  })
+
+  it('counts only life photos against the six-photo limit', () => {
+    expect(remainingLifePhotoSlots([{ category: 'AVATAR' }, { category: 'LIFE' }])).toBe(5)
+    expect(remainingLifePhotoSlots(Array.from({ length: 7 }, () => ({ category: 'LIFE' })))).toBe(0)
   })
 })

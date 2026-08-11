@@ -6,6 +6,13 @@ import { useProfileStore } from '@/stores/profile'
 import { validateProfileForm } from '@/validators/profile'
 import { choosePhotos } from '@/adapters/media'
 import type { GuestFieldDefinition, ProfilePhotoView } from '@/types'
+import SectionCard from '@/components/SectionCard.vue'
+import AppIcon from '@/components/AppIcon.vue'
+import {
+  profileCompletion,
+  profileGroup,
+  remainingLifePhotoSlots,
+} from '@/utils/presentation'
 
 const store = useProfileStore()
 const definitions = ref<GuestFieldDefinition[]>([])
@@ -14,6 +21,15 @@ const saving = ref(false)
 const submitting = ref(false)
 
 const missing = computed(() => validateProfileForm(definitions.value, values))
+const avatar = computed(() => store.photos.find((photo) => photo.category === 'AVATAR'))
+const lifePhotos = computed(() => store.photos.filter((photo) => photo.category === 'LIFE'))
+const completion = computed(() => profileCompletion(definitions.value, values, Boolean(avatar.value)))
+const fieldGroups = computed(() => [
+  { key: 'basic', title: '基本资料', items: definitions.value.filter((item) => profileGroup(item.fieldCode) === 'basic') },
+  { key: 'career', title: '职业与收入', items: definitions.value.filter((item) => profileGroup(item.fieldCode) === 'career') },
+  { key: 'social', title: '社交账号', items: definitions.value.filter((item) => profileGroup(item.fieldCode) === 'social') },
+  { key: 'more', title: '更多资料', items: definitions.value.filter((item) => profileGroup(item.fieldCode) === 'more') },
+].filter((group) => group.items.length > 0))
 
 onShow(async () => {
   await Promise.all([loadDefinitions(), store.load()])
@@ -66,7 +82,7 @@ function onBooleanChange(
 }
 
 async function choosePhoto(category: 'AVATAR' | 'LIFE'): Promise<void> {
-  const count = category === 'AVATAR' ? 1 : Math.max(0, 6 - store.photos.length)
+  const count = category === 'AVATAR' ? 1 : remainingLifePhotoSlots(store.photos)
   if (count <= 0) {
     uni.showToast({ title: '已达数量上限', icon: 'none' })
     return
@@ -130,169 +146,219 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <view class="page">
-    <view class="section-title">基本信息</view>
-    <view class="card">
-      <view v-for="definition in definitions" :key="definition.fieldCode" class="form-row">
-        <text class="label">{{ definition.label }}{{ definition.required ? ' *' : '' }}</text>
-        <picker
-          v-if="definition.dataType === 'SINGLE_OPTION'"
-          :range="definition.options"
-          @change="onOptionChange(definition, $event)"
-        >
-          <view class="picker-value">{{ values[definition.fieldCode] || '请选择' }}</view>
-        </picker>
-        <input
-          v-else-if="definition.dataType === 'TEXT' || definition.dataType === 'LONG_TEXT'"
-          v-model="values[definition.fieldCode]"
-          class="input"
-          type="text"
-          :placeholder="definition.instructions || '请输入'"
-        />
-        <input
-          v-else-if="definition.dataType === 'INTEGER' || definition.dataType === 'DECIMAL'"
-          v-model="values[definition.fieldCode]"
-          class="input"
-          type="digit"
-          :placeholder="definition.instructions || '请输入数字'"
-        />
-        <picker
-          v-else-if="definition.dataType === 'DATE'"
-          mode="date"
-          @change="onDateChange(definition, $event)"
-        >
-          <view class="picker-value">{{ values[definition.fieldCode] || '请选择日期' }}</view>
-        </picker>
-        <switch
-          v-else-if="definition.dataType === 'BOOLEAN'"
-          :checked="Boolean(values[definition.fieldCode])"
-          color="#B4556D"
-          @change="onBooleanChange(definition, $event)"
-        />
-      </view>
+  <view class="archive-page profile-page">
+    <view class="profile-head">
+      <view><text class="archive-title">我的档案</text><text class="archive-subtitle">请确保填写信息真实、完整</text></view>
+      <view class="completion"><text>完成度</text><strong class="archive-tabular">{{ completion }}%</strong></view>
     </view>
+    <view class="progress-track"><view :style="{ width: `${completion}%` }" /></view>
 
-    <view class="section-title">照片</view>
-    <view class="card">
-      <view class="photo-section">
-        <text class="label">头像（必填，1 张）</text>
-        <view class="photo-list">
-          <image
-            v-for="photo in store.photos.filter((p) => p.category === 'AVATAR')"
-            :key="photo.id"
-            :src="photo.downloadUrl"
-            class="photo"
-            mode="aspectFill"
-          />
-          <view class="add" @tap="choosePhoto('AVATAR')">+</view>
+    <SectionCard v-for="group in fieldGroups" :key="group.key" :title="group.title" :meta="`${group.items.filter((item) => values[item.fieldCode] !== '' && values[item.fieldCode] != null).length}/${group.items.length}`">
+      <view v-for="definition in group.items" :key="definition.fieldCode" class="form-row">
+        <text class="label">{{ definition.label }}<text v-if="definition.required" class="required"> *</text></text>
+        <view class="field-side">
+          <picker v-if="definition.dataType === 'SINGLE_OPTION'" :range="definition.options" @change="onOptionChange(definition, $event)">
+            <view class="picker-value" :class="{ placeholder: !values[definition.fieldCode] }">{{ values[definition.fieldCode] || '请选择' }}</view>
+          </picker>
+          <input v-else-if="definition.dataType === 'TEXT' || definition.dataType === 'LONG_TEXT'" v-model="values[definition.fieldCode]" class="input" type="text" :placeholder="definition.instructions || '请输入'" />
+          <input v-else-if="definition.dataType === 'INTEGER' || definition.dataType === 'DECIMAL'" v-model="values[definition.fieldCode]" class="input" type="digit" :placeholder="definition.instructions || '请输入数字'" />
+          <picker v-else-if="definition.dataType === 'DATE'" mode="date" @change="onDateChange(definition, $event)">
+            <view class="picker-value" :class="{ placeholder: !values[definition.fieldCode] }">{{ values[definition.fieldCode] || '请选择日期' }}</view>
+          </picker>
+          <switch v-else-if="definition.dataType === 'BOOLEAN'" :checked="Boolean(values[definition.fieldCode])" color="#0D0D0F" @change="onBooleanChange(definition, $event)" />
+          <AppIcon v-if="definition.dataType !== 'BOOLEAN'" name="chevron" :size="18" />
         </view>
       </view>
-      <view class="photo-section">
-        <text class="label">生活照（最多 6 张）</text>
+    </SectionCard>
+
+    <SectionCard title="个人影像" :meta="`${lifePhotos.length + (avatar ? 1 : 0)}/7`">
+      <view class="photo-section avatar-section">
+        <view><text class="photo-label">头像（必填）</text><text class="photo-help">用于档案身份展示</text></view>
+        <view class="avatar-picker" @tap="choosePhoto('AVATAR')">
+          <image v-if="avatar" :src="avatar.downloadUrl" class="avatar-photo" mode="aspectFill" />
+          <view v-else class="avatar-empty"><AppIcon name="user" :size="26" /></view>
+          <view class="camera-dot"><AppIcon name="camera" :size="12" /></view>
+        </view>
+      </view>
+      <view class="photo-section life-section">
+        <view class="photo-copy"><text class="photo-label">生活照</text><text class="photo-help">最多 6 张，建议包含正面照和生活场景</text></view>
         <view class="photo-list">
-          <view
-            v-for="photo in store.photos.filter((p) => p.category === 'LIFE')"
-            :key="photo.id"
-            class="photo-wrap"
-          >
+          <view v-for="photo in lifePhotos" :key="photo.id" class="photo-wrap">
             <image :src="photo.downloadUrl" class="photo" mode="aspectFill" />
             <text class="remove" @tap="removePhoto(photo)">×</text>
           </view>
-          <view class="add" @tap="choosePhoto('LIFE')">+</view>
+          <view v-if="lifePhotos.length < 6" class="add" @tap="choosePhoto('LIFE')"><text>＋</text><small>上传</small></view>
         </view>
       </view>
-    </view>
+    </SectionCard>
 
     <view class="actions">
-      <button class="save" :disabled="saving" @tap="save">保存草稿</button>
-      <button class="submit" :disabled="submitting" @tap="submit">提交审核</button>
+      <button class="archive-button-secondary" :disabled="saving" @tap="save">保存草稿</button>
+      <button class="archive-button-primary" :disabled="submitting" @tap="submit">提交审核</button>
     </view>
   </view>
 </template>
 
 <style lang="scss" scoped>
-.page {
-  padding: 30rpx;
+.profile-page {
+  padding-top: 24rpx;
 }
-.section-title {
-  font-size: 32rpx;
-  font-weight: 700;
-  color: #46323a;
-  margin: 20rpx 0 16rpx;
+.profile-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
 }
-.card {
-  background: #ffffff;
-  border-radius: 24rpx;
-  padding: 30rpx;
-  margin-bottom: 24rpx;
+.archive-title,
+.archive-subtitle { display: block; }
+.completion {
+  text-align: right;
+}
+.completion text,
+.completion strong { display: block; }
+.completion text { color: #85868a; font-size: 20rpx; }
+.completion strong { margin-top: 5rpx; font-size: 24rpx; }
+.progress-track {
+  height: 6rpx;
+  margin: 18rpx 0 32rpx;
+  overflow: hidden;
+  border-radius: 99rpx;
+  background: #e4e2de;
+}
+.progress-track view {
+  height: 100%;
+  border-radius: inherit;
+  background: #0d0d0f;
+  transition: width 180ms ease;
 }
 .form-row {
-  margin-bottom: 28rpx;
+  min-height: 82rpx;
+  padding: 0 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  border-bottom: 1rpx solid #edebe7;
 }
+.form-row:last-child { border-bottom: 0; }
 .label {
-  display: block;
-  font-size: 28rpx;
-  color: #3b3034;
-  margin-bottom: 12rpx;
+  flex: none;
+  color: #29292d;
+  font-size: 24rpx;
 }
+.required { color: #ef4444; }
+.field-side {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  color: #a0a1a4;
+}
+.field-side picker { max-width: 100%; }
 .input,
 .picker-value {
+  min-width: 160rpx;
+  max-width: 390rpx;
   height: 80rpx;
+  color: #353539;
+  text-align: right;
+  font-size: 23rpx;
   line-height: 80rpx;
-  border-bottom: 2rpx solid #f0e6ea;
-  font-size: 30rpx;
 }
-.photo-list {
+.placeholder { color: #a0a1a4; }
+.field-side switch { transform: scale(0.72); transform-origin: right center; }
+.photo-section {
+  padding: 22rpx;
+}
+.avatar-section {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16rpx;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1rpx solid #edebe7;
 }
-.photo {
-  width: 160rpx;
-  height: 160rpx;
-  border-radius: 16rpx;
-}
-.photo-wrap {
+.photo-label,
+.photo-help { display: block; }
+.photo-label { color: #29292d; font-size: 24rpx; }
+.photo-help { margin-top: 7rpx; color: #929397; font-size: 20rpx; }
+.avatar-picker {
   position: relative;
+  width: 108rpx;
+  height: 108rpx;
 }
-.remove {
-  position: absolute;
-  top: -12rpx;
-  right: -12rpx;
-  width: 40rpx;
-  height: 40rpx;
-  line-height: 36rpx;
-  text-align: center;
-  border-radius: 50%;
-  background: #b4556d;
-  color: #ffffff;
+.avatar-photo,
+.avatar-empty {
+  width: 108rpx;
+  height: 108rpx;
+  border-radius: 12rpx;
 }
-.add {
-  width: 160rpx;
-  height: 160rpx;
-  border: 2rpx dashed #d9c2ca;
-  border-radius: 16rpx;
+.avatar-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 56rpx;
-  color: #b4556d;
+  background: #edebe7;
+  color: #77787c;
 }
-.actions {
+.camera-dot {
+  position: absolute;
+  right: -7rpx;
+  bottom: -7rpx;
+  width: 36rpx;
+  height: 36rpx;
   display: flex;
-  gap: 20rpx;
-}
-.save {
-  flex: 1;
-  background: #ffffff;
-  color: #b4556d;
-  border: 2rpx solid #b4556d;
-  border-radius: 999rpx;
-}
-.submit {
-  flex: 1;
-  background: #b4556d;
+  align-items: center;
+  justify-content: center;
+  border: 3rpx solid #ffffff;
+  border-radius: 50%;
+  background: #0d0d0f;
   color: #ffffff;
-  border-radius: 999rpx;
+}
+.photo-copy { margin-bottom: 18rpx; }
+.photo-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+}
+.photo-wrap { position: relative; aspect-ratio: 1; }
+.photo {
+  width: 100%;
+  height: 100%;
+  border-radius: 10rpx;
+}
+.remove {
+  position: absolute;
+  top: 6rpx;
+  right: 6rpx;
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: 50%;
+  background: rgba(13, 13, 15, 0.72);
+  color: #ffffff;
+  text-align: center;
+  font-size: 23rpx;
+  line-height: 29rpx;
+}
+.add {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx dashed #bfc0c3;
+  border-radius: 10rpx;
+  color: #85868a;
+}
+.add text { font-size: 34rpx; line-height: 1; }
+.add small { margin-top: 7rpx; font-size: 19rpx; }
+.actions {
+  position: sticky;
+  bottom: calc(104rpx + env(safe-area-inset-bottom));
+  z-index: 4;
+  margin: 28rpx -10rpx -6rpx;
+  padding: 14rpx 10rpx;
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 14rpx;
+  background: rgba(247, 246, 243, 0.94);
+  backdrop-filter: blur(12px);
 }
 </style>
