@@ -1,14 +1,24 @@
 :root {
-  --love-rose: #b4556d;
-  --love-gold: #c9a227;
-  --love-green: #4e7a5a;
-  --love-bg: #f7f5f2;
-  --love-deep: #46323a;
+  --archive-ink: #0d0d0f;
+  --archive-graphite: #1e1e22;
+  --archive-muted: #6b6c70;
+  --archive-line: #e5e3df;
+  --archive-bg: #f7f6f3;
+  --archive-white: #ffffff;
+  --archive-gold: #c9a96a;
+  --archive-success: #22c55e;
+  --archive-warning: #f59e0b;
+  --archive-danger: #ef4444;
 
-  --el-color-primary: var(--love-rose);
-  --el-color-success: var(--love-green);
-  --el-color-warning: var(--love-gold);
-  --el-bg-color-page: var(--love-bg);
+  --el-color-primary: var(--archive-ink);
+  --el-color-success: var(--archive-success);
+  --el-color-warning: var(--archive-warning);
+  --el-color-danger: var(--archive-danger);
+  --el-bg-color-page: var(--archive-bg);
+  --el-border-color: var(--archive-line);
+  --el-border-color-light: #eeece8;
+  --el-border-radius-base: 6px;
+  --el-font-size-base: 13px;
 }
 
 html,
@@ -17,10 +27,134 @@ body,
   height: 100%;
   margin: 0;
   font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  background: var(--love-bg);
-  color: #3b3034;
+  background: var(--archive-bg);
+  color: var(--archive-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.el-main {
+  padding: 24px !important;
+  overflow-x: hidden !important;
+}
+
+.el-card {
+  border-color: var(--archive-line) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+.el-card__header {
+  padding: 16px 18px !important;
+  color: var(--archive-ink);
+  font-weight: 600;
+}
+
+.el-card__body {
+  padding: 18px !important;
+}
+
+.el-button {
+  min-height: 34px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.el-button--primary:not(.is-link) {
+  --el-button-bg-color: var(--archive-ink);
+  --el-button-border-color: var(--archive-ink);
+  --el-button-hover-bg-color: var(--archive-graphite);
+  --el-button-hover-border-color: var(--archive-graphite);
+  --el-button-active-bg-color: #000000;
+}
+
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper,
+.el-date-editor.el-input__wrapper,
+.el-input-number {
+  box-shadow: 0 0 0 1px var(--archive-line) inset !important;
+}
+
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused,
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 1px var(--archive-ink) inset !important;
+}
+
+.el-table {
+  --el-table-border-color: #ebe9e5;
+  --el-table-header-bg-color: #faf9f7;
+  --el-table-row-hover-bg-color: #f7f6f3;
+  color: #29292c;
+  font-size: 13px;
+}
+
+.el-table th.el-table__cell {
+  height: 42px;
+  color: #55565a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.el-table td.el-table__cell {
+  padding: 10px 0;
+}
+
+.el-pagination {
+  --el-pagination-button-bg-color: transparent;
+}
+
+.archive-status-tag {
+  min-width: 64px;
+  justify-content: center;
+  border: 0 !important;
+  font-weight: 600;
+}
+
+.archive-panel {
+  border: 1px solid var(--archive-line);
+  border-radius: 8px;
+  background: var(--archive-white);
+}
+
+.archive-empty {
+  color: var(--archive-muted);
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--archive-gold);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1100px) {
+  .el-main {
+    padding: 18px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
