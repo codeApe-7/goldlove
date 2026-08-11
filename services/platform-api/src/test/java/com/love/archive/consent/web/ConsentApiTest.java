@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.love.archive.admin.domain.AdminStatus;
 import com.love.archive.admin.persistence.AdminUserEntity;
 import com.love.archive.admin.persistence.AdminUserMapper;
@@ -16,7 +17,6 @@ import com.love.archive.consent.persistence.AuthorizationRecordMapper;
 import com.love.archive.identity.application.GuestProvisioningService;
 import com.love.archive.identity.web.ProvisionedGuestView;
 import com.love.archive.testsupport.ApiIntegrationTest;
-import jakarta.servlet.http.Cookie;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,9 +74,10 @@ class ConsentApiTest extends ApiIntegrationTest {
 
     @Test
     void returnsExplicitInvalidConsentViewWhenNoValidConsentExists() throws Exception {
-        Cookie guestCookie = activateAndLogin();
+        String guestToken = activateAndLogin();
 
-        mockMvc.perform(get("/api/v1/guest/consents/current").cookie(guestCookie))
+        mockMvc.perform(get("/api/v1/guest/consents/current")
+                        .header("Authorization", "Bearer " + guestToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.hasValidConsent").value(false))
                 .andExpect(jsonPath("$.data.consent").doesNotExist());
@@ -84,10 +85,10 @@ class ConsentApiTest extends ApiIntegrationTest {
 
     @Test
     void ignoresForwardedForWithoutTrustedProxyConfiguration() throws Exception {
-        Cookie guestCookie = activateAndLogin();
+        String guestToken = activateAndLogin();
 
         mockMvc.perform(post("/api/v1/guest/consents")
-                        .cookie(guestCookie)
+                        .header("Authorization", "Bearer " + guestToken)
                         .header("Origin", "https://h5.example.test")
                         .header("X-Forwarded-For", "203.0.113.7")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -110,7 +111,7 @@ class ConsentApiTest extends ApiIntegrationTest {
         assertThat(stored.getClientIpHmac()).doesNotContain("203.0.113.7");
     }
 
-    private Cookie activateAndLogin() throws Exception {
+    private String activateAndLogin() throws Exception {
         mockMvc.perform(post("/api/v1/guest/auth/activate")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -125,7 +126,11 @@ class ConsentApiTest extends ApiIntegrationTest {
                                 """))
                 .andExpect(status().isOk())
                 .andReturn();
-        return login.getResponse().getCookies()[0];
+        return new ObjectMapper()
+                .readTree(login.getResponse().getContentAsString())
+                .get("data")
+                .get("accessToken")
+                .asText();
     }
 
     private String validRequest() {

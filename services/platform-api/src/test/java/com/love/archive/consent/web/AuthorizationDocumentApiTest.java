@@ -1,5 +1,6 @@
 package com.love.archive.consent.web;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -11,7 +12,6 @@ import com.love.archive.admin.persistence.AdminUserMapper;
 import com.love.archive.identity.application.GuestProvisioningService;
 import com.love.archive.identity.web.ProvisionedGuestView;
 import com.love.archive.testsupport.ApiIntegrationTest;
-import jakarta.servlet.http.Cookie;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -76,13 +76,14 @@ class AuthorizationDocumentApiTest extends ApiIntegrationTest {
                 "线下付款",
                 "retired-document-test");
         retireV03AndActivateV04();
-        Cookie guestCookie = activateAndLogin(provisioned);
+        String guestToken = activateAndLogin(provisioned);
 
-        mockMvc.perform(get("/api/v1/guest/authorization-documents/v0.3").cookie(guestCookie))
+        mockMvc.perform(get("/api/v1/guest/authorization-documents/v0.3")
+                        .header("Authorization", "Bearer " + guestToken))
                 .andExpect(status().isOk());
     }
 
-    private Cookie activateAndLogin(ProvisionedGuestView provisioned) throws Exception {
+    private String activateAndLogin(ProvisionedGuestView provisioned) throws Exception {
         mockMvc.perform(post("/api/v1/guest/auth/activate")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -97,7 +98,11 @@ class AuthorizationDocumentApiTest extends ApiIntegrationTest {
                                 """))
                 .andExpect(status().isOk())
                 .andReturn();
-        return login.getResponse().getCookies()[0];
+        return new ObjectMapper()
+                .readTree(login.getResponse().getContentAsString())
+                .get("data")
+                .get("accessToken")
+                .asText();
     }
 
     private void retireV03AndActivateV04() throws SQLException {

@@ -1,5 +1,6 @@
 package com.love.archive.review.web;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -28,7 +29,6 @@ import com.love.archive.review.persistence.ProfileRevisionEntity;
 import com.love.archive.review.persistence.ProfileRevisionMapper;
 import com.love.archive.storage.application.ObjectStorageService;
 import com.love.archive.testsupport.ApiIntegrationTest;
-import jakarta.servlet.http.Cookie;
 import java.net.URI;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -57,7 +57,7 @@ class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
 
     private long adminId;
     private ProvisionedGuestView guest;
-    private Cookie guestCookie;
+    private String guestToken;
 
     @BeforeEach
     void prepareAuthenticatedGuest() throws Exception {
@@ -65,7 +65,7 @@ class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
         redis.getConnectionFactory().getConnection().serverCommands().flushDb();
         adminId = insertAdmin();
         guest = provision("13800138000", "PAY-TASK5-API-PRIMARY");
-        guestCookie = activateAndLogin(
+        guestToken = activateAndLogin(
                 "13800138000", guest.initialCredential(), "Task5-password-2026");
         when(storageService.signDownloadUrl(anyString(), any()))
                 .thenReturn("https://loveplatform-1314980040.cos.ap-guangzhou.myqcloud.com/signed");
@@ -87,7 +87,7 @@ class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
     @Test
     void requiresIdempotencyKeyHeader() throws Exception {
         mockMvc.perform(post("/api/v1/guest/profile/submissions")
-                        .cookie(guestCookie)
+                        .header("Authorization", "Bearer " + guestToken)
                         .header("Origin", "https://h5.example.test"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REQUIRED"));
@@ -98,7 +98,7 @@ class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
         saveCompleteDraftAndConsent(guest.accountId());
 
         mockMvc.perform(post("/api/v1/guest/profile/submissions")
-                        .cookie(guestCookie)
+                        .header("Authorization", "Bearer " + guestToken)
                         .header("Origin", "https://h5.example.test")
                         .header("Idempotency-Key", "submit-api-owned"))
                 .andExpect(status().isOk())
@@ -112,7 +112,7 @@ class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
         assertThat(revision.getSubmittedByAccountId()).isEqualTo(guest.accountId());
 
         mockMvc.perform(get("/api/v1/guest/profile/revisions/{revisionId}", revision.getId())
-                        .cookie(guestCookie))
+                        .header("Authorization", "Bearer " + guestToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(revision.getId()))
                 .andExpect(jsonPath("$.data.revisionNumber").value(1))
@@ -123,7 +123,7 @@ class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
     void returnsSameNotFoundForForeignAndAbsentRevision() throws Exception {
         saveCompleteDraftAndConsent(guest.accountId());
         mockMvc.perform(post("/api/v1/guest/profile/submissions")
-                        .cookie(guestCookie)
+                        .header("Authorization", "Bearer " + guestToken)
                         .header("Origin", "https://h5.example.test")
                         .header("Idempotency-Key", "submit-api-ownership"))
                 .andExpect(status().isOk());
@@ -132,15 +132,15 @@ class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
                         .eq(ProfileRevisionEntity::getSubmittedByAccountId, guest.accountId()));
 
         ProvisionedGuestView other = provision("13900139000", "PAY-TASK5-API-OTHER");
-        Cookie otherCookie = activateAndLogin(
+        String otherToken = activateAndLogin(
                 "13900139000", other.initialCredential(), "Other-password-2026");
 
         mockMvc.perform(get("/api/v1/guest/profile/revisions/{revisionId}", revision.getId())
-                        .cookie(otherCookie))
+                        .header("Authorization", "Bearer " + otherToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("PROFILE_REVISION_NOT_FOUND"));
         mockMvc.perform(get("/api/v1/guest/profile/revisions/{revisionId}", revision.getId() + 999)
-                        .cookie(guestCookie))
+                        .header("Authorization", "Bearer " + guestToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("PROFILE_REVISION_NOT_FOUND"));
     }
@@ -179,11 +179,6 @@ class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
         photo.setGuestProfileId(profileId);
         photo.setCategory(PhotoCategory.AVATAR);
         photo.setObjectKey("profiles/" + profileId + "/avatar/fixture.jpg");
-        photo.setSha256("e".repeat(64));
-        photo.setSizeBytes(10L);
-        photo.setContentType("image/jpeg");
-        photo.setWidth(100);
-        photo.setHeight(100);
         photo.setSortOrder(0);
         OffsetDateTime now = OffsetDateTime.now();
         photo.setCreatedAt(now);
@@ -203,7 +198,7 @@ class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
                 "task5-api-provision");
     }
 
-    private Cookie activateAndLogin(String phone, String credential, String password)
+    private String activateAndLogin(String phone, String credential, String password)
             throws Exception {
         mockMvc.perform(post("/api/v1/guest/auth/activate")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -219,7 +214,11 @@ class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
                                 """.formatted(phone, password)))
                 .andExpect(status().isOk())
                 .andReturn();
-        return login.getResponse().getCookies()[0];
+        return new ObjectMapper()
+                .readTree(login.getResponse().getContentAsString())
+                .get("data")
+                .get("accessToken")
+                .asText();
     }
 
     private long insertAdmin() {

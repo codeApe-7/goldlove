@@ -93,11 +93,6 @@ class DatabaseGuestProfileSnapshotProvider implements GuestProfileSnapshotProvid
                 .map(photo -> new GuestProfileSnapshot.Photo(
                         photo.getCategory().name(),
                         photo.getObjectKey(),
-                        photo.getSha256(),
-                        photo.getSizeBytes(),
-                        photo.getContentType(),
-                        photo.getWidth(),
-                        photo.getHeight(),
                         photo.getSortOrder()))
                 .toList();
 

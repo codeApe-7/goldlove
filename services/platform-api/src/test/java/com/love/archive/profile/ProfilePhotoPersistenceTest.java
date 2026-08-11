@@ -86,10 +86,9 @@ class ProfilePhotoPersistenceTest extends ApiIntegrationTest {
     void rejectsInvalidCategory() {
         assertThatThrownBy(() -> execute("""
                 INSERT INTO profile_photo (
-                    guest_profile_id, category, object_key, sha256, size_bytes,
-                    content_type, width, height, sort_order
-                ) VALUES (?, 'VIDEO', 'profiles/1/video/v.mp4', ?, 1, 'video/mp4', 100, 100, 0)
-                """, profileId, "a".repeat(64)))
+                    guest_profile_id, category, object_key, sort_order
+                ) VALUES (?, 'VIDEO', 'profiles/1/video/v.mp4', 0)
+                """, profileId))
                 .hasMessageContaining("ck_profile_photo_category");
     }
 
@@ -98,14 +97,12 @@ class ProfilePhotoPersistenceTest extends ApiIntegrationTest {
         long revisionId = insertRevision();
         execute("""
                 INSERT INTO profile_revision_photo (
-                    profile_revision_id, category, object_key, sha256, size_bytes,
-                    content_type, width, height, sort_order, created_at
-                ) VALUES (?, 'AVATAR', 'profiles/1/avatar/snap.jpg', ?, 10,
-                          'image/jpeg', 100, 100, 0, ?)
-                """, revisionId, "b".repeat(64), OffsetDateTime.now());
+                    profile_revision_id, category, object_key, sort_order, created_at
+                ) VALUES (?, 'AVATAR', 'profiles/1/avatar/snap.jpg', 0, ?)
+                """, revisionId, OffsetDateTime.now());
 
         assertThatThrownBy(() -> execute("""
-                UPDATE profile_revision_photo SET width = 50 WHERE profile_revision_id = ?
+                UPDATE profile_revision_photo SET sort_order = 50 WHERE profile_revision_id = ?
                 """, revisionId))
                 .hasMessageContaining("profile_revision_photo rows are immutable");
         assertThatThrownBy(() -> execute("""
@@ -134,10 +131,9 @@ class ProfilePhotoPersistenceTest extends ApiIntegrationTest {
     private void insertPhoto(String category, String objectKey, int sortOrder) {
         execute("""
                 INSERT INTO profile_photo (
-                    guest_profile_id, category, object_key, sha256, size_bytes,
-                    content_type, width, height, sort_order
-                ) VALUES (?, ?, ?, ?, 10, 'image/jpeg', 100, 100, ?)
-                """, profileId, category, objectKey, "d".repeat(64), sortOrder);
+                    guest_profile_id, category, object_key, sort_order
+                ) VALUES (?, ?, ?, ?)
+                """, profileId, category, objectKey, sortOrder);
     }
 
     private static void execute(String sql, Object... args) {

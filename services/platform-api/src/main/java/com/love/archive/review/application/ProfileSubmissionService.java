@@ -191,11 +191,6 @@ public class ProfileSubmissionService {
             stored.setProfileRevisionId(revision.getId());
             stored.setCategory(PhotoCategory.valueOf(photo.category()));
             stored.setObjectKey(photo.objectKey());
-            stored.setSha256(photo.sha256());
-            stored.setSizeBytes(photo.sizeBytes());
-            stored.setContentType(photo.contentType());
-            stored.setWidth(photo.width());
-            stored.setHeight(photo.height());
             stored.setSortOrder(photo.sortOrder());
             stored.setCreatedAt(submittedAt);
             revisionPhotoMapper.insert(stored);
@@ -243,11 +238,7 @@ public class ProfileSubmissionService {
                 .stream()
                 .map(photo -> new ProfileRevisionView.Photo(
                         photo.getCategory().name(),
-                        photo.getSha256(),
-                        photo.getSizeBytes(),
-                        photo.getContentType(),
-                        photo.getWidth(),
-                        photo.getHeight(),
+                        photo.getObjectKey(),
                         photo.getSortOrder(),
                         storageService.signDownloadUrl(
                                 photo.getObjectKey(), Duration.ofMinutes(15))))
@@ -332,11 +323,6 @@ final class CanonicalSnapshotHasher {
             for (GuestProfileSnapshot.Photo photo : photos) {
                 writeEntry(output, "photo_category", photo.category());
                 writeEntry(output, "photo_object_key", photo.objectKey());
-                writeEntry(output, "photo_sha256", photo.sha256());
-                writeEntry(output, "photo_size_bytes", photo.sizeBytes());
-                writeEntry(output, "photo_content_type", photo.contentType());
-                writeEntry(output, "photo_width", photo.width());
-                writeEntry(output, "photo_height", photo.height());
                 writeEntry(output, "photo_sort_order", photo.sortOrder());
             }
         } catch (IOException exception) {

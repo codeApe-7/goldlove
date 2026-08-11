@@ -44,11 +44,7 @@ public record ProfileRevisionView(
 
     public record Photo(
             String category,
-            String sha256,
-            long sizeBytes,
-            String contentType,
-            int width,
-            int height,
+            String objectKey,
             int sortOrder,
             String downloadUrl) {
     }

@@ -22,16 +22,6 @@ public class ProfilePhotoEntity {
     private PhotoCategory category;
     @TableField("object_key")
     private String objectKey;
-    @TableField("sha256")
-    private String sha256;
-    @TableField("size_bytes")
-    private Long sizeBytes;
-    @TableField("content_type")
-    private String contentType;
-    @TableField("width")
-    private Integer width;
-    @TableField("height")
-    private Integer height;
     @TableField("sort_order")
     private Integer sortOrder;
     @TableField("created_at")

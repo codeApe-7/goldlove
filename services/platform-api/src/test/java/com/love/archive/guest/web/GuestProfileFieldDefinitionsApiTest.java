@@ -1,5 +1,6 @@
 package com.love.archive.guest.web;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -15,7 +16,6 @@ import com.love.archive.identity.application.GuestProvisioningService;
 import com.love.archive.identity.security.PasswordHasher;
 import com.love.archive.identity.web.ProvisionedGuestView;
 import com.love.archive.testsupport.ApiIntegrationTest;
-import jakarta.servlet.http.Cookie;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +36,7 @@ class GuestProfileFieldDefinitionsApiTest extends ApiIntegrationTest {
     @Autowired private StringRedisTemplate redis;
 
     private long adminId;
-    private Cookie guestCookie;
+    private String guestToken;
 
     @BeforeEach
     void prepareGuest() throws Exception {
@@ -46,7 +46,7 @@ class GuestProfileFieldDefinitionsApiTest extends ApiIntegrationTest {
         ProvisionedGuestView guest = provisioningService.provision(
                 adminId, "13800138000", "PAY-GUEST-FIELDS", 199_00L,
                 OffsetDateTime.now().minusMinutes(5), "v0.3", null, "guest-fields-provision");
-        guestCookie = activateAndLogin(
+        guestToken = activateAndLogin(
                 "13800138000", guest.initialCredential(), "Guest-fields-2026");
     }
 
@@ -72,7 +72,8 @@ class GuestProfileFieldDefinitionsApiTest extends ApiIntegrationTest {
         disabled.setUpdatedAt(now);
         definitionMapper.insert(disabled);
 
-        mockMvc.perform(get("/api/v1/guest/profile/field-definitions").cookie(guestCookie))
+        mockMvc.perform(get("/api/v1/guest/profile/field-definitions")
+                        .header("Authorization", "Bearer " + guestToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].fieldCode").value("gender"))
                 .andExpect(jsonPath("$.data[0].dataType").value("SINGLE_OPTION"))
@@ -112,7 +113,7 @@ class GuestProfileFieldDefinitionsApiTest extends ApiIntegrationTest {
         return admin.getId();
     }
 
-    private Cookie activateAndLogin(String phone, String credential, String password)
+    private String activateAndLogin(String phone, String credential, String password)
             throws Exception {
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .post("/api/v1/guest/auth/activate")
@@ -129,6 +130,10 @@ class GuestProfileFieldDefinitionsApiTest extends ApiIntegrationTest {
                                 """.formatted(phone, password)))
                 .andExpect(status().isOk())
                 .andReturn();
-        return login.getResponse().getCookies()[0];
+        return new ObjectMapper()
+                .readTree(login.getResponse().getContentAsString())
+                .get("data")
+                .get("accessToken")
+                .asText();
     }
 }

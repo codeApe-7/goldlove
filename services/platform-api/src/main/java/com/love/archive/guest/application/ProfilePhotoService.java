@@ -49,11 +49,6 @@ public class ProfilePhotoService {
         photo.setGuestProfileId(profile.getId());
         photo.setCategory(category);
         photo.setObjectKey(stored.objectKey());
-        photo.setSha256(stored.sha256());
-        photo.setSizeBytes(stored.sizeBytes());
-        photo.setContentType(stored.contentType());
-        photo.setWidth(image.width());
-        photo.setHeight(image.height());
         photo.setSortOrder(photoMapper.selectMaxSortOrder(profile.getId(), category));
         photo.setCreatedAt(now);
         photo.setUpdatedAt(now);
@@ -157,11 +152,7 @@ public class ProfilePhotoService {
         return new ProfilePhotoView(
                 photo.getId(),
                 photo.getCategory().name(),
-                photo.getSha256(),
-                photo.getSizeBytes(),
-                photo.getContentType(),
-                photo.getWidth(),
-                photo.getHeight(),
+                photo.getObjectKey(),
                 photo.getSortOrder(),
                 storageService.signDownloadUrl(photo.getObjectKey(), URL_TTL),
                 photo.getCreatedAt());

@@ -101,15 +101,13 @@ class ProfilePhotoServiceTest extends ApiIntegrationTest {
         ProfilePhotoView view = photoService.upload(accountId, PhotoCategory.AVATAR, imageBytes());
 
         assertThat(view.category()).isEqualTo("AVATAR");
-        assertThat(view.width()).isEqualTo(100);
-        assertThat(view.height()).isEqualTo(80);
+        assertThat(view.objectKey()).startsWith("profiles/" + accountId + "/avatar/");
         assertThat(view.downloadUrl()).startsWith("https://loveplatform-1314980040");
         ProfilePhotoEntity stored = photoMapper.selectOne(
                 Wrappers.<ProfilePhotoEntity>lambdaQuery()
                         .eq(ProfilePhotoEntity::getGuestProfileId, profileId));
         assertThat(stored.getObjectKey()).startsWith("profiles/" + accountId + "/avatar/");
-        assertThat(stored.getSha256()).isEqualTo("a".repeat(64));
-        assertThat(stored.getContentType()).isEqualTo("image/png");
+        assertThat(stored.getSortOrder()).isZero();
     }
 
     @Test
@@ -252,11 +250,6 @@ class ProfilePhotoServiceTest extends ApiIntegrationTest {
         snapshot.setProfileRevisionId(revision.getId());
         snapshot.setCategory(PhotoCategory.AVATAR);
         snapshot.setObjectKey(objectKey);
-        snapshot.setSha256("a".repeat(64));
-        snapshot.setSizeBytes(10L);
-        snapshot.setContentType("image/png");
-        snapshot.setWidth(100);
-        snapshot.setHeight(80);
         snapshot.setSortOrder(0);
         snapshot.setCreatedAt(now);
         revisionPhotoMapper.insert(snapshot);

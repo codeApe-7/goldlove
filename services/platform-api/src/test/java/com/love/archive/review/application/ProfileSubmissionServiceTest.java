@@ -357,11 +357,6 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
         photo.setGuestProfileId(profileId);
         photo.setCategory(PhotoCategory.AVATAR);
         photo.setObjectKey("profiles/" + profileId + "/avatar/fixture.jpg");
-        photo.setSha256("e".repeat(64));
-        photo.setSizeBytes(10L);
-        photo.setContentType("image/jpeg");
-        photo.setWidth(100);
-        photo.setHeight(100);
         photo.setSortOrder(0);
         OffsetDateTime now = OffsetDateTime.now();
         photo.setCreatedAt(now);

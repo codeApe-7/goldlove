@@ -74,11 +74,6 @@ public record GuestProfileSnapshot(
     public record Photo(
             String category,
             String objectKey,
-            String sha256,
-            long sizeBytes,
-            String contentType,
-            int width,
-            int height,
             int sortOrder) {
     }
 }

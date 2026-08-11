@@ -110,11 +110,7 @@ public class ProfileReviewService {
                 .stream()
                 .map(photo -> new ProfileRevisionView.Photo(
                         photo.getCategory().name(),
-                        photo.getSha256(),
-                        photo.getSizeBytes(),
-                        photo.getContentType(),
-                        photo.getWidth(),
-                        photo.getHeight(),
+                        photo.getObjectKey(),
                         photo.getSortOrder(),
                         storageService.signDownloadUrl(
                                 photo.getObjectKey(), Duration.ofMinutes(15))))
