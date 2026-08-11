@@ -78,7 +78,17 @@ class GuestProfileFieldDefinitionsApiTest extends ApiIntegrationTest {
                 .andExpect(jsonPath("$.data[0].dataType").value("SINGLE_OPTION"))
                 .andExpect(jsonPath("$.data[0].required").value(true))
                 .andExpect(jsonPath("$.data[0].options[0]").value("男"))
-                .andExpect(jsonPath("$.data.length()").value(7))
+                .andExpect(jsonPath("$.data.length()").value(11))
+                .andExpect(jsonPath("$.data[?(@.fieldCode == 'wechat_id')].label")
+                        .value("微信号"))
+                .andExpect(jsonPath("$.data[?(@.fieldCode == 'wechat_id')].required")
+                        .value(true))
+                .andExpect(jsonPath("$.data[?(@.fieldCode == 'douyin_id')].required")
+                        .value(false))
+                .andExpect(jsonPath("$.data[?(@.fieldCode == 'douyin_nickname')].required")
+                        .value(false))
+                .andExpect(jsonPath("$.data[?(@.fieldCode == 'douyin_profile_url')].required")
+                        .value(false))
                 .andExpect(jsonPath("$.data[?(@.fieldCode == 'hidden_field')]").isEmpty());
     }
 
