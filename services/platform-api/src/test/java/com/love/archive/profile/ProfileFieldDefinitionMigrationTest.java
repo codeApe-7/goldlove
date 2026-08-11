@@ -42,7 +42,7 @@ class ProfileFieldDefinitionMigrationTest extends PostgresIntegrationTest {
             }
 
             Flyway latestFlyway = flyway(databaseUrl, null);
-            assertThat(latestFlyway.migrate().migrationsExecuted).isEqualTo(4);
+            assertThat(latestFlyway.migrate().migrationsExecuted).isEqualTo(5);
 
             try (Connection owner = ownerConnection(databaseUrl)) {
                 assertThat(queryInteger(owner, """
@@ -70,6 +70,13 @@ class ProfileFieldDefinitionMigrationTest extends PostgresIntegrationTest {
                         FROM flyway_schema_history
                         WHERE version = '7' AND success
                         """)).isEqualTo(1);
+                assertThat(queryLong(owner, """
+                        SELECT count(*)
+                        FROM flyway_schema_history
+                        WHERE version = '8' AND success
+                        """)).isEqualTo(1);
+                assertThat(columnExists(owner, "profile_photo", "sha256")).isFalse();
+                assertThat(columnExists(owner, "profile_revision_photo", "sha256")).isFalse();
                 assertThat(queryLong(owner, """
                         SELECT count(*)
                         FROM profile_field_definition

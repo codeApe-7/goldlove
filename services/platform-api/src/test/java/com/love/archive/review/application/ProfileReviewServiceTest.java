@@ -20,6 +20,7 @@ import com.love.archive.consent.persistence.AuthorizationDocumentMapper;
 import com.love.archive.consent.persistence.AuthorizationRecordEntity;
 import com.love.archive.consent.persistence.AuthorizationRecordMapper;
 import com.love.archive.guest.application.GuestProfileDraftService;
+import com.love.archive.guest.application.ProfilePhotoTarget;
 import com.love.archive.guest.application.SaveGuestProfileCommand;
 import com.love.archive.guest.application.TextFieldInput;
 import com.love.archive.guest.domain.FieldStorageKind;
@@ -65,6 +66,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @Import(ProfileReviewServiceTest.FixedClockConfiguration.class)
 class ProfileReviewServiceTest extends ApiIntegrationTest {
+
+    private static final String FIXTURE_AVATAR_UUID = "00000000-0000-0000-0000-000000000003";
 
     private static final OffsetDateTime NOW = OffsetDateTime.parse("2030-07-01T10:15:30Z");
     private static final String REQUEST_ID = "req-task-6";
@@ -284,7 +287,11 @@ class ProfileReviewServiceTest extends ApiIntegrationTest {
                 "dy-task6-private",
                 "task6 private nickname",
                 URI.create("https://www.douyin.com/user/task6-private"),
-                List.of(new TextFieldInput(DYNAMIC_FIELD_CODE, "喜欢跑步"))),
+                List.of(new TextFieldInput(DYNAMIC_FIELD_CODE, "喜欢跑步")),
+                new ProfilePhotoTarget(
+                        "profiles/" + current.getId() + "/avatar/"
+                                + FIXTURE_AVATAR_UUID + ".jpg",
+                        List.of())),
                 REQUEST_ID);
         return submissionService.submit(accountId, key, REQUEST_ID).id();
     }
@@ -312,7 +319,8 @@ class ProfileReviewServiceTest extends ApiIntegrationTest {
         ProfilePhotoEntity photo = new ProfilePhotoEntity();
         photo.setGuestProfileId(profileId);
         photo.setCategory(PhotoCategory.AVATAR);
-        photo.setObjectKey("profiles/" + profileId + "/avatar/fixture.jpg");
+        photo.setObjectKey("profiles/" + profileId + "/avatar/"
+                + FIXTURE_AVATAR_UUID + ".jpg");
         photo.setSortOrder(0);
         OffsetDateTime now = OffsetDateTime.now();
         photo.setCreatedAt(now);

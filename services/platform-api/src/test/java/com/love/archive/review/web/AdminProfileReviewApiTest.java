@@ -16,6 +16,7 @@ import com.love.archive.admin.persistence.AdminUserMapper;
 import com.love.archive.consent.application.ConsentEvidenceCommand;
 import com.love.archive.consent.application.ConsentService;
 import com.love.archive.guest.application.GuestProfileDraftService;
+import com.love.archive.guest.application.ProfilePhotoTarget;
 import com.love.archive.guest.application.SaveGuestProfileCommand;
 import com.love.archive.guest.domain.PhotoCategory;
 import com.love.archive.guest.persistence.GuestProfileEntity;
@@ -47,6 +48,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 class AdminProfileReviewApiTest extends ApiIntegrationTest {
+
+    private static final String FIXTURE_AVATAR_UUID = "00000000-0000-0000-0000-000000000004";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private AdminUserMapper adminMapper;
@@ -184,7 +187,11 @@ class AdminProfileReviewApiTest extends ApiIntegrationTest {
                 "dy-task6-api",
                 "task6 api nickname",
                 URI.create("https://www.douyin.com/user/task6-api"),
-                List.of()),
+                List.of(),
+                new ProfilePhotoTarget(
+                        "profiles/" + profile.getId() + "/avatar/"
+                                + FIXTURE_AVATAR_UUID + ".jpg",
+                        List.of())),
                 "review-api-draft-changed");
         return submissionService.submit(
                         guestAccountId, "review-api-submit-changed", "review-api-request-changed")
@@ -224,7 +231,8 @@ class AdminProfileReviewApiTest extends ApiIntegrationTest {
         ProfilePhotoEntity photo = new ProfilePhotoEntity();
         photo.setGuestProfileId(profileId);
         photo.setCategory(PhotoCategory.AVATAR);
-        photo.setObjectKey("profiles/" + profileId + "/avatar/fixture.jpg");
+        photo.setObjectKey("profiles/" + profileId + "/avatar/"
+                + FIXTURE_AVATAR_UUID + ".jpg");
         photo.setSortOrder(0);
         OffsetDateTime now = OffsetDateTime.now();
         photo.setCreatedAt(now);
