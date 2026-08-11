@@ -13,6 +13,10 @@ import {
   profileGroup,
   remainingLifePhotoSlots,
 } from '@/utils/presentation'
+import {
+  draftToProfileValues,
+  profileValuesToDraftPayload,
+} from '@/utils/profileFields'
 
 const store = useProfileStore()
 const definitions = ref<GuestFieldDefinition[]>([])
@@ -34,19 +38,7 @@ const fieldGroups = computed(() => [
 onShow(async () => {
   await Promise.all([loadDefinitions(), store.load()])
   if (store.draft) {
-    Object.assign(values, {
-      gender: store.draft.gender ?? '',
-      birthDate: store.draft.birthDate ?? '',
-      heightCm: store.draft.heightCm ?? '',
-      education: store.draft.education ?? '',
-      occupation: store.draft.occupation ?? '',
-      incomeRange: store.draft.incomeRange ?? '',
-      city: store.draft.city ?? '',
-      wechatId: store.draft.wechatId ?? '',
-      douyinId: store.draft.douyinId ?? '',
-      douyinNickname: store.draft.douyinNickname ?? '',
-      douyinProfileUrl: store.draft.douyinProfileUrl ?? '',
-    })
+    Object.assign(values, draftToProfileValues(store.draft))
   }
 })
 
@@ -114,7 +106,7 @@ async function removePhoto(photo: ProfilePhotoView): Promise<void> {
 async function save(): Promise<void> {
   saving.value = true
   try {
-    await store.save({ ...values })
+    await store.save(profileValuesToDraftPayload(values, store.draft?.version ?? null))
     uni.showToast({ title: '草稿已保存', icon: 'success' })
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : '保存失败', icon: 'none' })
@@ -155,7 +147,10 @@ async function submit(): Promise<void> {
 
     <SectionCard v-for="group in fieldGroups" :key="group.key" :title="group.title" :meta="`${group.items.filter((item) => values[item.fieldCode] !== '' && values[item.fieldCode] != null).length}/${group.items.length}`">
       <view v-for="definition in group.items" :key="definition.fieldCode" class="form-row">
-        <text class="label">{{ definition.label }}<text v-if="definition.required" class="required"> *</text></text>
+        <view class="field-label">
+          <text class="label">{{ definition.label }}<text v-if="definition.required" class="required"> *</text></text>
+          <text v-if="group.key === 'social' && !definition.required" class="optional">选填</text>
+        </view>
         <view class="field-side">
           <picker v-if="definition.dataType === 'SINGLE_OPTION'" :range="definition.options" @change="onOptionChange(definition, $event)">
             <view class="picker-value" :class="{ placeholder: !values[definition.fieldCode] }">{{ values[definition.fieldCode] || '请选择' }}</view>
@@ -242,12 +237,21 @@ async function submit(): Promise<void> {
   border-bottom: 1rpx solid #edebe7;
 }
 .form-row:last-child { border-bottom: 0; }
-.label {
+.field-label {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9rpx;
+}
+.label {
   color: #29292d;
   font-size: 24rpx;
 }
 .required { color: #ef4444; }
+.optional {
+  color: #a0a1a4;
+  font-size: 18rpx;
+}
 .field-side {
   min-width: 0;
   flex: 1;
