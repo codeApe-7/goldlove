@@ -6,12 +6,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.love.archive.admin.domain.AdminStatus;
 import com.love.archive.admin.persistence.AdminUserEntity;
 import com.love.archive.admin.persistence.AdminUserMapper;
 import com.love.archive.identity.application.GuestProvisioningService;
 import com.love.archive.testsupport.ApiIntegrationTest;
-import jakarta.servlet.http.Cookie;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,7 +54,9 @@ class GuestAuthApiTest extends ApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(activationBody("13800138000", provisioned.initialCredential())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.expiresIn").value(2592000));
 
         MvcResult login = mockMvc.perform(post("/api/v1/guest/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -62,25 +64,26 @@ class GuestAuthApiTest extends ApiIntegrationTest {
                                 {"phone":"13800138000","password":"New-password-2026"}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.allOf(
-                        org.hamcrest.Matchers.containsString("archive-token-guest="),
-                        org.hamcrest.Matchers.containsString("Secure"),
-                        org.hamcrest.Matchers.containsString("HttpOnly"),
-                        org.hamcrest.Matchers.containsString("SameSite=Lax"))))
+                .andExpect(jsonPath("$.data.accountId").value(provisioned.accountId()))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.expiresIn").value(2592000))
+                .andExpect(header().doesNotExist("Set-Cookie"))
                 .andReturn();
-        Cookie guestCookie = login.getResponse().getCookies()[0];
+        String token = accessToken(login);
 
-        mockMvc.perform(get("/api/v1/guest/auth/me").cookie(guestCookie))
+        mockMvc.perform(get("/api/v1/guest/auth/me")
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.accountId").value(provisioned.accountId()))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"));
 
         mockMvc.perform(post("/api/v1/guest/auth/logout")
-                        .cookie(guestCookie)
-                        .header("Origin", "https://h5.example.test"))
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/v1/guest/auth/me").cookie(guestCookie))
+        mockMvc.perform(get("/api/v1/guest/auth/me")
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH_NOT_LOGGED_IN"));
     }
@@ -134,5 +137,13 @@ class GuestAuthApiTest extends ApiIntegrationTest {
         return """
                 {"phone":"%s","initialCredential":"%s","newPassword":"New-password-2026"}
                 """.formatted(phone, credential);
+    }
+
+    private String accessToken(MvcResult result) throws Exception {
+        return new ObjectMapper()
+                .readTree(result.getResponse().getContentAsString())
+                .get("data")
+                .get("accessToken")
+                .asText();
     }
 }

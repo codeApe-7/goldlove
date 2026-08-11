@@ -122,7 +122,7 @@ public class GuestAuthService {
                 requestId,
                 "{}",
                 now));
-        return new GuestSessionView(account.getId(), AccountStatus.ACTIVE);
+        return new GuestSessionView(account.getId(), AccountStatus.ACTIVE, null, 0L);
     }
 
     @Transactional
@@ -157,7 +157,7 @@ public class GuestAuthService {
         if (updated != 1) {
             throw new ApiException(HttpStatus.FORBIDDEN, "AUTH_ACCOUNT_INACTIVE", "账号尚未激活或已停用");
         }
-        return new GuestSessionView(account.getId(), account.getStatus());
+        return new GuestSessionView(account.getId(), account.getStatus(), null, 0L);
     }
 
     @Transactional(readOnly = true)
@@ -166,7 +166,7 @@ public class GuestAuthService {
         if (account == null || account.getStatus() != AccountStatus.ACTIVE) {
             throw new ApiException(HttpStatus.FORBIDDEN, "AUTH_ACCOUNT_INACTIVE", "账号尚未激活或已停用");
         }
-        return new GuestSessionView(account.getId(), account.getStatus());
+        return new GuestSessionView(account.getId(), account.getStatus(), null, 0L);
     }
 
     private UserAccountEntity findByPhoneForActivation(String rawPhone) {

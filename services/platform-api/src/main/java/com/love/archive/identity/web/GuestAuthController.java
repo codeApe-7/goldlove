@@ -1,5 +1,6 @@
 package com.love.archive.identity.web;
 
+import cn.dev33.satoken.stp.StpLogic;
 import com.love.archive.common.web.ApiResponse;
 import com.love.archive.common.web.RequestIdFilter;
 import com.love.archive.identity.application.GuestAuthService;
@@ -37,7 +38,7 @@ public class GuestAuthController {
                 body.newPassword(),
                 RequestIdFilter.current(request));
         attemptLimiter.resetAccount("guest-activation", rateLimitPhone);
-        return ApiResponse.success(session, RequestIdFilter.current(request));
+        return ApiResponse.success(withSessionToken(session), RequestIdFilter.current(request));
     }
 
     @PostMapping("/login")
@@ -48,8 +49,7 @@ public class GuestAuthController {
         attemptLimiter.checkAndConsume("guest-login", rateLimitPhone, request.getRemoteAddr());
         GuestSessionView session = guestAuthService.authenticate(body.phone(), body.password());
         attemptLimiter.resetAccount("guest-login", rateLimitPhone);
-        authLogics.guest().login(session.accountId());
-        return ApiResponse.success(session, RequestIdFilter.current(request));
+        return ApiResponse.success(withSessionToken(session), RequestIdFilter.current(request));
     }
 
     @PostMapping("/logout")
@@ -70,5 +70,15 @@ public class GuestAuthController {
         } catch (IllegalArgumentException exception) {
             return rawPhone;
         }
+    }
+
+    private GuestSessionView withSessionToken(GuestSessionView session) {
+        authLogics.guest().login(session.accountId());
+        StpLogic logic = authLogics.guest();
+        return new GuestSessionView(
+                session.accountId(),
+                session.status(),
+                logic.getTokenValue(),
+                logic.getTokenTimeout());
     }
 }

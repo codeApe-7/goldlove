@@ -12,7 +12,22 @@ public class AuthLogicConfiguration {
     @Bean
     @Primary
     StpLogic guestStpLogic(SaTokenConfig globalConfig) {
-        return logic("guest", globalConfig);
+        SaTokenConfig isolated = new SaTokenConfig()
+                .setTokenName("Authorization")
+                .setTimeout(globalConfig.getTimeout())
+                .setActiveTimeout(globalConfig.getActiveTimeout())
+                .setIsConcurrent(globalConfig.getIsConcurrent())
+                .setIsShare(globalConfig.getIsShare())
+                .setIsReadBody(globalConfig.getIsReadBody())
+                .setIsReadHeader(true)
+                .setIsReadCookie(false)
+                .setIsLastingCookie(globalConfig.getIsLastingCookie())
+                .setIsWriteHeader(globalConfig.getIsWriteHeader())
+                .setTokenStyle(globalConfig.getTokenStyle())
+                .setTokenPrefix("Bearer")
+                .setAutoRenew(globalConfig.getAutoRenew())
+                .setCookie(globalConfig.getCookie());
+        return new StpLogic("guest").setConfig(isolated);
     }
 
     @Bean
