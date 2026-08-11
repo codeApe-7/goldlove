@@ -12,7 +12,7 @@ export function validateProfileForm(
     const value = values[definition.fieldCode]
     const present = value !== undefined && value !== null && value !== '' && value !== false
     if (!present) {
-      missing.push(definition.fieldCode)
+      missing.push(definition.label)
     }
   }
   return missing

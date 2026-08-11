@@ -7,6 +7,7 @@ export interface GuestFieldDefinition {
   id: number
   fieldCode: string
   label: string
+  storageKind: 'CORE' | 'DYNAMIC'
   dataType: 'TEXT' | 'LONG_TEXT' | 'INTEGER' | 'DECIMAL' | 'DATE' | 'BOOLEAN' | 'SINGLE_OPTION'
   required: boolean
   options: string[]

@@ -3,17 +3,16 @@ export type GuestStatusTone = 'neutral' | 'warning' | 'success' | 'danger'
 
 const FIELD_GROUPS: Record<string, ProfileGroup> = {
   gender: 'basic',
-  birthDate: 'basic',
-  heightCm: 'basic',
+  birth_date: 'basic',
+  height_cm: 'basic',
   education: 'basic',
   city: 'basic',
   occupation: 'career',
-  incomeRange: 'career',
-  annualSalary: 'career',
-  wechatId: 'social',
-  douyinId: 'social',
-  douyinNickname: 'social',
-  douyinProfileUrl: 'social',
+  income_range: 'career',
+  wechat_id: 'social',
+  douyin_id: 'social',
+  douyin_nickname: 'social',
+  douyin_profile_url: 'social',
 }
 
 export function profileGroup(fieldCode: string): ProfileGroup {

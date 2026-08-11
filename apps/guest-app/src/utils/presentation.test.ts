@@ -9,8 +9,11 @@ import {
 describe('guest presentation helpers', () => {
   it('groups known fields and falls back to more', () => {
     expect(profileGroup('gender')).toBe('basic')
+    expect(profileGroup('birth_date')).toBe('basic')
     expect(profileGroup('occupation')).toBe('career')
-    expect(profileGroup('wechatId')).toBe('social')
+    expect(profileGroup('income_range')).toBe('career')
+    expect(profileGroup('wechat_id')).toBe('social')
+    expect(profileGroup('douyin_profile_url')).toBe('social')
     expect(profileGroup('favoriteBook')).toBe('more')
   })
 
