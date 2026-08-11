@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import BrandMark from '@/components/BrandMark.vue'
+import AppIcon from '@/components/AppIcon.vue'
 
 const auth = useAuthStore()
 const mode = ref<'activate' | 'login'>('login')
@@ -34,86 +36,188 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <view class="page auth-page">
-    <view class="brand">
+  <view class="auth-page">
+    <view class="brand-hero">
+      <view class="contour-lines" aria-hidden="true"><text v-for="n in 6" :key="n" /></view>
+      <BrandMark light />
       <text class="brand-title">婚恋智能档案库</text>
-      <text class="brand-sub">让每一段认真开始的关系都有据可循</text>
+      <text class="brand-sub">真实 · 严谨 · 安全 · 专属</text>
     </view>
-    <view class="mode-tabs">
-      <text :class="['tab', mode === 'login' ? 'active' : '']" @tap="mode = 'login'">登录</text>
-      <text :class="['tab', mode === 'activate' ? 'active' : '']" @tap="mode = 'activate'">
-        激活
-      </text>
+    <view class="auth-surface">
+      <view class="mode-tabs">
+        <text :class="['tab', mode === 'activate' ? 'active' : '']" @tap="mode = 'activate'">激活账号</text>
+        <text :class="['tab', mode === 'login' ? 'active' : '']" @tap="mode = 'login'">密码登录</text>
+      </view>
+      <view class="form-body">
+        <label class="field-group">
+          <text>手机号</text>
+          <input v-model="form.phone" class="field" type="number" placeholder="请输入手机号" maxlength="11" />
+        </label>
+        <label v-if="mode === 'activate'" class="field-group">
+          <text>初始凭证</text>
+          <input v-model="form.credential" class="field" type="text" placeholder="请输入初始凭证" />
+        </label>
+        <label class="field-group">
+          <text>{{ mode === 'activate' ? '设置密码' : '密码' }}</text>
+          <input v-model="form.password" class="field" type="password" :placeholder="mode === 'activate' ? '请设置登录密码' : '请输入密码'" />
+        </label>
+        <button class="archive-button-primary submit" :disabled="loading" @tap="submit">
+          {{ mode === 'activate' ? '立即激活' : '登录' }}
+        </button>
+        <text v-if="mode === 'activate'" class="agreement">激活即表示您已阅读并同意《授权书》</text>
+      </view>
+      <view class="privacy-note"><AppIcon name="lock" :size="16" /><view><strong>我们将严格保护您的隐私与数据安全</strong><text>所有信息仅用于档案匹配，经授权后方可使用。</text></view></view>
     </view>
-    <view class="card">
-      <input v-model="form.phone" class="field" type="number" placeholder="手机号" />
-      <input
-        v-if="mode === 'activate'"
-        v-model="form.credential"
-        class="field"
-        type="text"
-        placeholder="初始凭证"
-      />
-      <input v-model="form.password" class="field" type="password" placeholder="密码" />
-      <button class="submit" :disabled="loading" @tap="submit">
-        {{ mode === 'activate' ? '激活并登录' : '登录' }}
-      </button>
-    </view>
+    <view class="service-footer"><text>如有问题，请联系客服</text><text>☎ 400-888-5200</text><text>服务时间 9:00–21:00</text></view>
   </view>
 </template>
 
 <style lang="scss" scoped>
 .auth-page {
   min-height: 100vh;
-  padding: 80rpx 40rpx;
-  background: linear-gradient(160deg, #f7f5f2 0%, #f3e3e7 60%, #e8cfd6 100%);
+  margin: 0 auto;
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
+  background: #ffffff;
 }
-.brand {
+.brand-hero {
+  position: relative;
+  height: 510rpx;
+  padding-top: calc(94rpx + env(safe-area-inset-top));
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 60rpx;
+  overflow: hidden;
+  background: #15181c;
+  color: #ffffff;
 }
+.contour-lines {
+  position: absolute;
+  inset: -40rpx -100rpx auto;
+  height: 420rpx;
+  opacity: 0.12;
+  transform: rotate(-10deg);
+}
+.contour-lines text {
+  position: absolute;
+  left: 10%;
+  top: 10%;
+  width: 80%;
+  height: 74%;
+  border: 2rpx solid #c7c9cc;
+  border-radius: 46% 54% 58% 42%;
+}
+.contour-lines text:nth-child(2) { inset: 18% 16%; width: 68%; height: 62%; }
+.contour-lines text:nth-child(3) { inset: 26% 23%; width: 54%; height: 49%; }
+.contour-lines text:nth-child(4) { inset: 34% 30%; width: 40%; height: 36%; }
+.contour-lines text:nth-child(5) { inset: 42% 37%; width: 26%; height: 23%; }
+.contour-lines text:nth-child(6) { inset: 49% 44%; width: 12%; height: 12%; }
+.brand-title,
+.brand-sub { position: relative; }
 .brand-title {
-  font-size: 44rpx;
-  font-weight: 700;
-  color: #46323a;
+  margin-top: 18rpx;
+  color: #ead4a7;
+  font-family: "Songti SC", serif;
+  font-size: 38rpx;
+  letter-spacing: 7rpx;
 }
 .brand-sub {
-  margin-top: 12rpx;
-  font-size: 26rpx;
-  color: #8b7a80;
+  margin-top: 14rpx;
+  color: #c2aa7d;
+  font-size: 22rpx;
+  letter-spacing: 6rpx;
+}
+.auth-surface {
+  position: relative;
+  z-index: 2;
+  margin: -92rpx 28rpx 0;
+  overflow: hidden;
+  border: 1rpx solid #e5e3df;
+  border-radius: 22rpx;
+  background: #ffffff;
+  box-shadow: 0 18rpx 48rpx rgba(13, 13, 15, 0.09);
 }
 .mode-tabs {
+  height: 82rpx;
   display: flex;
-  gap: 24rpx;
-  margin-bottom: 24rpx;
+  border-bottom: 1rpx solid #e5e3df;
 }
 .tab {
-  padding: 12rpx 32rpx;
-  border-radius: 999rpx;
-  background: #ffffff;
-  color: #8b7a80;
-  &.active {
-    background: #b4556d;
-    color: #ffffff;
-  }
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #818286;
+  font-size: 25rpx;
 }
-.card {
-  background: #ffffff;
-  border-radius: 24rpx;
-  padding: 40rpx;
+.tab.active {
+  color: #0d0d0f;
+  font-weight: 600;
+}
+.tab.active::after {
+  position: absolute;
+  bottom: 0;
+  width: 44rpx;
+  height: 3rpx;
+  border-radius: 99rpx;
+  background: #0d0d0f;
+  content: '';
+}
+.form-body {
+  padding: 32rpx 32rpx 28rpx;
+}
+.field-group {
+  display: block;
+  margin-bottom: 24rpx;
+}
+.field-group > text {
+  display: block;
+  margin-bottom: 10rpx;
+  font-size: 23rpx;
+  font-weight: 600;
 }
 .field {
-  height: 88rpx;
-  border-bottom: 2rpx solid #f0e6ea;
-  margin-bottom: 24rpx;
-  font-size: 30rpx;
+  width: 100%;
+  height: 76rpx;
+  padding: 0 22rpx;
+  border: 1rpx solid #dfddd9;
+  border-radius: 10rpx;
+  font-size: 25rpx;
 }
 .submit {
+  margin-top: 8rpx;
+}
+.agreement {
+  display: block;
   margin-top: 16rpx;
-  background: #b4556d;
-  color: #ffffff;
-  border-radius: 999rpx;
+  color: #85868a;
+  text-align: center;
+  font-size: 20rpx;
+}
+.privacy-note {
+  margin: 0 20rpx 20rpx;
+  padding: 20rpx;
+  display: flex;
+  gap: 14rpx;
+  border: 1rpx solid #e5e3df;
+  border-radius: 12rpx;
+  color: #55565a;
+}
+.privacy-note strong,
+.privacy-note text { display: block; }
+.privacy-note strong { font-size: 21rpx; }
+.privacy-note text { margin-top: 5rpx; color: #929397; font-size: 19rpx; line-height: 1.5; }
+.service-footer {
+  margin-top: 54rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9rpx;
+  color: #8b8c90;
+  font-size: 20rpx;
+}
+.service-footer text:nth-child(2) { color: #4a4b4f; }
+@media screen and (min-width: 431px) {
+  .auth-page { max-width: 430px; }
 }
 </style>

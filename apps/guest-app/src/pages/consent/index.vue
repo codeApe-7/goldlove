@@ -4,6 +4,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import * as api from '@/api'
 import { useConsentStore } from '@/stores/consent'
 import type { AuthorizationDocumentView } from '@/types'
+import AppIcon from '@/components/AppIcon.vue'
 
 const consent = useConsentStore()
 const document = ref<AuthorizationDocumentView | null>(null)
@@ -18,8 +19,8 @@ onLoad(async () => {
   }
 })
 
-function toggleAgree(event: Event): void {
-  agreed.value = (event as Event & { detail: { value: boolean } }).detail.value
+function toggleAgree(): void {
+  agreed.value = !agreed.value
 }
 
 async function confirm(): Promise<void> {
@@ -43,56 +44,99 @@ async function confirm(): Promise<void> {
 </script>
 
 <template>
-  <view class="page consent-page">
-    <scroll-view scroll-y class="doc">
-      <text class="doc-title">{{ document?.title ?? '付费建档与直播内容授权书' }}</text>
-      <text class="doc-content">{{ document?.content }}</text>
-    </scroll-view>
-    <view class="agree-row">
-      <switch :checked="agreed" @change="toggleAgree" color="#B4556D" />
-      <text>我已阅读并同意本授权书</text>
+  <view class="consent-page archive-page">
+    <view class="document-head">
+      <text class="doc-title">{{ document?.title ?? '婚恋智能档案库授权书' }}</text>
+      <view class="doc-meta"><text>版本号：{{ document?.version ?? '—' }}</text><text>生效日期：{{ document?.effectiveAt?.slice(0, 10) ?? '—' }}</text></view>
+      <text class="doc-lead">欢迎使用婚恋智能档案库服务。为保障您的隐私与安全，请仔细阅读以下授权内容。</text>
     </view>
-    <button class="submit" :disabled="submitting" @tap="confirm">同意并继续</button>
+    <scroll-view scroll-y class="doc-body">
+      <text class="doc-content">{{ document?.content || '授权书正在加载，请稍候…' }}</text>
+    </scroll-view>
+    <view class="consent-actions">
+      <view class="agree-row" @tap="toggleAgree">
+        <view class="checkbox" :class="{ checked: agreed }"><AppIcon v-if="agreed" name="check" :size="13" /></view>
+        <text>我已阅读并同意《授权书》全部内容</text>
+      </view>
+      <button class="archive-button-primary" :disabled="submitting || !agreed" @tap="confirm">同意并继续</button>
+    </view>
   </view>
 </template>
 
 <style lang="scss" scoped>
 .consent-page {
-  min-height: 100vh;
-  padding: 30rpx;
-  background: #f7f5f2;
+  height: 100vh;
+  padding-bottom: 0;
   display: flex;
   flex-direction: column;
 }
-.doc {
-  flex: 1;
+.document-head {
+  padding: 28rpx 22rpx 24rpx;
+  border: 1rpx solid #e5e3df;
+  border-bottom: 0;
+  border-radius: 18rpx 18rpx 0 0;
   background: #ffffff;
-  border-radius: 24rpx;
-  padding: 30rpx;
-  margin-bottom: 24rpx;
 }
 .doc-title {
   display: block;
-  font-size: 34rpx;
+  font-size: 31rpx;
   font-weight: 700;
-  color: #46323a;
-  margin-bottom: 20rpx;
+  color: #0d0d0f;
+}
+.doc-meta {
+  margin-top: 14rpx;
+  display: flex;
+  gap: 28rpx;
+  color: #85868a;
+  font-size: 19rpx;
+}
+.doc-lead {
+  display: block;
+  margin-top: 22rpx;
+  color: #55565a;
+  font-size: 22rpx;
+  line-height: 1.65;
+}
+.doc-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0 22rpx 24rpx;
+  border: 1rpx solid #e5e3df;
+  border-top: 0;
+  background: #ffffff;
 }
 .doc-content {
-  font-size: 28rpx;
-  line-height: 1.8;
-  color: #3b3034;
+  font-size: 23rpx;
+  line-height: 1.9;
+  color: #343438;
   white-space: pre-wrap;
+}
+.consent-actions {
+  margin: 20rpx -28rpx 0;
+  padding: 20rpx 28rpx calc(22rpx + env(safe-area-inset-bottom));
+  border-top: 1rpx solid #e5e3df;
+  background: #ffffff;
 }
 .agree-row {
   display: flex;
   align-items: center;
-  gap: 12rpx;
-  margin-bottom: 20rpx;
+  gap: 14rpx;
+  margin-bottom: 18rpx;
+  color: #4f5054;
+  font-size: 21rpx;
 }
-.submit {
-  background: #b4556d;
+.checkbox {
+  width: 28rpx;
+  height: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid #b9babd;
+  border-radius: 4rpx;
   color: #ffffff;
-  border-radius: 999rpx;
+}
+.checkbox.checked {
+  border-color: #0d0d0f;
+  background: #0d0d0f;
 }
 </style>
