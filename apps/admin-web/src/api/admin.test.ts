@@ -25,10 +25,14 @@ describe('admin api', () => {
       authorizationDocumentVersion: 'v0.3',
       note: null,
     })
-    expect(http.post).toHaveBeenCalledWith(
-      '/admin/accounts',
-      expect.objectContaining({ amountMinor: 19900, phone: '13800138000' }),
-    )
+    expect(http.post).toHaveBeenCalledWith('/admin/accounts', {
+      phone: '13800138000',
+      paymentReference: 'PAY-1',
+      amountMinor: 19900,
+      paidAt: '2030-07-01T10:00:00Z',
+      authorizationDocumentVersion: 'v0.3',
+      note: null,
+    })
   })
 
   it('reissueCredential posts phone', async () => {

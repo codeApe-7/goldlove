@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import BrandMark from '@/components/BrandMark.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -24,58 +25,158 @@ async function submit(): Promise<void> {
     loading.value = false
   }
 }
+
+function forgotPassword(): void {
+  ElMessage.info('请联系系统管理员重置密码')
+}
 </script>
 
 <template>
   <div class="login-page">
-    <el-card class="login-card" shadow="always">
-      <h1 class="brand">婚恋智能档案库 · 管理后台</h1>
-      <p class="tagline">让每一段认真开始的关系都有据可循</p>
-      <el-form label-position="top" @submit.prevent="submit">
-        <el-form-item label="账号">
-          <el-input v-model="form.username" autocomplete="username" />
-        </el-form-item>
-        <el-form-item label="密码">
-          <el-input
-            v-model="form.password"
-            type="password"
-            autocomplete="current-password"
-            show-password
-          />
-        </el-form-item>
-        <el-button type="primary" class="submit" :loading="loading" native-type="submit">
-          登录
-        </el-button>
-      </el-form>
-    </el-card>
+    <aside class="brand-rail">
+      <div class="brand-lockup">
+        <BrandMark light />
+        <div>
+          <strong>婚恋智能档案库</strong>
+          <span>管理后台</span>
+        </div>
+      </div>
+      <p>真实 · 严谨 · 安全合规</p>
+    </aside>
+    <main class="login-stage">
+      <section class="login-card">
+        <BrandMark class="panel-mark" />
+        <h1>婚恋智能档案库</h1>
+        <p class="panel-label">管理后台</p>
+        <p class="tagline">专业审核 · 严谨可信 · 安全合规</p>
+        <el-form label-position="top" @submit.prevent="submit">
+          <el-form-item label="账号">
+            <el-input v-model="form.username" autocomplete="username" placeholder="请输入账号或手机号" />
+          </el-form-item>
+          <el-form-item label="密码">
+            <el-input
+              v-model="form.password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="请输入密码"
+              show-password
+            />
+          </el-form-item>
+          <div class="form-meta">
+            <el-checkbox>记住我</el-checkbox>
+            <el-button link @click="forgotPassword">忘记密码？</el-button>
+          </div>
+          <el-button type="primary" class="submit" :loading="loading" native-type="submit">
+            登录
+          </el-button>
+        </el-form>
+        <p class="login-help">如有疑问，请联系系统管理员或查看帮助文档</p>
+      </section>
+      <p class="copyright">© 2026 婚恋智能档案库 · 管理后台</p>
+    </main>
   </div>
 </template>
 
 <style scoped>
 .login-page {
+  min-width: 900px;
   height: 100%;
+  display: flex;
+  background: #f8f8f7;
+}
+.brand-rail {
+  width: 22%;
+  min-width: 220px;
+  padding: 34px 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: #171a1e;
+  color: #ffffff;
+}
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-lockup strong,
+.brand-lockup span {
+  display: block;
+}
+.brand-lockup strong {
+  font-size: 16px;
+  letter-spacing: 0.05em;
+}
+.brand-lockup span {
+  margin-top: 5px;
+  color: #aaabae;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+}
+.brand-rail > p {
+  color: #818286;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+}
+.login-stage {
+  position: relative;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f7f5f2 0%, #f3e3e7 55%, #e8cfd6 100%);
 }
 .login-card {
-  width: 380px;
-  border-radius: 12px;
+  width: 360px;
+  padding: 36px 42px 30px;
+  border: 1px solid var(--archive-line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 20px 50px rgba(17, 17, 19, 0.05);
 }
-.brand {
-  margin: 0 0 8px;
-  color: var(--love-deep);
-  font-size: 22px;
+.panel-mark {
+  display: flex;
+  margin: 0 auto 14px;
+}
+h1 {
+  margin: 0;
   text-align: center;
+  font-size: 18px;
+  letter-spacing: 0.06em;
+}
+.panel-label {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
 }
 .tagline {
-  margin: 0 0 24px;
+  margin: 8px 0 26px;
   text-align: center;
-  color: #8b7a80;
-  font-size: 13px;
+  color: var(--archive-muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+.form-meta {
+  margin: -2px 0 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
 }
 .submit {
   width: 100%;
+  height: 38px;
+}
+.login-help {
+  margin: 18px 0 0;
+  text-align: center;
+  color: #9a9b9e;
+  font-size: 10px;
+}
+.copyright {
+  position: absolute;
+  bottom: 28px;
+  color: #a0a1a4;
+  font-size: 10px;
 }
 </style>
