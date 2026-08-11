@@ -1,0 +1,87 @@
+$archive-ink: #0d0d0f;
+$archive-graphite: #1e1e22;
+$archive-muted: #6b6c70;
+$archive-line: #e5e3df;
+$archive-bg: #f7f6f3;
+$archive-gold: #c9a96a;
+
+page {
+  min-height: 100%;
+  background: $archive-bg;
+  color: $archive-ink;
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+view,
+text,
+button,
+input,
+textarea {
+  box-sizing: border-box;
+}
+
+button::after { border: 0; }
+
+.archive-page {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 28rpx 28rpx calc(150rpx + env(safe-area-inset-bottom));
+  background: $archive-bg;
+}
+
+.archive-title {
+  color: $archive-ink;
+  font-size: 38rpx;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -1rpx;
+}
+
+.archive-subtitle {
+  margin-top: 8rpx;
+  color: $archive-muted;
+  font-size: 24rpx;
+}
+
+.archive-button-primary,
+.archive-button-secondary {
+  height: 84rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12rpx;
+  font-size: 27rpx;
+  font-weight: 600;
+  line-height: 84rpx;
+}
+
+.archive-button-primary {
+  background: $archive-ink;
+  color: #ffffff;
+}
+
+.archive-button-secondary {
+  border: 1rpx solid $archive-line;
+  background: #ffffff;
+  color: $archive-ink;
+}
+
+.archive-button-primary[disabled],
+.archive-button-secondary[disabled] {
+  opacity: 0.45;
+}
+
+.archive-tabbar-space { height: calc(110rpx + env(safe-area-inset-bottom)); }
+
+.archive-tabular { font-variant-numeric: tabular-nums; }
+
+@media screen and (min-width: 431px) {
+  page { background: #ecebe8; }
+  .archive-page { max-width: 430px; box-shadow: 0 0 32px rgba(13, 13, 15, 0.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

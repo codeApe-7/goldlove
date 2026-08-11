@@ -7,9 +7,10 @@
     { "path": "pages/consent/index", "style": { "navigationBarTitleText": "授权书" } }
   ],
   "tabBar": {
-    "color": "#8b7a80",
-    "selectedColor": "#B4556D",
+    "color": "#85868A",
+    "selectedColor": "#0D0D0F",
     "backgroundColor": "#ffffff",
+    "borderStyle": "black",
     "list": [
       { "pagePath": "pages/profile/index", "text": "档案" },
       { "pagePath": "pages/status/index", "text": "状态" },
@@ -19,7 +20,7 @@
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "婚恋档案库",
-    "navigationBarBackgroundColor": "#F7F5F2",
-    "backgroundColor": "#F7F5F2"
+    "navigationBarBackgroundColor": "#F7F6F3",
+    "backgroundColor": "#F7F6F3"
   }
 }

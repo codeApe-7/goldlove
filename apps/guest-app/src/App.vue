@@ -6,4 +6,6 @@ onLaunch(() => {
 })
 </script>
 
-<style></style>
+<style lang="scss">
+@use '@/styles/theme.scss';
+</style>
