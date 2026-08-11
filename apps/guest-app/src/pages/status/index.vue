@@ -35,9 +35,6 @@ function editAgain(): void {
 
 <template>
   <view class="archive-page status-page">
-    <text class="archive-title">审核状态</text>
-    <text class="archive-subtitle">查看您的档案提交与审核进度</text>
-
     <view class="status-overview">
       <view class="overview-top"><view><text>当前状态</text><strong>{{ statusMeta.label }}</strong></view><StatusBadge :status="statusCode" /></view>
       <view class="status-rail">
@@ -63,11 +60,8 @@ function editAgain(): void {
 </template>
 
 <style lang="scss" scoped>
-.status-page { padding-top: 26rpx; }
-.archive-title,
-.archive-subtitle { display: block; }
+.status-page { padding-top: 24rpx; }
 .status-overview {
-  margin-top: 30rpx;
   padding: 26rpx 24rpx 22rpx;
   border-radius: 22rpx;
   background: linear-gradient(145deg, #171a1e, #222529);

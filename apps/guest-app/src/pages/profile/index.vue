@@ -148,7 +148,7 @@ async function submit(): Promise<void> {
 <template>
   <view class="archive-page profile-page">
     <view class="profile-head">
-      <view><text class="archive-title">我的档案</text><text class="archive-subtitle">请确保填写信息真实、完整</text></view>
+      <view><text class="profile-kicker">档案完整度</text><text class="profile-hint">请确保填写信息真实、完整</text></view>
       <view class="completion"><text>完成度</text><strong class="archive-tabular">{{ completion }}%</strong></view>
     </view>
     <view class="progress-track"><view :style="{ width: `${completion}%` }" /></view>
@@ -208,8 +208,10 @@ async function submit(): Promise<void> {
   align-items: flex-start;
   justify-content: space-between;
 }
-.archive-title,
-.archive-subtitle { display: block; }
+.profile-kicker,
+.profile-hint { display: block; }
+.profile-kicker { font-size: 25rpx; font-weight: 600; }
+.profile-hint { margin-top: 6rpx; color: #85868a; font-size: 20rpx; }
 .completion {
   text-align: right;
 }

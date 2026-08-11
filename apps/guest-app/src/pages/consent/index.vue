@@ -65,10 +65,13 @@ async function confirm(): Promise<void> {
 
 <style lang="scss" scoped>
 .consent-page {
-  height: 100vh;
+  width: 100%;
+  height: calc(100vh - 44px);
+  min-height: calc(100vh - 44px);
   padding-bottom: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .document-head {
   padding: 28rpx 22rpx 24rpx;
@@ -98,8 +101,10 @@ async function confirm(): Promise<void> {
   line-height: 1.65;
 }
 .doc-body {
+  width: 100%;
   flex: 1;
   min-height: 0;
+  box-sizing: border-box;
   padding: 0 22rpx 24rpx;
   border: 1rpx solid #e5e3df;
   border-top: 0;

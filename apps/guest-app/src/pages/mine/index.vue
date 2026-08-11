@@ -32,7 +32,6 @@ function unavailable(): void {
 
 <template>
   <view class="archive-page mine-page">
-    <text class="archive-title">我的</text>
     <view class="identity-card">
       <view class="avatar-mark"><AppIcon name="user" :size="28" /></view>
       <view class="identity-copy"><strong>婚恋档案用户</strong><text class="archive-tabular">账号 ID：{{ auth.session?.accountId ?? '—' }}</text></view>
@@ -65,8 +64,7 @@ function unavailable(): void {
 </template>
 
 <style lang="scss" scoped>
-.mine-page { padding-top: 26rpx; }
-.archive-title { display: block; margin-bottom: 26rpx; }
+.mine-page { padding-top: 24rpx; }
 .identity-card {
   min-height: 158rpx;
   margin-bottom: 22rpx;
