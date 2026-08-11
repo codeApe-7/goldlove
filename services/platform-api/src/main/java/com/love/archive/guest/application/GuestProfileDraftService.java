@@ -6,6 +6,7 @@ import com.love.archive.audit.application.AuditTrail;
 import com.love.archive.common.security.SensitiveValueProtector;
 import com.love.archive.common.web.ApiException;
 import com.love.archive.guest.domain.FieldStorageKind;
+import com.love.archive.guest.domain.PhotoCategory;
 import com.love.archive.guest.domain.ProfileFieldType;
 import com.love.archive.guest.domain.ProfileStatus;
 import com.love.archive.guest.persistence.GuestProfileEntity;
@@ -14,6 +15,9 @@ import com.love.archive.guest.persistence.ProfileFieldDefinitionEntity;
 import com.love.archive.guest.persistence.ProfileFieldDefinitionMapper;
 import com.love.archive.guest.persistence.ProfileFieldValueEntity;
 import com.love.archive.guest.persistence.ProfileFieldValueMapper;
+import com.love.archive.guest.persistence.ProfilePhotoEntity;
+import com.love.archive.guest.persistence.ProfilePhotoMapper;
+import com.love.archive.storage.application.ObjectStorageService;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.LocalDate;
@@ -21,6 +25,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -29,26 +34,39 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
 public class GuestProfileDraftService {
 
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger(GuestProfileDraftService.class);
     private static final String WECHAT_ID_DOMAIN = "profile:wechat-id";
     private static final String DOUYIN_ID_DOMAIN = "profile:douyin-id";
     private static final String DOUYIN_NICKNAME_DOMAIN = "profile:douyin-nickname";
     private static final String DOUYIN_PROFILE_URL_DOMAIN = "profile:douyin-profile-url";
     private static final String CORE_GENDER_FIELD_CODE = "gender";
     private static final String CORE_INCOME_RANGE_FIELD_CODE = "income_range";
+    private static final Pattern PHOTO_OBJECT_KEY = Pattern.compile(
+            "profiles/(\\d+)/(avatar|life)/"
+                    + "([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+                    + "[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\\.(jpg|png|webp)");
 
     private final GuestProfileMapper profileMapper;
     private final ProfileFieldDefinitionMapper definitionMapper;
     private final ProfileFieldValueMapper valueMapper;
+    private final ProfilePhotoMapper photoMapper;
+    private final ObjectStorageService storageService;
     private final SensitiveValueProtector protector;
     private final ProfileSubmissionReadinessValidator readinessValidator;
     private final AuditTrail auditTrail;
@@ -87,6 +105,9 @@ public class GuestProfileDraftService {
         }
 
         replaceDynamicValues(saved.getId(), preparedValues, now);
+        List<TargetPhoto> targets = validatePhotos(accountId, command.photos());
+        Set<String> removedKeys = syncPhotos(saved.getId(), targets);
+        scheduleOrphanDeletion(removedKeys);
         appendAudit(accountId, saved.getId(), requestId, changedCodes, now);
         return toView(saved);
     }
@@ -111,6 +132,124 @@ public class GuestProfileDraftService {
                     "PROFILE_VALIDATION_FAILED",
                     "缺少必填字段: " + String.join(",", missing));
         }
+    }
+
+    private List<TargetPhoto> validatePhotos(long accountId, ProfilePhotoTarget photos) {
+        List<TargetPhoto> targets = new ArrayList<>();
+        if (photos == null) {
+            return List.of();
+        }
+        Set<String> seen = new HashSet<>();
+        if (photos.avatar() != null) {
+            targets.add(requirePhoto(accountId, "avatar", photos.avatar(), seen, 0));
+        }
+        if (photos.life() != null) {
+            if (photos.life().size() > 6) {
+                throw new ApiException(
+                        HttpStatus.CONFLICT,
+                        "PHOTO_COUNT_LIMIT_EXCEEDED",
+                        "头像最多 1 张，生活照最多 6 张");
+            }
+            for (int index = 0; index < photos.life().size(); index++) {
+                targets.add(requirePhoto(
+                        accountId, "life", photos.life().get(index), seen, index));
+            }
+        }
+        return List.copyOf(targets);
+    }
+
+    private static TargetPhoto requirePhoto(
+            long accountId,
+            String expectedCategory,
+            String objectKey,
+            Set<String> seen,
+            int sortOrder) {
+        Matcher matcher = PHOTO_OBJECT_KEY.matcher(objectKey);
+        if (!matcher.matches()
+                || !matcher.group(1).equals(Long.toString(accountId))
+                || !matcher.group(2).equals(expectedCategory)
+                || !seen.add(objectKey)) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "PHOTO_REFERENCE_INVALID",
+                    "照片对象引用不合法");
+        }
+        PhotoCategory category = PhotoCategory.valueOf(
+                expectedCategory.toUpperCase(Locale.ROOT));
+        return new TargetPhoto(category, objectKey, sortOrder);
+    }
+
+    private Set<String> syncPhotos(long profileId, List<TargetPhoto> targets) {
+        List<ProfilePhotoEntity> existing = photoMapper.selectList(
+                Wrappers.<ProfilePhotoEntity>lambdaQuery()
+                        .eq(ProfilePhotoEntity::getGuestProfileId, profileId));
+        Map<String, ProfilePhotoEntity> existingByKey = existing.stream()
+                .collect(Collectors.toMap(ProfilePhotoEntity::getObjectKey, photo -> photo));
+        Set<String> targetKeys = targets.stream()
+                .map(TargetPhoto::objectKey)
+                .collect(Collectors.toSet());
+        Set<String> removedKeys = existing.stream()
+                .map(ProfilePhotoEntity::getObjectKey)
+                .filter(key -> !targetKeys.contains(key))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<ProfilePhotoEntity> retained = existing.stream()
+                .filter(photo -> targetKeys.contains(photo.getObjectKey()))
+                .toList();
+
+        if (!removedKeys.isEmpty()) {
+            photoMapper.delete(Wrappers.<ProfilePhotoEntity>lambdaQuery()
+                    .eq(ProfilePhotoEntity::getGuestProfileId, profileId)
+                    .in(ProfilePhotoEntity::getObjectKey, removedKeys));
+        }
+        for (ProfilePhotoEntity photo : retained) {
+            photoMapper.update(Wrappers.<ProfilePhotoEntity>lambdaUpdate()
+                    .eq(ProfilePhotoEntity::getId, photo.getId())
+                    .set(ProfilePhotoEntity::getSortOrder, -(photo.getSortOrder() + 1)));
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        for (TargetPhoto target : targets) {
+            if (existingByKey.containsKey(target.objectKey())) {
+                continue;
+            }
+            ProfilePhotoEntity photo = new ProfilePhotoEntity();
+            photo.setGuestProfileId(profileId);
+            photo.setCategory(target.category());
+            photo.setObjectKey(target.objectKey());
+            photo.setSortOrder(target.sortOrder());
+            photo.setCreatedAt(now);
+            photo.setUpdatedAt(now);
+            photoMapper.insert(photo);
+        }
+        for (TargetPhoto target : targets) {
+            ProfilePhotoEntity photo = existingByKey.get(target.objectKey());
+            if (photo != null) {
+                photoMapper.update(Wrappers.<ProfilePhotoEntity>lambdaUpdate()
+                        .eq(ProfilePhotoEntity::getId, photo.getId())
+                        .set(ProfilePhotoEntity::getSortOrder, target.sortOrder()));
+            }
+        }
+        return removedKeys;
+    }
+
+    private void scheduleOrphanDeletion(Set<String> removedKeys) {
+        if (removedKeys.isEmpty()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        for (String objectKey : removedKeys) {
+                            if (photoMapper.countRevisionReferences(objectKey) == 0) {
+                                try {
+                                    storageService.delete(objectKey);
+                                } catch (RuntimeException exception) {
+                                    LOGGER.warn("删除未引用照片对象失败: {}", objectKey, exception);
+                                }
+                            }
+                        }
+                    }
+                });
     }
 
     private GuestProfileEntity insert(long accountId, NormalizedProfile data, OffsetDateTime now) {
@@ -691,6 +830,12 @@ public class GuestProfileDraftService {
     private record PreparedFieldValue(
             ProfileFieldDefinitionEntity definition,
             TypedValue value) {
+    }
+
+    private record TargetPhoto(
+            PhotoCategory category,
+            String objectKey,
+            int sortOrder) {
     }
 
     private record TypedValue(

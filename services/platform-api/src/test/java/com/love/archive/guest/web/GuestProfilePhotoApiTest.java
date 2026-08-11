@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -137,6 +138,41 @@ class GuestProfilePhotoApiTest extends ApiIntegrationTest {
                         .header("Authorization", "Bearer " + guestToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    void savesDraftWithPhotoCollectionAndListsPersistedRows() throws Exception {
+        String avatarKey = "profiles/" + guestAccountId + "/avatar/"
+                + java.util.UUID.randomUUID() + ".jpg";
+        mockMvc.perform(put("/api/v1/guest/profile/draft")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + guestToken)
+                        .content("""
+                                {"expectedVersion":null,
+                                 "photos":{"avatar":"%s","life":[]}}
+                                """.formatted(avatarKey)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DRAFT"));
+
+        mockMvc.perform(get("/api/v1/guest/profile/photos")
+                        .header("Authorization", "Bearer " + guestToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].objectKey").value(avatarKey))
+                .andExpect(jsonPath("$.data[0].previewUrl").isNotEmpty());
+    }
+
+    @Test
+    void rejectsCrossAccountPhotoReferenceOnSave() throws Exception {
+        mockMvc.perform(put("/api/v1/guest/profile/draft")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + guestToken)
+                        .content("""
+                                {"expectedVersion":null,
+                                 "photos":{"avatar":"profiles/999/avatar/%s.jpg","life":[]}}
+                                """.formatted(java.util.UUID.randomUUID())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PHOTO_REFERENCE_INVALID"));
     }
 
     private static byte[] pngBytes() throws Exception {

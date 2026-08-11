@@ -17,9 +17,30 @@ public record SaveGuestProfileCommand(
         String douyinId,
         String douyinNickname,
         URI douyinProfileUrl,
-        List<ProfileFieldInput> dynamicFields) {
+        List<ProfileFieldInput> dynamicFields,
+        ProfilePhotoTarget photos) {
 
     public SaveGuestProfileCommand {
         dynamicFields = dynamicFields == null ? List.of() : List.copyOf(dynamicFields);
+        photos = photos == null ? ProfilePhotoTarget.empty() : photos;
+    }
+
+    public SaveGuestProfileCommand(
+            Long expectedVersion,
+            String gender,
+            LocalDate birthDate,
+            Integer heightCm,
+            String education,
+            String occupation,
+            String incomeRange,
+            String city,
+            String wechatId,
+            String douyinId,
+            String douyinNickname,
+            URI douyinProfileUrl,
+            List<ProfileFieldInput> dynamicFields) {
+        this(expectedVersion, gender, birthDate, heightCm, education, occupation,
+                incomeRange, city, wechatId, douyinId, douyinNickname,
+                douyinProfileUrl, dynamicFields, ProfilePhotoTarget.empty());
     }
 }

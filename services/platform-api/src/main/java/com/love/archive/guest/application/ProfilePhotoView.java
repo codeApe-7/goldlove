@@ -7,6 +7,6 @@ public record ProfilePhotoView(
         String category,
         String objectKey,
         int sortOrder,
-        String downloadUrl,
+        String previewUrl,
         OffsetDateTime createdAt) {
 }

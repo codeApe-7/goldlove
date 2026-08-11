@@ -7,6 +7,7 @@ import com.love.archive.guest.application.DecimalFieldInput;
 import com.love.archive.guest.application.IntegerFieldInput;
 import com.love.archive.guest.application.OptionFieldInput;
 import com.love.archive.guest.application.ProfileFieldInput;
+import com.love.archive.guest.application.ProfilePhotoTarget;
 import com.love.archive.guest.application.SaveGuestProfileCommand;
 import com.love.archive.guest.application.TextFieldInput;
 import com.love.archive.guest.domain.ProfileFieldType;
@@ -33,7 +34,8 @@ public record SaveGuestProfileRequest(
         @Size(max = 200) String douyinId,
         @Size(max = 500) String douyinNickname,
         URI douyinProfileUrl,
-        List<@Valid DynamicFieldRequest> dynamicFields) {
+        List<@Valid DynamicFieldRequest> dynamicFields,
+        PhotoCollectionRequest photos) {
 
     public SaveGuestProfileCommand toCommand() {
         List<ProfileFieldInput> fields = dynamicFields == null
@@ -42,7 +44,17 @@ public record SaveGuestProfileRequest(
         return new SaveGuestProfileCommand(
                 expectedVersion, gender, birthDate, heightCm, education, occupation,
                 incomeRange, city, wechatId, douyinId, douyinNickname,
-                douyinProfileUrl, fields);
+                douyinProfileUrl, fields,
+                photos == null ? ProfilePhotoTarget.empty() : photos.toTarget());
+    }
+
+    public record PhotoCollectionRequest(
+            @Size(max = 1024) String avatar,
+            @Size(max = 6) List<@Size(max = 1024) String> life) {
+
+        ProfilePhotoTarget toTarget() {
+            return new ProfilePhotoTarget(avatar, life);
+        }
     }
 
     public record DynamicFieldRequest(
