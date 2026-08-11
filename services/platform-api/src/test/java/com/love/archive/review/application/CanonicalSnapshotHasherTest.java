@@ -98,20 +98,52 @@ class CanonicalSnapshotHasherTest {
                 valid.douyinIdCiphertext(),
                 valid.douyinIdHmac(),
                 new byte[] {1, 2, 3},
-                valid.douyinProfileUrlCiphertext());
+                valid.douyinProfileUrlCiphertext(),
+                List.of());
 
         assertThatThrownBy(() -> hasher.sha256(malformed))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void changesDigestWhenPhotoObjectKeyChanges() {
+        List<GuestProfileSnapshot.Photo> photos = List.of(
+                new GuestProfileSnapshot.Photo("AVATAR", "profiles/1/avatar/a.jpg", 0));
+        List<GuestProfileSnapshot.Photo> changed = List.of(
+                new GuestProfileSnapshot.Photo("AVATAR", "profiles/1/avatar/b.jpg", 0));
+
+        assertThat(hasher.sha256(snapshot(BASE, photos)))
+                .isNotEqualTo(hasher.sha256(snapshot(BASE, changed)));
+    }
+
+    @Test
+    void changesDigestWhenPhotoSortOrderChanges() {
+        List<GuestProfileSnapshot.Photo> photos = List.of(
+                new GuestProfileSnapshot.Photo("LIFE", "profiles/1/life/a.jpg", 0),
+                new GuestProfileSnapshot.Photo("LIFE", "profiles/1/life/b.jpg", 1));
+        List<GuestProfileSnapshot.Photo> reordered = List.of(
+                new GuestProfileSnapshot.Photo("LIFE", "profiles/1/life/a.jpg", 1),
+                new GuestProfileSnapshot.Photo("LIFE", "profiles/1/life/b.jpg", 0));
+
+        assertThat(hasher.sha256(snapshot(BASE, photos)))
+                .isNotEqualTo(hasher.sha256(snapshot(BASE, reordered)));
+    }
+
     private GuestProfileSnapshot snapshot(ProtectedPlaintext values) {
+        return snapshot(values, List.of());
+    }
+
+    private GuestProfileSnapshot snapshot(
+            ProtectedPlaintext values,
+            List<GuestProfileSnapshot.Photo> photos) {
         return snapshot(
                 encrypt("profile:wechat-id", values.wechatId()),
                 hmac("profile:wechat-id", values.wechatId()),
                 encrypt("profile:douyin-id", values.douyinId()),
                 hmac("profile:douyin-id", values.douyinId()),
                 encrypt("profile:douyin-nickname", values.nickname()),
-                encrypt("profile:douyin-profile-url", values.profileUrl()));
+                encrypt("profile:douyin-profile-url", values.profileUrl()),
+                photos);
     }
 
     private static GuestProfileSnapshot snapshot(
@@ -120,7 +152,8 @@ class CanonicalSnapshotHasherTest {
             byte[] douyinCiphertext,
             String douyinHmac,
             byte[] nicknameCiphertext,
-            byte[] profileUrlCiphertext) {
+            byte[] profileUrlCiphertext,
+            List<GuestProfileSnapshot.Photo> photos) {
         return new GuestProfileSnapshot(
                 1L,
                 10L,
@@ -150,7 +183,7 @@ class CanonicalSnapshotHasherTest {
                         null,
                         null,
                         null)),
-                List.of());
+                photos);
     }
 
     private byte[] encrypt(String domain, String value) {

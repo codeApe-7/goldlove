@@ -19,6 +19,7 @@ import com.love.archive.consent.persistence.AuthorizationDocumentMapper;
 import com.love.archive.consent.persistence.AuthorizationRecordEntity;
 import com.love.archive.consent.persistence.AuthorizationRecordMapper;
 import com.love.archive.guest.application.GuestProfileDraftService;
+import com.love.archive.guest.application.ProfilePhotoTarget;
 import com.love.archive.guest.application.SaveGuestProfileCommand;
 import com.love.archive.guest.application.TextFieldInput;
 import com.love.archive.guest.domain.FieldStorageKind;
@@ -77,6 +78,7 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
     private static final OffsetDateTime NOW = OffsetDateTime.parse("2030-07-01T10:15:30Z");
     private static final String REQUEST_ID = "req-task-5";
     private static final String DYNAMIC_FIELD_CODE = "task5_bio";
+    private static final String FIXTURE_AVATAR_UUID = "00000000-0000-0000-0000-000000000001";
 
     @Autowired private ProfileSubmissionService service;
     @Autowired private GuestProfileDraftService draftService;
@@ -283,7 +285,14 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
                 accountId, "submit-photo", REQUEST_ID);
 
         assertThat(revision.photos()).hasSize(1);
-        assertThat(revision.photos().getFirst().category()).isEqualTo("AVATAR");
+        ProfileRevisionView.Photo photoView = revision.photos().getFirst();
+        assertThat(photoView.category()).isEqualTo("AVATAR");
+        assertThat(photoView.objectKey())
+                .isEqualTo("profiles/" + profile().getId() + "/avatar/"
+                        + FIXTURE_AVATAR_UUID + ".jpg");
+        assertThat(photoView.sortOrder()).isZero();
+        assertThat(photoView.downloadUrl())
+                .startsWith("https://loveplatform-1314980040");
         assertThat(revisionPhotoMapper.selectCount(
                         Wrappers.<ProfileRevisionPhotoEntity>lambdaQuery()
                                 .eq(ProfileRevisionPhotoEntity::getProfileRevisionId,
@@ -293,7 +302,9 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
                 Wrappers.<ProfileRevisionPhotoEntity>lambdaQuery()
                         .eq(ProfileRevisionPhotoEntity::getProfileRevisionId, revision.id()));
         assertThat(snapshot.getObjectKey())
-                .isEqualTo("profiles/" + profile().getId() + "/avatar/fixture.jpg");
+                .isEqualTo("profiles/" + profile().getId() + "/avatar/"
+                        + FIXTURE_AVATAR_UUID + ".jpg");
+        assertThat(snapshot.getSortOrder()).isZero();
     }
 
     @Test
@@ -356,7 +367,8 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
         ProfilePhotoEntity photo = new ProfilePhotoEntity();
         photo.setGuestProfileId(profileId);
         photo.setCategory(PhotoCategory.AVATAR);
-        photo.setObjectKey("profiles/" + profileId + "/avatar/fixture.jpg");
+        photo.setObjectKey("profiles/" + profileId + "/avatar/"
+                + FIXTURE_AVATAR_UUID + ".jpg");
         photo.setSortOrder(0);
         OffsetDateTime now = OffsetDateTime.now();
         photo.setCreatedAt(now);
@@ -389,7 +401,12 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
                 douyinId,
                 nickname,
                 profileUrl,
-                List.of(new TextFieldInput(DYNAMIC_FIELD_CODE, "喜欢徒步")));
+                List.of(new TextFieldInput(DYNAMIC_FIELD_CODE, "喜欢徒步")),
+                new ProfilePhotoTarget(
+                        expectedVersion == null ? null
+                                : "profiles/" + profile().getId() + "/avatar/"
+                                        + FIXTURE_AVATAR_UUID + ".jpg",
+                        List.of()));
     }
 
     private void ensureDynamicDefinition(boolean required) {

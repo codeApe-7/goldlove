@@ -44,6 +44,8 @@ import org.springframework.test.web.servlet.MvcResult;
 
 class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
 
+    private static final String FIXTURE_AVATAR_UUID = "00000000-0000-0000-0000-000000000002";
+
     @Autowired private MockMvc mockMvc;
     @Autowired private AdminUserMapper adminMapper;
     @Autowired private GuestProvisioningService provisioningService;
@@ -96,6 +98,10 @@ class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
     @Test
     void submitsAsAuthenticatedGuestAndReturnsOwnedRevision() throws Exception {
         saveCompleteDraftAndConsent(guest.accountId());
+        long profileId = profileMapper.selectOne(
+                        Wrappers.<GuestProfileEntity>lambdaQuery()
+                                .eq(GuestProfileEntity::getUserAccountId, guest.accountId()))
+                .getId();
 
         mockMvc.perform(post("/api/v1/guest/profile/submissions")
                         .header("Authorization", "Bearer " + guestToken)
@@ -116,7 +122,12 @@ class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(revision.getId()))
                 .andExpect(jsonPath("$.data.revisionNumber").value(1))
-                .andExpect(jsonPath("$.data.status").value("PENDING"));
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.photos[0].objectKey")
+                        .value("profiles/" + profileId + "/avatar/"
+                                + FIXTURE_AVATAR_UUID + ".jpg"))
+                .andExpect(jsonPath("$.data.photos[0].sortOrder").value(0))
+                .andExpect(jsonPath("$.data.photos[0].downloadUrl").isNotEmpty());
     }
 
     @Test
@@ -178,7 +189,8 @@ class GuestProfileSubmissionApiTest extends ApiIntegrationTest {
         ProfilePhotoEntity photo = new ProfilePhotoEntity();
         photo.setGuestProfileId(profileId);
         photo.setCategory(PhotoCategory.AVATAR);
-        photo.setObjectKey("profiles/" + profileId + "/avatar/fixture.jpg");
+        photo.setObjectKey("profiles/" + profileId + "/avatar/"
+                + FIXTURE_AVATAR_UUID + ".jpg");
         photo.setSortOrder(0);
         OffsetDateTime now = OffsetDateTime.now();
         photo.setCreatedAt(now);
