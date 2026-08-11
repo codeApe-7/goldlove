@@ -42,7 +42,7 @@ class ProfileFieldDefinitionMigrationTest extends PostgresIntegrationTest {
             }
 
             Flyway latestFlyway = flyway(databaseUrl, null);
-            assertThat(latestFlyway.migrate().migrationsExecuted).isEqualTo(3);
+            assertThat(latestFlyway.migrate().migrationsExecuted).isEqualTo(4);
 
             try (Connection owner = ownerConnection(databaseUrl)) {
                 assertThat(queryInteger(owner, """
@@ -65,6 +65,21 @@ class ProfileFieldDefinitionMigrationTest extends PostgresIntegrationTest {
                         FROM flyway_schema_history
                         WHERE version = '6' AND success
                         """)).isEqualTo(1);
+                assertThat(queryLong(owner, """
+                        SELECT count(*)
+                        FROM flyway_schema_history
+                        WHERE version = '7' AND success
+                        """)).isEqualTo(1);
+                assertThat(queryLong(owner, """
+                        SELECT count(*)
+                        FROM profile_field_definition
+                        WHERE field_code IN (
+                            'wechat_id',
+                            'douyin_id',
+                            'douyin_nickname',
+                            'douyin_profile_url'
+                        )
+                        """)).isEqualTo(4);
                 assertThat(queryLong(owner, """
                         SELECT count(*)
                         FROM profile_field_definition

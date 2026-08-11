@@ -31,7 +31,7 @@ class ProfileConsentPersistenceTest extends PostgresIntegrationTest {
                 .single()).isEqualTo(1);
         assertThat(jdbc.sql("select count(*) from profile_field_definition where storage_kind='CORE'")
                 .query(Integer.class)
-                .single()).isEqualTo(7);
+                .single()).isEqualTo(11);
 
         long adminId = jdbc.sql("""
                         insert into admin_user (username, display_name, password_hash, status)
