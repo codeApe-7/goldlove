@@ -244,7 +244,7 @@ public class GuestProfileDraftService {
                                 try {
                                     storageService.delete(objectKey);
                                 } catch (RuntimeException exception) {
-                                    LOGGER.warn("删除未引用照片对象失败: {}", objectKey, exception);
+                                    LOGGER.warn("删除未引用照片对象失败", exception);
                                 }
                             }
                         }
