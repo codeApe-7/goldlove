@@ -21,6 +21,8 @@ describe('request', () => {
       expect(options.url).toBe('/api/v1/guest/auth/me')
       options.success?.({
         statusCode: 200,
+        header: {},
+        cookies: [],
         data: { success: true, code: 'OK', message: '成功', data: { id: 1 }, requestId: 'r' },
       } as UniApp.RequestSuccessCallbackResult)
     })
@@ -31,6 +33,8 @@ describe('request', () => {
     stubRequest((options) => {
       options.success?.({
         statusCode: 200,
+        header: {},
+        cookies: [],
         data: { success: false, code: 'X', message: '失败', data: null, requestId: 'r' },
       } as UniApp.RequestSuccessCallbackResult)
     })
@@ -43,6 +47,8 @@ describe('request', () => {
     stubRequest((options) => {
       options.success?.({
         statusCode: 401,
+        header: {},
+        cookies: [],
         data: { code: 'AUTH_NOT_LOGGED_IN' },
       } as UniApp.RequestSuccessCallbackResult)
     })

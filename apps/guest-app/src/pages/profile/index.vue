@@ -58,9 +58,11 @@ function onDateChange(
 
 function onBooleanChange(
   definition: GuestFieldDefinition,
-  event: { detail: { value: boolean } },
+  event: Event,
 ): void {
-  values[definition.fieldCode] = event.detail.value
+  values[definition.fieldCode] = (
+    event as Event & { detail: { value: boolean } }
+  ).detail.value
 }
 
 async function choosePhoto(category: 'AVATAR' | 'LIFE'): Promise<void> {

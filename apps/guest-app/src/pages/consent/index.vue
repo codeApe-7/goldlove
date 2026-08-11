@@ -18,8 +18,8 @@ onLoad(async () => {
   }
 })
 
-function toggleAgree(event: { detail: { value: boolean } }): void {
-  agreed.value = event.detail.value
+function toggleAgree(event: Event): void {
+  agreed.value = (event as Event & { detail: { value: boolean } }).detail.value
 }
 
 async function confirm(): Promise<void> {
