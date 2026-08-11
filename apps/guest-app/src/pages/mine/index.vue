@@ -2,6 +2,8 @@
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '@/stores/auth'
 import { useConsentStore } from '@/stores/consent'
+import AppIcon from '@/components/AppIcon.vue'
+import SectionCard from '@/components/SectionCard.vue'
 
 const auth = useAuthStore()
 const consent = useConsentStore()
@@ -22,61 +24,108 @@ async function logout(): Promise<void> {
   await auth.logout()
   uni.reLaunch({ url: '/pages/auth/index' })
 }
+
+function unavailable(): void {
+  uni.showToast({ title: '功能暂未开放', icon: 'none' })
+}
 </script>
 
 <template>
-  <view class="page">
-    <view class="card">
-      <text class="title">账号</text>
-      <text class="row">账号 ID：{{ auth.session?.accountId }}</text>
+  <view class="archive-page mine-page">
+    <text class="archive-title">我的</text>
+    <view class="identity-card">
+      <view class="avatar-mark"><AppIcon name="user" :size="28" /></view>
+      <view class="identity-copy"><strong>婚恋档案用户</strong><text class="archive-tabular">账号 ID：{{ auth.session?.accountId ?? '—' }}</text></view>
     </view>
-    <view class="card">
-      <text class="title">授权</text>
-      <text v-if="consent.current" class="row">
-        有效期至 {{ consent.current.expiresAt }}（版本 {{ consent.current.authorizationDocumentVersion }}）
-      </text>
-      <text v-else class="row">暂无有效授权</text>
-      <button class="link" @tap="renewConsent">查看/重新同意授权书</button>
-    </view>
+
+    <SectionCard>
+      <view class="authorization-row" @tap="renewConsent">
+        <view><text>授权状态</text><strong>{{ consent.current ? '已授权' : '待授权' }}</strong></view>
+        <view><text>{{ consent.current ? `有效期至 ${consent.current.expiresAt.slice(0, 10)}` : '请阅读并同意授权书' }}</text><AppIcon name="chevron" :size="18" /></view>
+      </view>
+    </SectionCard>
+
+    <SectionCard>
+      <view class="menu-row" @tap="renewConsent"><AppIcon name="document" :size="18" /><text>查看 / 重新同意授权书</text><AppIcon name="chevron" :size="18" /></view>
+    </SectionCard>
+
+    <SectionCard>
+      <view class="menu-row" @tap="unavailable"><AppIcon name="shield" :size="18" /><text>隐私政策</text><AppIcon name="chevron" :size="18" /></view>
+      <view class="menu-row" @tap="unavailable"><AppIcon name="document" :size="18" /><text>用户协议</text><AppIcon name="chevron" :size="18" /></view>
+      <view class="menu-row" @tap="unavailable"><AppIcon name="lock" :size="18" /><text>账户与安全</text><AppIcon name="chevron" :size="18" /></view>
+    </SectionCard>
+
+    <SectionCard>
+      <view class="menu-row" @tap="unavailable"><AppIcon name="help" :size="18" /><text>帮助与反馈</text><AppIcon name="chevron" :size="18" /></view>
+      <view class="menu-row" @tap="unavailable"><AppIcon name="headset" :size="18" /><text>联系客服</text><small>400-888-5200</small><AppIcon name="chevron" :size="18" /></view>
+    </SectionCard>
+
     <button class="logout" @tap="logout">退出登录</button>
   </view>
 </template>
 
 <style lang="scss" scoped>
-.page {
-  padding: 30rpx;
+.mine-page { padding-top: 26rpx; }
+.archive-title { display: block; margin-bottom: 26rpx; }
+.identity-card {
+  min-height: 158rpx;
+  margin-bottom: 22rpx;
+  padding: 28rpx;
+  display: flex;
+  align-items: center;
+  gap: 22rpx;
+  border-radius: 22rpx;
+  background: linear-gradient(145deg, #171a1e, #222529);
+  color: #ffffff;
+  box-shadow: 0 16rpx 32rpx rgba(13, 13, 15, 0.12);
 }
-.card {
-  background: #ffffff;
-  border-radius: 24rpx;
-  padding: 30rpx;
-  margin-bottom: 24rpx;
+.avatar-mark {
+  width: 88rpx;
+  height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid rgba(255,255,255,.18);
+  border-radius: 50%;
+  background: rgba(255,255,255,.08);
+  color: #dbc28f;
 }
-.title {
-  display: block;
-  font-size: 32rpx;
-  font-weight: 700;
-  color: #46323a;
-  margin-bottom: 16rpx;
+.identity-copy strong,
+.identity-copy text { display: block; }
+.identity-copy strong { font-size: 28rpx; }
+.identity-copy text { margin-top: 8rpx; color: #a9aaae; font-size: 21rpx; }
+.authorization-row {
+  min-height: 102rpx;
+  padding: 18rpx 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
-.row {
-  display: block;
-  font-size: 28rpx;
-  color: #3b3034;
-  margin-bottom: 12rpx;
+.authorization-row > view:first-child text,
+.authorization-row > view:first-child strong { display: block; }
+.authorization-row > view:first-child text { color: #85868a; font-size: 20rpx; }
+.authorization-row > view:first-child strong { margin-top: 5rpx; font-size: 25rpx; }
+.authorization-row > view:last-child { display: flex; align-items: center; color: #8a8b8f; font-size: 19rpx; }
+.menu-row {
+  min-height: 82rpx;
+  padding: 0 20rpx;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  border-bottom: 1rpx solid #edebe7;
+  color: #444549;
 }
-.link {
-  margin-top: 12rpx;
-  background: #ffffff;
-  color: #b4556d;
-  border: 2rpx solid #b4556d;
-  border-radius: 999rpx;
-}
+.menu-row:last-child { border-bottom: 0; }
+.menu-row > text:nth-child(2) { flex: 1; font-size: 23rpx; }
+.menu-row small { color: #8a8b8f; font-size: 19rpx; }
+.menu-row > :last-child { color: #9a9b9e; }
 .logout {
-  margin-top: 30rpx;
-  background: #ffffff;
-  color: #b4556d;
-  border: 2rpx solid #b4556d;
-  border-radius: 999rpx;
+  height: 80rpx;
+  margin-top: 12rpx;
+  border: 0;
+  background: transparent;
+  color: #dc2626;
+  font-size: 24rpx;
+  line-height: 80rpx;
 }
 </style>
