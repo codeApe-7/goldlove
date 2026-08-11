@@ -23,6 +23,11 @@ public class CosStorageConfiguration {
         BasicCOSCredentials credentials = new BasicCOSCredentials(
                 properties.secretId(), properties.secretKey());
         ClientConfig clientConfig = new ClientConfig(new Region(properties.region()));
+        clientConfig.setConnectionTimeout(5_000);
+        clientConfig.setSocketTimeout(20_000);
+        clientConfig.setRequestTimeout(30_000);
+        clientConfig.setRequestTimeOutEnable(true);
+        clientConfig.setMaxErrorRetry(0);
         return new COSClient(credentials, clientConfig);
     }
 
