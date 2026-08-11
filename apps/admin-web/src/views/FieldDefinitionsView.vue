@@ -3,6 +3,8 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { createFieldDefinition, listFieldDefinitions, updateFieldDefinition } from '@/api/admin'
 import type { ProfileFieldDefinitionView } from '@/types'
+import PageHeader from '@/components/PageHeader.vue'
+import { fieldTypeLabel, storageKindLabel } from '@/utils/presentation'
 
 const items = ref<ProfileFieldDefinitionView[]>([])
 const total = ref(0)
@@ -97,29 +99,30 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
-    <h2 class="page-title">字段配置</h2>
-    <el-card>
-      <template #header>
-        <div class="header-row">
-          <span>档案字段定义</span>
-          <el-button type="primary" @click="openCreate">新增字段</el-button>
-        </div>
-      </template>
-      <el-table :data="items" stripe>
+  <div class="field-page">
+    <PageHeader title="字段配置" description="管理档案字段定义，支持自定义扩展字段。">
+      <template #actions><el-button type="primary" @click="openCreate">新增字段</el-button></template>
+    </PageHeader>
+    <section class="archive-panel table-panel">
+      <div class="table-intro">
+        <div><h2>档案字段</h2><p>核心字段固定存在；自定义字段可按业务需要新增。</p></div>
+        <span>共 {{ total }} 个字段</span>
+      </div>
+      <el-table :data="items" row-key="id">
         <el-table-column prop="fieldCode" label="字段代码" width="160" />
         <el-table-column prop="label" label="名称" />
-        <el-table-column prop="dataType" label="类型" width="120" />
-        <el-table-column prop="storageKind" label="存储" width="100" />
+        <el-table-column label="类型" width="110"><template #default="{ row }">{{ fieldTypeLabel(row.dataType) }}</template></el-table-column>
+        <el-table-column label="存储" width="100"><template #default="{ row }"><span class="kind-pill">{{ storageKindLabel(row.storageKind) }}</span></template></el-table-column>
         <el-table-column label="必填" width="80">
-          <template #default="{ row }">{{ row.required ? '是' : '否' }}</template>
+          <template #default="{ row }"><el-switch :model-value="row.required" disabled /></template>
         </el-table-column>
         <el-table-column label="启用" width="80">
-          <template #default="{ row }">{{ row.enabled ? '是' : '否' }}</template>
+          <template #default="{ row }"><el-switch :model-value="row.enabled" disabled /></template>
         </el-table-column>
-        <el-table-column label="操作" width="100">
+        <el-table-column prop="sortOrder" label="顺序" width="80" />
+        <el-table-column label="操作" width="88" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button link @click="openEdit(row)">编辑</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -131,7 +134,7 @@ onMounted(load)
         class="pager"
         @current-change="load"
       />
-    </el-card>
+    </section>
 
     <el-dialog v-model="dialogVisible" :title="editing ? '编辑字段' : '新增字段'" width="520px">
       <el-form label-width="90px">
@@ -184,17 +187,35 @@ onMounted(load)
 </template>
 
 <style scoped>
-.page-title {
-  margin: 0 0 18px;
-  color: var(--love-deep);
+.table-panel {
+  overflow: hidden;
 }
-.header-row {
+.table-intro {
+  padding: 17px 18px;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--archive-line);
+}
+.table-intro h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.table-intro p,
+.table-intro > span {
+  margin: 6px 0 0;
+  color: var(--archive-muted);
+  font-size: 11px;
+}
+.kind-pill {
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: #f0f0ee;
+  color: #55565a;
+  font-size: 11px;
 }
 .pager {
-  margin-top: 14px;
+  padding: 14px 18px;
   justify-content: flex-end;
 }
 </style>

@@ -35,10 +35,10 @@ describe('review api', () => {
 
   it('rejectReview posts reason and comment', async () => {
     vi.spyOn(http, 'post').mockResolvedValue(ok())
-    await rejectReview(7, 0, 'CONTENT_INCOMPLETE', '请补充职业信息')
+    await rejectReview(7, 0, null, '请补充职业信息')
     expect(http.post).toHaveBeenCalledWith('/admin/profile-reviews/7/reject', {
       expectedVersion: 0,
-      reasonCode: 'CONTENT_INCOMPLETE',
+      reasonCode: null,
       comment: '请补充职业信息',
     })
   })
