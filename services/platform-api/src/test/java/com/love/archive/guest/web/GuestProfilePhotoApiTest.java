@@ -1,5 +1,6 @@
 package com.love.archive.guest.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -9,26 +10,23 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.love.archive.admin.domain.AdminStatus;
 import com.love.archive.admin.persistence.AdminUserEntity;
 import com.love.archive.admin.persistence.AdminUserMapper;
-import com.love.archive.guest.application.GuestProfileDraftService;
-import com.love.archive.guest.application.SaveGuestProfileCommand;
+import com.love.archive.guest.persistence.GuestProfileMapper;
+import com.love.archive.guest.persistence.ProfilePhotoMapper;
 import com.love.archive.identity.application.GuestProvisioningService;
 import com.love.archive.identity.security.PasswordHasher;
 import com.love.archive.identity.web.ProvisionedGuestView;
 import com.love.archive.storage.application.ObjectStorageService;
 import com.love.archive.storage.application.StoredObjectView;
 import com.love.archive.testsupport.ApiIntegrationTest;
-import jakarta.servlet.http.Cookie;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
-import java.net.URI;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
-import java.util.List;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,12 +43,14 @@ class GuestProfilePhotoApiTest extends ApiIntegrationTest {
     @Autowired private AdminUserMapper adminMapper;
     @Autowired private PasswordHasher passwordHasher;
     @Autowired private GuestProvisioningService provisioningService;
-    @Autowired private GuestProfileDraftService draftService;
+    @Autowired private ProfilePhotoMapper photoMapper;
+    @Autowired private GuestProfileMapper profileMapper;
     @Autowired private StringRedisTemplate redis;
     @MockitoBean private ObjectStorageService storageService;
 
     private long adminId;
-    private Cookie guestCookie;
+    private long guestAccountId;
+    private String guestToken;
 
     @BeforeEach
     void prepareAuthenticatedGuest() throws Exception {
@@ -60,14 +60,9 @@ class GuestProfilePhotoApiTest extends ApiIntegrationTest {
         ProvisionedGuestView guest = provisioningService.provision(
                 adminId, "13800138000", "PAY-PHOTO-API", 199_00L,
                 OffsetDateTime.now().minusMinutes(5), "v0.3", null, "photo-api-provision");
-        guestCookie = activateAndLogin(
+        guestAccountId = guest.accountId();
+        guestToken = activateAndLogin(
                 "13800138000", guest.initialCredential(), "Photo-password-2026");
-        draftService.save(guest.accountId(), new SaveGuestProfileCommand(
-                null, "男", LocalDate.of(1995, 5, 20), 178, "本科",
-                "工程师", "20-30万", "杭州", "wx-photo-api", "dy-photo-api",
-                "photo api nickname",
-                URI.create("https://www.douyin.com/user/photo-api"),
-                List.of()), "photo-api-draft");
         when(storageService.put(anyString(), any(byte[].class), anyString()))
                 .thenAnswer(invocation -> new StoredObjectView(
                         invocation.getArgument(0), "loveplatform-1314980040",
@@ -81,71 +76,65 @@ class GuestProfilePhotoApiTest extends ApiIntegrationTest {
     void photoEndpointsRequireGuestLogin() throws Exception {
         mockMvc.perform(get("/api/v1/guest/profile/photos"))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(multipart("/api/v1/guest/profile/photos")
+        mockMvc.perform(multipart("/api/v1/guest/profile/photo-uploads")
                         .file("file", pngBytes())
                         .param("category", "AVATAR"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void uploadsValidPngAndReturns201() throws Exception {
-        mockMvc.perform(multipart("/api/v1/guest/profile/photos")
+    void uploadsValidPngReturnsObjectKeyWithoutDatabaseWrites() throws Exception {
+        mockMvc.perform(multipart("/api/v1/guest/profile/photo-uploads")
                         .file("file", pngBytes())
                         .param("category", "AVATAR")
-                        .header("Origin", "https://h5.example.test")
-                        .cookie(guestCookie))
-                .andExpect(status().isCreated())
+                        .header("Authorization", "Bearer " + guestToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.objectKey")
+                        .value(org.hamcrest.Matchers.matchesPattern(
+                                "profiles/\\d+/avatar/[0-9a-fA-F-]{36}\\.png")))
                 .andExpect(jsonPath("$.data.category").value("AVATAR"))
-                .andExpect(jsonPath("$.data.downloadUrl").isNotEmpty());
+                .andExpect(jsonPath("$.data.previewUrl").isNotEmpty());
+
+        assertThat(photoMapper.selectCount(Wrappers.lambdaQuery())).isZero();
+        assertThat(profileMapper.selectCount(Wrappers.lambdaQuery())).isZero();
     }
 
     @Test
     void rejectsFakeFormatOversizedFileAndInvalidCategory() throws Exception {
-        mockMvc.perform(multipart("/api/v1/guest/profile/photos")
+        mockMvc.perform(multipart("/api/v1/guest/profile/photo-uploads")
                         .file("file", "not-an-image".getBytes())
                         .param("category", "AVATAR")
-                        .header("Origin", "https://h5.example.test")
-                        .cookie(guestCookie))
+                        .header("Authorization", "Bearer " + guestToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("PHOTO_FORMAT_UNSUPPORTED"));
 
-        mockMvc.perform(multipart("/api/v1/guest/profile/photos")
+        mockMvc.perform(multipart("/api/v1/guest/profile/photo-uploads")
                         .file("file", new byte[10 * 1024 * 1024 + 1])
                         .param("category", "AVATAR")
-                        .header("Origin", "https://h5.example.test")
-                        .cookie(guestCookie))
+                        .header("Authorization", "Bearer " + guestToken))
                 .andExpect(status().isPayloadTooLarge())
                 .andExpect(jsonPath("$.code").value("PHOTO_TOO_LARGE"));
 
-        mockMvc.perform(multipart("/api/v1/guest/profile/photos")
+        mockMvc.perform(multipart("/api/v1/guest/profile/photo-uploads")
                         .file("file", pngBytes())
                         .param("category", "VIDEO")
-                        .header("Origin", "https://h5.example.test")
-                        .cookie(guestCookie))
+                        .header("Authorization", "Bearer " + guestToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("PHOTO_CATEGORY_INVALID"));
     }
 
     @Test
-    void deletesOwnedPhoto() throws Exception {
-        MvcResult upload = mockMvc.perform(multipart("/api/v1/guest/profile/photos")
+    void oldPersistentEndpointsAreRemoved() throws Exception {
+        mockMvc.perform(multipart("/api/v1/guest/profile/photos")
                         .file("file", pngBytes())
-                        .param("category", "LIFE")
-                        .header("Origin", "https://h5.example.test")
-                        .cookie(guestCookie))
-                .andExpect(status().isCreated())
-                .andReturn();
-        long photoId = new ObjectMapper()
-                .readTree(upload.getResponse().getContentAsString())
-                .get("data")
-                .get("id")
-                .asLong();
-
-        mockMvc.perform(delete("/api/v1/guest/profile/photos/{photoId}", photoId)
-                        .header("Origin", "https://h5.example.test")
-                        .cookie(guestCookie))
-                .andExpect(status().isOk());
-        mockMvc.perform(get("/api/v1/guest/profile/photos").cookie(guestCookie))
+                        .param("category", "AVATAR")
+                        .header("Authorization", "Bearer " + guestToken))
+                .andExpect(status().isMethodNotAllowed());
+        mockMvc.perform(delete("/api/v1/guest/profile/photos/1")
+                        .header("Authorization", "Bearer " + guestToken))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/guest/profile/photos")
+                        .header("Authorization", "Bearer " + guestToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isEmpty());
     }
@@ -177,7 +166,7 @@ class GuestProfilePhotoApiTest extends ApiIntegrationTest {
         return admin.getId();
     }
 
-    private Cookie activateAndLogin(String phone, String credential, String password)
+    private String activateAndLogin(String phone, String credential, String password)
             throws Exception {
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .post("/api/v1/guest/auth/activate")
@@ -194,6 +183,10 @@ class GuestProfilePhotoApiTest extends ApiIntegrationTest {
                                 """.formatted(phone, password)))
                 .andExpect(status().isOk())
                 .andReturn();
-        return login.getResponse().getCookies()[0];
+        return new ObjectMapper()
+                .readTree(login.getResponse().getContentAsString())
+                .get("data")
+                .get("accessToken")
+                .asText();
     }
 }
