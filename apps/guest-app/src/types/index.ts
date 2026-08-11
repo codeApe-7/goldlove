@@ -55,12 +55,14 @@ export interface GuestProfileDraft {
 export interface ProfilePhotoView {
   id: number
   category: 'AVATAR' | 'LIFE'
-  sha256: string
-  sizeBytes: number
-  contentType: string
-  width: number
-  height: number
+  objectKey: string
   sortOrder: number
-  downloadUrl: string
+  previewUrl: string
   createdAt: string
+}
+
+export interface PhotoUploadResult {
+  objectKey: string
+  category: 'AVATAR' | 'LIFE'
+  previewUrl: string
 }

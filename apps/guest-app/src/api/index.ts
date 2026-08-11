@@ -5,6 +5,7 @@ import type {
   GuestFieldDefinition,
   GuestProfileDraft,
   GuestSession,
+  PhotoUploadResult,
   ProfilePhotoView,
 } from '@/types'
 
@@ -70,10 +71,6 @@ export function profileStatus() {
 
 export function listPhotos() {
   return request<ProfilePhotoView[]>({ url: '/guest/profile/photos' })
-}
-
-export function deletePhoto(photoId: number) {
-  return request<null>({ url: `/guest/profile/photos/${photoId}`, method: 'DELETE' })
 }
 
 export function submitProfile(idempotencyKey: string) {

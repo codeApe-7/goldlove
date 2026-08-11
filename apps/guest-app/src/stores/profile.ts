@@ -1,38 +1,69 @@
 import { defineStore } from 'pinia'
 import * as api from '@/api'
-import type { GuestProfileDraft, ProfilePhotoView } from '@/types'
+import type { GuestProfileDraft, PhotoUploadResult } from '@/types'
 
 const IDEMPOTENCY_KEY = 'profile-submission-key'
+
+export type LocalPhoto = Pick<PhotoUploadResult, 'objectKey' | 'category' | 'previewUrl'>
 
 export const useProfileStore = defineStore('guest-profile', {
   state: () => ({
     draft: null as GuestProfileDraft | null,
-    photos: [] as ProfilePhotoView[],
+    photos: [] as LocalPhoto[],
     loading: false,
   }),
+  getters: {
+    avatar: (state): LocalPhoto | undefined =>
+      state.photos.find((photo) => photo.category === 'AVATAR'),
+    lifePhotos: (state): LocalPhoto[] =>
+      state.photos.filter((photo) => photo.category === 'LIFE'),
+  },
   actions: {
     async load(): Promise<void> {
       this.loading = true
       try {
         const [draft, photos] = await Promise.all([api.getDraft(), api.listPhotos()])
         this.draft = draft
-        this.photos = photos
+        this.photos = photos.map((photo) => ({
+          objectKey: photo.objectKey,
+          category: photo.category,
+          previewUrl: photo.previewUrl,
+        }))
       } finally {
         this.loading = false
       }
     },
-    async save(values: Record<string, unknown>): Promise<void> {
-      this.draft = await api.saveDraft(values)
-    },
-    async removePhoto(photoId: number): Promise<void> {
-      await api.deletePhoto(photoId)
-      this.photos = this.photos.filter((photo) => photo.id !== photoId)
-    },
-    addPhoto(photo: ProfilePhotoView): void {
-      if (photo.category === 'AVATAR') {
-        this.photos = this.photos.filter((item) => item.category !== 'AVATAR')
+    addUploaded(upload: PhotoUploadResult): void {
+      if (upload.category === 'AVATAR') {
+        this.photos = this.photos.filter((photo) => photo.category !== 'AVATAR')
       }
-      this.photos.push(photo)
+      this.photos.push({
+        objectKey: upload.objectKey,
+        category: upload.category,
+        previewUrl: upload.previewUrl,
+      })
+    },
+    removeByObjectKey(objectKey: string): void {
+      this.photos = this.photos.filter((photo) => photo.objectKey !== objectKey)
+    },
+    async save(values: Record<string, unknown>): Promise<void> {
+      const avatar = this.avatar
+      this.draft = await api.saveDraft({
+        ...values,
+        photos: {
+          avatar: avatar?.objectKey ?? null,
+          life: this.lifePhotos.map((photo) => photo.objectKey),
+        },
+      })
+      await this.refreshPhotos()
+    },
+    async refreshPhotos(): Promise<void> {
+      const photos = await api.listPhotos()
+      this.photos = photos.map((photo) => ({
+        objectKey: photo.objectKey,
+        category: photo.category,
+        previewUrl: photo.previewUrl,
+      }))
     },
     async submit(): Promise<{ id: number; status: string; reviewDeadlineAt: string }> {
       const key = idempotencyKey()

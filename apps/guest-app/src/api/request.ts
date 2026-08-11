@@ -1,4 +1,4 @@
-import type { ProfilePhotoView } from '@/types'
+import type { PhotoUploadResult } from '@/types'
 
 export interface ApiEnvelope<T> {
   success: boolean
@@ -65,7 +65,7 @@ export function request<T>(options: UniApp.RequestOptions): Promise<T> {
 export function uploadPhoto(
   source: PhotoUploadSource | string,
   category: 'AVATAR' | 'LIFE',
-): Promise<ApiEnvelope<ProfilePhotoView>> {
+): Promise<ApiEnvelope<PhotoUploadResult>> {
   return new Promise((resolve, reject) => {
     const options: UniApp.UploadFileOption = {
       url: BASE_URL + '/guest/profile/photo-uploads',
@@ -74,7 +74,7 @@ export function uploadPhoto(
       header: bearerHeader(),
       success: (response) => {
         try {
-          const envelope = JSON.parse(response.data) as ApiEnvelope<ProfilePhotoView>
+          const envelope = JSON.parse(response.data) as ApiEnvelope<PhotoUploadResult>
           if (
             response.statusCode === 401 ||
             (response.statusCode === 403 && envelope.code === 'AUTH_ACCOUNT_INACTIVE')

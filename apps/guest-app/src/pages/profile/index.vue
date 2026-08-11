@@ -5,7 +5,7 @@ import { fieldDefinitions, uploadPhoto } from '@/api'
 import { useProfileStore } from '@/stores/profile'
 import { validateProfileForm } from '@/validators/profile'
 import { choosePhotos } from '@/adapters/media'
-import type { GuestFieldDefinition, ProfilePhotoView } from '@/types'
+import type { GuestFieldDefinition, PhotoUploadResult } from '@/types'
 import SectionCard from '@/components/SectionCard.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import {
@@ -25,8 +25,8 @@ const saving = ref(false)
 const submitting = ref(false)
 
 const missing = computed(() => validateProfileForm(definitions.value, values))
-const avatar = computed(() => store.photos.find((photo) => photo.category === 'AVATAR'))
-const lifePhotos = computed(() => store.photos.filter((photo) => photo.category === 'LIFE'))
+const avatar = computed(() => store.avatar)
+const lifePhotos = computed(() => store.lifePhotos)
 const completion = computed(() => profileCompletion(definitions.value, values, Boolean(avatar.value)))
 const fieldGroups = computed(() => [
   { key: 'basic', title: '基本资料', items: definitions.value.filter((item) => profileGroup(item.fieldCode) === 'basic') },
@@ -83,8 +83,9 @@ async function choosePhoto(category: 'AVATAR' | 'LIFE'): Promise<void> {
     const photos = await choosePhotos(count)
     for (const photo of photos) {
       const uploaded = await uploadPhoto(photo, category)
-      store.addPhoto(uploaded.data as ProfilePhotoView)
+      store.addUploaded(uploaded.data as PhotoUploadResult)
     }
+    uni.showToast({ title: '已上传，保存后生效', icon: 'success' })
   } catch (error) {
     const message = error instanceof Error ? error.message : ''
     uni.showToast({
@@ -94,13 +95,9 @@ async function choosePhoto(category: 'AVATAR' | 'LIFE'): Promise<void> {
   }
 }
 
-async function removePhoto(photo: ProfilePhotoView): Promise<void> {
-  try {
-    await store.removePhoto(photo.id)
-    uni.showToast({ title: '已删除', icon: 'success' })
-  } catch (error) {
-    uni.showToast({ title: error instanceof Error ? error.message : '删除失败', icon: 'none' })
-  }
+function removePhoto(photo: { objectKey: string }): void {
+  store.removeByObjectKey(photo.objectKey)
+  uni.showToast({ title: '已移除，保存后生效', icon: 'success' })
 }
 
 async function save(): Promise<void> {
@@ -120,7 +117,7 @@ async function submit(): Promise<void> {
     uni.showToast({ title: `缺少必填：${missing.value.join('、')}`, icon: 'none' })
     return
   }
-  if (!store.photos.some((photo) => photo.category === 'AVATAR')) {
+  if (!store.avatar) {
     uni.showToast({ title: '请上传头像', icon: 'none' })
     return
   }
@@ -170,7 +167,7 @@ async function submit(): Promise<void> {
       <view class="photo-section avatar-section">
         <view><text class="photo-label">头像（必填）</text><text class="photo-help">用于档案身份展示</text></view>
         <view class="avatar-picker" @tap="choosePhoto('AVATAR')">
-          <image v-if="avatar" :src="avatar.downloadUrl" class="avatar-photo" mode="aspectFill" />
+          <image v-if="avatar" :src="avatar.previewUrl" class="avatar-photo" mode="aspectFill" />
           <view v-else class="avatar-empty"><AppIcon name="user" :size="26" /></view>
           <view class="camera-dot"><AppIcon name="camera" :size="12" /></view>
         </view>
@@ -178,8 +175,8 @@ async function submit(): Promise<void> {
       <view class="photo-section life-section">
         <view class="photo-copy"><text class="photo-label">生活照</text><text class="photo-help">最多 6 张，建议包含正面照和生活场景</text></view>
         <view class="photo-list">
-          <view v-for="photo in lifePhotos" :key="photo.id" class="photo-wrap">
-            <image :src="photo.downloadUrl" class="photo" mode="aspectFill" />
+          <view v-for="photo in lifePhotos" :key="photo.objectKey" class="photo-wrap">
+            <image :src="photo.previewUrl" class="photo" mode="aspectFill" />
             <text class="remove" @tap="removePhoto(photo)">×</text>
           </view>
           <view v-if="lifePhotos.length < 6" class="add" @tap="choosePhoto('LIFE')"><text>＋</text><small>上传</small></view>
