@@ -1,6 +1,8 @@
 export interface GuestSession {
   accountId: number
   status: string
+  accessToken: string
+  expiresIn: number
 }
 
 export interface GuestFieldDefinition {
