@@ -14,6 +14,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class AuthInterceptorConfiguration implements WebMvcConfigurer {
 
     private final AuthLogics authLogics;
+    private final GuestStatusInterceptor guestStatusInterceptor;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
@@ -22,7 +23,7 @@ public class AuthInterceptorConfiguration implements WebMvcConfigurer {
                 .excludePathPatterns("/api/v1/admin/auth/login")
                 .order(-100);
 
-        registry.addInterceptor(new SaInterceptor(ignored -> authLogics.guest().checkLogin()))
+        registry.addInterceptor(guestStatusInterceptor)
                 .addPathPatterns("/api/v1/guest/**")
                 .excludePathPatterns(
                         "/api/v1/guest/auth/login",

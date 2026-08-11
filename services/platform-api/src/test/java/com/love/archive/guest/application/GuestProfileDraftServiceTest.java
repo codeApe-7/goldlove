@@ -123,17 +123,6 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
     }
 
     @Test
-    void rejectsSaveForNonActiveAccount() {
-        long suspendedId = insertAccount(AccountStatus.SUSPENDED, "account-suspended");
-
-        assertCode(() -> service.save(suspendedId, validCommand(null), REQUEST_ID),
-                "AUTH_ACCOUNT_INACTIVE");
-        assertThat(profileMapper.selectCount(Wrappers.<GuestProfileEntity>lambdaQuery()
-                        .eq(GuestProfileEntity::getUserAccountId, suspendedId)))
-                .isZero();
-    }
-
-    @Test
     void reportsEveryMissingCoreFieldAtSubmissionValidation() {
         service.save(accountId, new SaveGuestProfileCommand(
                 null, null, null, null, null, null, null, null,

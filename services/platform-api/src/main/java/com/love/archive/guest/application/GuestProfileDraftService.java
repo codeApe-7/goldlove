@@ -14,7 +14,6 @@ import com.love.archive.guest.persistence.ProfileFieldDefinitionEntity;
 import com.love.archive.guest.persistence.ProfileFieldDefinitionMapper;
 import com.love.archive.guest.persistence.ProfileFieldValueEntity;
 import com.love.archive.guest.persistence.ProfileFieldValueMapper;
-import com.love.archive.identity.application.GuestAccountStatusQuery;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.LocalDate;
@@ -50,14 +49,12 @@ public class GuestProfileDraftService {
     private final GuestProfileMapper profileMapper;
     private final ProfileFieldDefinitionMapper definitionMapper;
     private final ProfileFieldValueMapper valueMapper;
-    private final GuestAccountStatusQuery accountStatusQuery;
     private final SensitiveValueProtector protector;
     private final ProfileSubmissionReadinessValidator readinessValidator;
     private final AuditTrail auditTrail;
 
     @Transactional(readOnly = true)
     public GuestProfileDraftView get(long accountId) {
-        accountStatusQuery.requireActive(accountId);
         GuestProfileEntity profile = findOwnedProfile(accountId);
         return profile == null ? notStarted() : toView(profile);
     }
@@ -67,7 +64,6 @@ public class GuestProfileDraftService {
             long accountId,
             SaveGuestProfileCommand command,
             String requestId) {
-        accountStatusQuery.requireActive(accountId);
         NormalizedProfile normalized = normalizeAndValidate(command);
         List<PreparedFieldValue> preparedValues = prepareDynamicValues(command.dynamicFields());
         GuestProfileEntity current = findOwnedProfile(accountId);
@@ -97,7 +93,6 @@ public class GuestProfileDraftService {
 
     @Transactional(readOnly = true)
     public void validateForSubmission(long accountId) {
-        accountStatusQuery.requireActive(accountId);
         GuestProfileEntity profile = findOwnedProfile(accountId);
         if (profile == null) {
             throw new ApiException(HttpStatus.CONFLICT,

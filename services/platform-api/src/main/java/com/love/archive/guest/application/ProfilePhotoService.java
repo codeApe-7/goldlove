@@ -8,7 +8,6 @@ import com.love.archive.guest.persistence.GuestProfileEntity;
 import com.love.archive.guest.persistence.GuestProfileMapper;
 import com.love.archive.guest.persistence.ProfilePhotoEntity;
 import com.love.archive.guest.persistence.ProfilePhotoMapper;
-import com.love.archive.identity.application.GuestAccountStatusQuery;
 import com.love.archive.storage.application.ObjectStorageService;
 import com.love.archive.storage.application.StoredObjectView;
 import java.time.Duration;
@@ -27,7 +26,6 @@ public class ProfilePhotoService {
     private static final int MAX_LIFE_PHOTOS = 6;
     private static final Duration URL_TTL = Duration.ofMinutes(15);
 
-    private final GuestAccountStatusQuery accountStatusQuery;
     private final GuestProfileMapper profileMapper;
     private final ProfilePhotoMapper photoMapper;
     private final ObjectStorageService storageService;
@@ -35,7 +33,6 @@ public class ProfilePhotoService {
 
     @Transactional
     public ProfilePhotoView upload(long accountId, PhotoCategory category, byte[] content) {
-        accountStatusQuery.requireActive(accountId);
         GuestProfileEntity profile = requireOwnedProfile(accountId);
         requireEditable(profile);
         PhotoFileValidator.ImageInfo image = photoFileValidator.validate(content);
@@ -84,7 +81,6 @@ public class ProfilePhotoService {
 
     @Transactional(readOnly = true)
     public List<ProfilePhotoView> list(long accountId) {
-        accountStatusQuery.requireActive(accountId);
         GuestProfileEntity profile = profileMapper.selectOne(
                 Wrappers.<GuestProfileEntity>lambdaQuery()
                         .eq(GuestProfileEntity::getUserAccountId, accountId));
@@ -102,7 +98,6 @@ public class ProfilePhotoService {
 
     @Transactional
     public void delete(long accountId, long photoId) {
-        accountStatusQuery.requireActive(accountId);
         GuestProfileEntity profile = requireOwnedProfile(accountId);
         requireEditable(profile);
         ProfilePhotoEntity photo = photoMapper.selectOne(

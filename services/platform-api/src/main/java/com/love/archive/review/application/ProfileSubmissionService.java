@@ -10,7 +10,6 @@ import com.love.archive.guest.domain.PhotoCategory;
 import com.love.archive.guest.application.GuestProfileApprovalPort;
 import com.love.archive.guest.application.GuestProfileSnapshot;
 import com.love.archive.guest.application.GuestProfileSnapshotProvider;
-import com.love.archive.identity.application.GuestAccountStatusQuery;
 import com.love.archive.payment.application.PaymentAuthorizationEvidence;
 import com.love.archive.payment.application.PresentedAuthorization;
 import com.love.archive.review.domain.RevisionStatus;
@@ -51,7 +50,6 @@ public class ProfileSubmissionService {
 
     private final GuestProfileSnapshotProvider snapshotProvider;
     private final GuestProfileApprovalPort profileApprovalPort;
-    private final GuestAccountStatusQuery accountStatusQuery;
     private final PaymentAuthorizationEvidence paymentAuthorizationEvidence;
     private final ConsentEligibility consentEligibility;
     private final SensitiveValueProtector protector;
@@ -84,7 +82,6 @@ public class ProfileSubmissionService {
             return replay;
         }
 
-        accountStatusQuery.requireActive(accountId);
         PresentedAuthorization payment = requirePaymentEvidence(accountId);
         consentEligibility.requireValid(
                 accountId,

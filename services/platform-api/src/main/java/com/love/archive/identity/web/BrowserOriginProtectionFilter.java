@@ -32,9 +32,7 @@ public final class BrowserOriginProtectionFilter extends OncePerRequestFilter {
         this.allowedOrigins = properties.getAllowedOrigins().stream()
                 .map(BrowserOriginProtectionFilter::removeTrailingSlash)
                 .collect(Collectors.toUnmodifiableSet());
-        this.authCookieNames = Set.of(
-                authLogics.guest().getTokenName(),
-                authLogics.admin().getTokenName());
+        this.authCookieNames = Set.of(authLogics.admin().getTokenName());
     }
 
     @Override

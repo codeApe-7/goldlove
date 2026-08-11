@@ -11,6 +11,7 @@ import com.love.archive.admin.domain.AdminStatus;
 import com.love.archive.admin.persistence.AdminUserEntity;
 import com.love.archive.admin.persistence.AdminUserMapper;
 import com.love.archive.identity.application.GuestProvisioningService;
+import com.love.archive.identity.persistence.UserAccountMapper;
 import com.love.archive.testsupport.ApiIntegrationTest;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,7 @@ class GuestAuthApiTest extends ApiIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private GuestProvisioningService provisioningService;
     @Autowired private AdminUserMapper adminUserMapper;
+    @Autowired private UserAccountMapper accountMapper;
     @Autowired private StringRedisTemplate redis;
 
     private Long adminId;
@@ -108,6 +110,37 @@ class GuestAuthApiTest extends ApiIntegrationTest {
 
         assertInvalidLogin("13900139000", "wrong-password");
         assertInvalidLogin("13700137000", "wrong-password");
+    }
+
+    @Test
+    void suspendsExistingSessionOnNextRequest() throws Exception {
+        ProvisionedGuestView provisioned = provision("13800138000", "PAY-GUEST-SUSPEND");
+        mockMvc.perform(post("/api/v1/guest/auth/activate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(activationBody("13800138000", provisioned.initialCredential())))
+                .andExpect(status().isOk());
+        String token = accessToken(mockMvc.perform(post("/api/v1/guest/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"phone":"13800138000","password":"New-password-2026"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn());
+
+        accountMapper.update(com.baomidou.mybatisplus.core.toolkit.Wrappers
+                .<com.love.archive.identity.persistence.UserAccountEntity>lambdaUpdate()
+                .eq(com.love.archive.identity.persistence.UserAccountEntity::getId,
+                        provisioned.accountId())
+                .set(com.love.archive.identity.persistence.UserAccountEntity::getStatus,
+                        com.love.archive.identity.domain.AccountStatus.SUSPENDED));
+
+        mockMvc.perform(get("/api/v1/guest/profile/draft")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("AUTH_ACCOUNT_INACTIVE"));
+        mockMvc.perform(get("/api/v1/guest/profile/draft")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
     }
 
     private void assertInvalidLogin(String phone, String password) throws Exception {

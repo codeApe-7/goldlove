@@ -309,20 +309,6 @@ class ProfileSubmissionServiceTest extends ApiIntegrationTest {
     }
 
     @Test
-    void rejectsSubmissionForDisabledAccount() {
-        saveCompleteDraft();
-        recordPaidAuthorization(authorizationDocumentId);
-        recordConsent(authorizationDocumentId, NOW.plusDays(1));
-        accountMapper.update(Wrappers.<UserAccountEntity>lambdaUpdate()
-                .eq(UserAccountEntity::getId, accountId)
-                .set(UserAccountEntity::getStatus, AccountStatus.SUSPENDED));
-
-        assertCode(() -> service.submit(accountId, "submit-disabled", REQUEST_ID),
-                "AUTH_ACCOUNT_INACTIVE");
-        assertThat(revisionMapper.selectCount(Wrappers.lambdaQuery())).isZero();
-    }
-
-    @Test
     void incrementsRevisionNumbersPerProfile() throws SQLException {
         saveCompleteDraft();
         recordPaidAuthorization(authorizationDocumentId);
