@@ -58,13 +58,16 @@ class AdminDashboardApiTest extends ApiIntegrationTest {
     }
 
     @Test
-    void returnsFourStatCounters() throws Exception {
+    void returnsStatCountersIncludingMembershipTiers() throws Exception {
         mockMvc.perform(get("/api/v1/admin/dashboard/stats").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.pendingReviews").value(2))
                 .andExpect(jsonPath("$.data.todayRegistrations").value(3))
                 .andExpect(jsonPath("$.data.todayReviews").value(1))
-                .andExpect(jsonPath("$.data.totalProfiles").value(4));
+                .andExpect(jsonPath("$.data.totalProfiles").value(4))
+                // 4 个账号默认 VIP，其中 1 个已升 SVIP。
+                .andExpect(jsonPath("$.data.vipMembers").value(3))
+                .andExpect(jsonPath("$.data.svipMembers").value(1));
     }
 
     private void seedStatsRows() throws SQLException {
@@ -124,6 +127,10 @@ class AdminDashboardApiTest extends ApiIntegrationTest {
                 WHERE r.status = 'PENDING'
                 LIMIT 1
                 """, adminId, OffsetDateTime.parse("2030-07-01T11:00:00Z"));
+        execute("""
+                UPDATE user_account SET membership_tier = 'SVIP', membership_credit_minor = 59900
+                WHERE phone_hmac = 'phone-hmac-0'
+                """);
     }
 
     private static void execute(String sql, Object... args) throws SQLException {

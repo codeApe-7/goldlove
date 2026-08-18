@@ -19,7 +19,9 @@ public interface AdminDashboardMapper {
               (SELECT COUNT(*) FROM profile_review_record
                 WHERE reviewed_at >= #{dayStart} AND reviewed_at < #{dayEnd})
                 AS today_reviews,
-              (SELECT COUNT(*) FROM guest_profile) AS total_profiles
+              (SELECT COUNT(*) FROM guest_profile) AS total_profiles,
+              (SELECT COUNT(*) FROM user_account WHERE membership_tier = 'VIP') AS vip_members,
+              (SELECT COUNT(*) FROM user_account WHERE membership_tier = 'SVIP') AS svip_members
             """)
     AdminDashboardView loadStats(
             @Param("dayStart") OffsetDateTime dayStart,

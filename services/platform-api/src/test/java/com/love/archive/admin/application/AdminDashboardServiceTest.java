@@ -23,7 +23,7 @@ class AdminDashboardServiceTest {
     void computesShanghaiDayBoundsAndReturnsView() {
         AdminDashboardMapper mapper = mock(AdminDashboardMapper.class);
         when(mapper.loadStats(any(OffsetDateTime.class), any(OffsetDateTime.class)))
-                .thenReturn(new AdminDashboardView(2, 3, 1, 9));
+                .thenReturn(new AdminDashboardView(2, 3, 1, 9, 7, 2));
         AdminDashboardService service = new AdminDashboardService(mapper, FIXED);
 
         AdminDashboardView view = service.stats();
@@ -32,6 +32,8 @@ class AdminDashboardServiceTest {
         assertThat(view.todayRegistrations()).isEqualTo(3);
         assertThat(view.todayReviews()).isEqualTo(1);
         assertThat(view.totalProfiles()).isEqualTo(9);
+        assertThat(view.vipMembers()).isEqualTo(7);
+        assertThat(view.svipMembers()).isEqualTo(2);
         ArgumentCaptor<OffsetDateTime> start = ArgumentCaptor.forClass(OffsetDateTime.class);
         ArgumentCaptor<OffsetDateTime> end = ArgumentCaptor.forClass(OffsetDateTime.class);
         verify(mapper).loadStats(start.capture(), end.capture());

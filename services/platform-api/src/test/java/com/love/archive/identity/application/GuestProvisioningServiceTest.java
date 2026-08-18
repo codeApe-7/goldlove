@@ -10,7 +10,9 @@ import com.love.archive.admin.persistence.AdminUserMapper;
 import com.love.archive.audit.persistence.AuditLogMapper;
 import com.love.archive.common.web.ApiException;
 import com.love.archive.identity.domain.AccountStatus;
+import com.love.archive.identity.domain.MembershipTier;
 import com.love.archive.identity.domain.PhoneNormalizer;
+import com.love.archive.identity.domain.RegistrationChannel;
 import com.love.archive.identity.persistence.ActivationCredentialEntity;
 import com.love.archive.identity.persistence.ActivationCredentialMapper;
 import com.love.archive.identity.persistence.UserAccountEntity;
@@ -19,6 +21,7 @@ import com.love.archive.identity.security.PasswordHasher;
 import com.love.archive.identity.security.PhoneProtector;
 import com.love.archive.identity.web.ProvisionedGuestView;
 import com.love.archive.payment.application.PaymentAuthorizationEvidence;
+import com.love.archive.payment.domain.PaymentChannelType;
 import com.love.archive.payment.domain.PaymentStatus;
 import com.love.archive.payment.persistence.PaymentRecordEntity;
 import com.love.archive.payment.persistence.PaymentRecordMapper;
@@ -185,6 +188,40 @@ class GuestProvisioningServiceTest extends ApiIntegrationTest {
         paymentRecordMapper.insert(payment);
 
         assertThat(paymentAuthorizationEvidence.findPaidAuthorization(account.getId())).isEmpty();
+    }
+
+    @Test
+    void manualProvisioningStartsAtVipAndCreditsTheRegisteredAmount() {
+        ProvisionedGuestView view = provision("13800138000", "PAY-MEMBERSHIP-VIP");
+
+        UserAccountEntity account = userAccountMapper.selectById(view.accountId());
+        PaymentRecordEntity payment = paymentRecordMapper.selectOne(
+                Wrappers.<PaymentRecordEntity>lambdaQuery()
+                        .eq(PaymentRecordEntity::getUserAccountId, view.accountId()));
+
+        assertThat(account.getRegistrationChannel()).isEqualTo(RegistrationChannel.ADMIN_MANUAL);
+        assertThat(account.getMembershipTier()).isEqualTo(MembershipTier.VIP);
+        assertThat(account.getMembershipCreditMinor()).isEqualTo(199_00L);
+        assertThat(payment.getPaymentChannel()).isEqualTo(PaymentChannelType.MANUAL);
+        assertThat(payment.getMembershipCreditMinor()).isEqualTo(199_00L);
+        assertThat(payment.getOutTradeNo()).isNull();
+    }
+
+    @Test
+    void manualProvisioningReachingTheThresholdUpgradesToSvip() {
+        ProvisionedGuestView view = service.provision(
+                adminId,
+                "13800138000",
+                "PAY-MEMBERSHIP-SVIP",
+                599_00L,
+                OffsetDateTime.now().minusMinutes(5),
+                "v0.3",
+                "线下付款",
+                "membership-svip-test");
+
+        UserAccountEntity account = userAccountMapper.selectById(view.accountId());
+        assertThat(account.getMembershipCreditMinor()).isEqualTo(599_00L);
+        assertThat(account.getMembershipTier()).isEqualTo(MembershipTier.SVIP);
     }
 
     @Test
