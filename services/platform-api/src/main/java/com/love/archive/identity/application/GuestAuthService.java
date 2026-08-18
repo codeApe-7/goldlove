@@ -5,6 +5,7 @@ import com.love.archive.audit.application.AuditEvent;
 import com.love.archive.audit.application.AuditTrail;
 import com.love.archive.common.web.ApiException;
 import com.love.archive.identity.domain.AccountStatus;
+import com.love.archive.identity.domain.PasswordPolicy;
 import com.love.archive.identity.domain.PhoneNormalizer;
 import com.love.archive.identity.persistence.ActivationCredentialEntity;
 import com.love.archive.identity.persistence.ActivationCredentialMapper;
@@ -15,16 +16,12 @@ import com.love.archive.identity.security.PhoneProtector;
 import com.love.archive.identity.web.GuestSessionView;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
-import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class GuestAuthService {
-
-    private static final Pattern HAS_LETTER = Pattern.compile(".*[A-Za-z].*");
-    private static final Pattern HAS_DIGIT = Pattern.compile(".*\\d.*");
 
     private final UserAccountMapper userAccountMapper;
     private final ActivationCredentialMapper activationCredentialMapper;
@@ -61,7 +58,7 @@ public class GuestAuthService {
             String initialCredential,
             String newPassword,
             String requestId) {
-        validateNewPassword(newPassword, initialCredential);
+        PasswordPolicy.validateDiffersFrom(newPassword, initialCredential);
         UserAccountEntity account = findByPhoneForActivation(rawPhone);
         boolean pending = account != null && account.getStatus() == AccountStatus.PAID_PENDING_ACTIVATION;
         ActivationCredentialEntity credential = pending
@@ -187,20 +184,6 @@ public class GuestAuthService {
                     .eq(UserAccountEntity::getPhoneHmac, phoneProtector.searchHash(phone)));
         } catch (IllegalArgumentException exception) {
             return null;
-        }
-    }
-
-    private static void validateNewPassword(String password, String initialCredential) {
-        if (password == null
-                || password.length() < 12
-                || password.length() > 128
-                || !HAS_LETTER.matcher(password).matches()
-                || !HAS_DIGIT.matcher(password).matches()
-                || password.equals(initialCredential)) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "PASSWORD_POLICY_VIOLATION",
-                    "密码需为 12 至 128 位并同时包含字母和数字");
         }
     }
 
