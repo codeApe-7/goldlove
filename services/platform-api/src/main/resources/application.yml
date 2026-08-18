@@ -90,6 +90,20 @@ app:
       secret-key: ${COS_SECRET_KEY:}
       region: ${COS_REGION:ap-guangzhou}
       bucket: ${COS_BUCKET:}
+  wechat:
+    pay:
+      app-id: ${WECHAT_APP_ID:}
+      app-secret: ${WECHAT_APP_SECRET:}
+      merchant-id: ${WECHAT_MERCHANT_ID:}
+      merchant-serial-number: ${WECHAT_MERCHANT_SERIAL_NUMBER:}
+      merchant-private-key: ${WECHAT_MERCHANT_PRIVATE_KEY:}
+      api-v3-key: ${WECHAT_API_V3_KEY:}
+      platform-public-key-id: ${WECHAT_PLATFORM_PUBLIC_KEY_ID:}
+      platform-public-key: ${WECHAT_PLATFORM_PUBLIC_KEY:}
+      notify-url: ${WECHAT_PAY_NOTIFY_URL:}
+      oauth-redirect-uri: ${WECHAT_OAUTH_REDIRECT_URI:}
+      api-base-url: ${WECHAT_PAY_API_BASE_URL:https://api.mch.weixin.qq.com}
+      oauth-base-url: ${WECHAT_OAUTH_BASE_URL:https://api.weixin.qq.com}
 
 management:
   endpoints:

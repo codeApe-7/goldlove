@@ -45,7 +45,10 @@ class SensitiveDataGuardTest {
                 .contains("${PHONE_SEARCH_KEY:}")
                 .contains("${PROFILE_ENCRYPTION_KEY:}")
                 .contains("${PROFILE_HMAC_KEY:}")
-                .contains("${ADMIN_BOOTSTRAP_PASSWORD:}");
+                .contains("${ADMIN_BOOTSTRAP_PASSWORD:}")
+                .contains("${WECHAT_APP_SECRET:}")
+                .contains("${WECHAT_MERCHANT_PRIVATE_KEY:}")
+                .contains("${WECHAT_API_V3_KEY:}");
     }
 
     @Test
@@ -63,7 +66,15 @@ class SensitiveDataGuardTest {
                 MODULE_ROOT.resolve("../../.env.example").normalize());
         assertThat(envExample)
                 .contains("PROFILE_ENCRYPTION_KEY=")
-                .contains("PROFILE_HMAC_KEY=");
+                .contains("PROFILE_HMAC_KEY=")
+                .contains("WECHAT_APP_SECRET=")
+                .contains("WECHAT_MERCHANT_PRIVATE_KEY=")
+                .contains("WECHAT_API_V3_KEY=")
+                .contains("WECHAT_PLATFORM_PUBLIC_KEY=");
+        // 示例文件绝不带真实密钥。
+        assertThat(envExample)
+                .doesNotContain("WECHAT_APP_SECRET=wx")
+                .doesNotContain("BEGIN PRIVATE KEY");
     }
 
     @Test
