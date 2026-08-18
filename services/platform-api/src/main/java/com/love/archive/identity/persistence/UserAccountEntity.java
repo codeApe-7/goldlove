@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
 import com.love.archive.identity.domain.AccountStatus;
+import com.love.archive.identity.domain.MembershipTier;
+import com.love.archive.identity.domain.RegistrationChannel;
 import java.time.OffsetDateTime;
 import lombok.Getter;
 import lombok.Setter;
@@ -21,6 +23,9 @@ public class UserAccountEntity {
     private String passwordHash;
     private AccountStatus status;
     private Long createdByAdminId;
+    private RegistrationChannel registrationChannel;
+    private MembershipTier membershipTier;
+    private Long membershipCreditMinor;
     private OffsetDateTime activatedAt;
     private OffsetDateTime lastLoginAt;
     private OffsetDateTime createdAt;

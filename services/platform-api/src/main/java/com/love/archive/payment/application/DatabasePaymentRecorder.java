@@ -1,6 +1,7 @@
 package com.love.archive.payment.application;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.love.archive.payment.domain.PaymentChannelType;
 import com.love.archive.payment.domain.PaymentStatus;
 import com.love.archive.payment.persistence.PaymentRecordEntity;
 import com.love.archive.payment.persistence.PaymentRecordMapper;
@@ -11,18 +12,21 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-class DatabasePaymentRecorder implements PaymentRecorder, PaymentAuthorizationEvidence {
+class DatabasePaymentRecorder implements PaymentRecorder, PaymentAuthorizationEvidence, MembershipCreditLedger {
 
     private final PaymentRecordMapper paymentRecordMapper;
 
     @Override
-    public void recordPaid(PaidPayment command) {
+    public long recordPaid(PaidPayment command) {
         PaymentRecordEntity payment = new PaymentRecordEntity();
         payment.setUserAccountId(command.userAccountId());
         payment.setPaymentReference(command.paymentReference());
         payment.setAmountMinor(command.amountMinor());
         payment.setCurrency("CNY");
         payment.setStatus(PaymentStatus.PAID);
+        payment.setPaymentChannel(PaymentChannelType.MANUAL);
+        payment.setMembershipCreditMinor(0L);
+        payment.setRegistered(false);
         payment.setPaidAt(command.paidAt());
         payment.setOperatorAdminId(command.operatorAdminId());
         payment.setPresentedAuthorizationDocumentId(command.presentedAuthorizationDocumentId());
@@ -36,6 +40,16 @@ class DatabasePaymentRecorder implements PaymentRecorder, PaymentAuthorizationEv
             }
             throw exception;
         }
+        return payment.getId();
+    }
+
+    @Override
+    public boolean claimCredit(long paymentRecordId, long creditMinor) {
+        return paymentRecordMapper.update(
+                Wrappers.<PaymentRecordEntity>lambdaUpdate()
+                        .eq(PaymentRecordEntity::getId, paymentRecordId)
+                        .eq(PaymentRecordEntity::getMembershipCreditMinor, 0L)
+                        .set(PaymentRecordEntity::getMembershipCreditMinor, creditMinor)) == 1;
     }
 
     @Override

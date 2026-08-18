@@ -78,7 +78,8 @@ public abstract class ApiIntegrationTest {
                     TRUNCATE TABLE audit_log, profile_review_record, profile_revision_field_value,
                         profile_revision, profile_revision_photo, profile_photo,
                         profile_field_value, guest_profile, authorization_record,
-                        activation_credential, payment_record, external_identity, user_account,
+                        activation_credential, registration_token, wechat_payment_order,
+                        payment_record, external_identity, user_account,
                         admin_user RESTART IDENTITY CASCADE
                     """);
             statement.execute("""

@@ -82,6 +82,8 @@ app:
   sensitive-security:
     encryption-key: ${PROFILE_ENCRYPTION_KEY:}
     hmac-key: ${PROFILE_HMAC_KEY:}
+  membership:
+    svip-threshold-minor: ${MEMBERSHIP_SVIP_THRESHOLD_MINOR:59900}
   storage:
     cos:
       secret-id: ${COS_SECRET_ID:}

@@ -8,7 +8,9 @@ import com.love.archive.consent.application.AuthorizationDocumentQuery;
 import com.love.archive.consent.application.AuthorizationDocumentView;
 import com.love.archive.identity.config.IdentitySecurityProperties;
 import com.love.archive.identity.domain.AccountStatus;
+import com.love.archive.identity.domain.MembershipTier;
 import com.love.archive.identity.domain.PhoneNormalizer;
+import com.love.archive.identity.domain.RegistrationChannel;
 import com.love.archive.identity.persistence.ActivationCredentialEntity;
 import com.love.archive.identity.persistence.ActivationCredentialMapper;
 import com.love.archive.identity.persistence.UserAccountEntity;
@@ -37,6 +39,7 @@ public class GuestProvisioningService {
     private final UserAccountMapper userAccountMapper;
     private final AuthorizationDocumentQuery authorizationDocumentQuery;
     private final PaymentRecorder paymentRecorder;
+    private final MembershipService membershipService;
     private final ActivationCredentialMapper activationCredentialMapper;
     private final AuditTrail auditTrail;
     private final PhoneNormalizer phoneNormalizer;
@@ -75,6 +78,9 @@ public class GuestProvisioningService {
         account.setPhoneHmac(phoneHmac);
         account.setStatus(AccountStatus.PAID_PENDING_ACTIVATION);
         account.setCreatedByAdminId(adminId);
+        account.setRegistrationChannel(RegistrationChannel.ADMIN_MANUAL);
+        account.setMembershipTier(MembershipTier.VIP);
+        account.setMembershipCreditMinor(0L);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
         try {
@@ -86,8 +92,9 @@ public class GuestProvisioningService {
             throw exception;
         }
 
+        long paymentRecordId;
         try {
-            paymentRecorder.recordPaid(new PaidPayment(
+            paymentRecordId = paymentRecorder.recordPaid(new PaidPayment(
                     account.getId(),
                     paymentReference,
                     amountMinor,
@@ -99,6 +106,9 @@ public class GuestProvisioningService {
         } catch (PaymentReferenceConflictException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_REFERENCE_EXISTS", "支付流水号已存在");
         }
+
+        // 手动登记的付款金额同样计入 SVIP 累计额度。
+        membershipService.creditPayment(account.getId(), paymentRecordId, amountMinor);
 
         String initialCredential = credentialGenerator.generate();
         char[] credentialChars = initialCredential.toCharArray();
