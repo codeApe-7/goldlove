@@ -3,7 +3,7 @@ package com.love.archive.wechatpay.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.love.archive.common.web.ApiException;
 import com.love.archive.wechatpay.config.WechatPayProperties;
 import com.love.archive.wechatpay.support.WechatHttpClient;

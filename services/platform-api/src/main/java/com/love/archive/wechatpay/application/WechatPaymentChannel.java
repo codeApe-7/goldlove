@@ -1,8 +1,9 @@
 package com.love.archive.wechatpay.application;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import com.love.archive.common.web.ApiException;
 import com.love.archive.wechatpay.config.WechatPayProperties;
 import com.love.archive.wechatpay.support.WechatHttpClient;
@@ -288,7 +289,7 @@ public class WechatPaymentChannel implements PaymentChannel, WechatOAuthGateway 
             JsonNode payload = objectMapper.readTree(body);
             String code = text(payload, "code");
             return code != null ? code : text(payload, "errcode");
-        } catch (com.fasterxml.jackson.core.JacksonException exception) {
+        } catch (JacksonException exception) {
             return null;
         }
     }
@@ -296,7 +297,7 @@ public class WechatPaymentChannel implements PaymentChannel, WechatOAuthGateway 
     private String writeJson(ObjectNode node) {
         try {
             return objectMapper.writeValueAsString(node);
-        } catch (com.fasterxml.jackson.core.JacksonException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("支付请求序列化失败", exception);
         }
     }
@@ -304,7 +305,7 @@ public class WechatPaymentChannel implements PaymentChannel, WechatOAuthGateway 
     private JsonNode readJson(String body) {
         try {
             return objectMapper.readTree(body == null ? "{}" : body);
-        } catch (com.fasterxml.jackson.core.JacksonException exception) {
+        } catch (JacksonException exception) {
             throw new ApiException(
                     HttpStatus.BAD_GATEWAY, "PAYMENT_CHANNEL_RESPONSE_INVALID", "支付渠道响应无法解析");
         }
@@ -312,7 +313,7 @@ public class WechatPaymentChannel implements PaymentChannel, WechatOAuthGateway 
 
     private static String text(JsonNode node, String field) {
         JsonNode value = node.path(field);
-        return value.isMissingNode() || value.isNull() ? null : value.asText();
+        return value.isMissingNode() || value.isNull() ? null : value.asString();
     }
 
     private static String truncate(String description) {
