@@ -22,11 +22,12 @@
 | 手动路径与 SVIP | 手动登记的付款金额**计入** SVIP 累计额度，手动路径用户也能升 SVIP |
 | 授权书/信息分层 | **本期不碰**，后续再改 |
 
-## 待确认决策（Open Questions，实现前需拍板）
+## 已拍板决策（实现依据）
 
-1. **支付产品**：JSAPI（公众号服务号 H5）还是小程序支付？——默认按 **JSAPI** 设计，若走小程序，仅「openid 获取」与「前端调起」两处变化。
-2. **SVIP 门槛**：单笔达标 还是 累计额度达标？——默认按 **累计额度** 设计。
-3. **额度阈值**：升 SVIP 的具体金额阈值（如累计满 ¥199 或 ¥299）——待定。
+1. **支付产品**：**JSAPI（公众号）**。前端适配器同时支持小程序 `uni.requestPayment`，改走小程序时只需换 openid 获取方式。
+2. **SVIP 门槛**：**累计额度**达标。
+3. **额度阈值**：**¥599**（`MEMBERSHIP_SVIP_THRESHOLD_MINOR=59900`）。
+4. **下单金额**：**¥1**（`ONLINE_REGISTRATION_AMOUNT_MINOR=100`），先用于真实支付联调，上线前改环境变量即可。
 
 ---
 
@@ -177,9 +178,9 @@ MEMBERSHIP_TIER_UPGRADED                  200 (幂等，返回当前等级)
 
 **要点：** 新增 `wechat_payment_order`、`registration_token` 表；扩展 `payment_record`、`user_account`；`membership_tier` 默认 `VIP`；运行时角色授权（`SELECT/INSERT/UPDATE`，无 DDL）。
 
-- [ ] 写失败测试：迁移建表 + 角色授权 + 会员字段默认值
-- [ ] 实现迁移与实体字段
-- [ ] 窄测 + 架构守卫测试通过后 commit
+- [x] 写失败测试：迁移建表 + 角色授权 + 会员字段默认值
+- [x] 实现迁移与实体字段
+- [x] 窄测 + 架构守卫测试通过后 commit
 
 ### Task 2：微信支付渠道模块
 
@@ -187,9 +188,9 @@ MEMBERSHIP_TIER_UPGRADED                  200 (幂等，返回当前等级)
 
 **要点：** `PaymentChannel` 接口 + 微信 API v3 实现（下单/查单/验签）；无凭据不装配；`WECHAT_*` 环境变量。
 
-- [ ] 写失败测试：无凭据返回 `PAYMENT_CHANNEL_NOT_CONFIGURED`；下单/查单/验签 mock
-- [ ] 实现渠道 + 配置
-- [ ] commit
+- [x] 写失败测试：无凭据返回 `PAYMENT_CHANNEL_NOT_CONFIGURED`；下单/查单/验签 mock
+- [x] 实现渠道 + 配置
+- [x] commit
 
 ### Task 3：线上支付下单与回调
 
@@ -197,9 +198,9 @@ MEMBERSHIP_TIER_UPGRADED                  200 (幂等，返回当前等级)
 
 **要点：** `OnlinePaymentService` 生成 out_trade_no、下单、落订单；回调验签后幂等更新订单 + `payment_record`，并签发注册令牌。
 
-- [ ] 写失败测试：下单成功 / 金额不一致 / 回调重复幂等 / 回调后签发令牌
-- [ ] 实现下单 + 回调幂等
-- [ ] commit
+- [x] 写失败测试：下单成功 / 金额不一致 / 回调重复幂等 / 回调后签发令牌
+- [x] 实现下单 + 回调幂等
+- [x] commit
 
 ### Task 4：在线注册与 openid 绑定
 
@@ -207,9 +208,9 @@ MEMBERSHIP_TIER_UPGRADED                  200 (幂等，返回当前等级)
 
 **要点：** 校验令牌 + 订单已支付未使用 → 建账号（`ACTIVE`+`VIP`）+ 手机号加密 + 绑 openid 到 `external_identity` + 标记订单已注册 + 令牌置 `USED`，单事务。
 
-- [ ] 写失败测试：令牌无效/过期/已用/订单未支付/重复注册
-- [ ] 实现在线注册
-- [ ] commit
+- [x] 写失败测试：令牌无效/过期/已用/订单未支付/重复注册
+- [x] 实现在线注册
+- [x] commit
 
 ### Task 5：会员额度累计与 SVIP 升级
 
@@ -217,9 +218,9 @@ MEMBERSHIP_TIER_UPGRADED                  200 (幂等，返回当前等级)
 
 **要点：** 手动登记金额与线上支付金额均计入 `membership_credit_minor`，达阈值自动升 `SVIP`；升级幂等。
 
-- [ ] 写失败测试：累计达标升 SVIP / 未达标不升 / 重复累计幂等
-- [ ] 实现额度累计与升级
-- [ ] commit
+- [x] 写失败测试：累计达标升 SVIP / 未达标不升 / 重复累计幂等
+- [x] 实现额度累计与升级
+- [x] commit
 
 ### Task 6：前端 guest-app 支付与注册流程
 
@@ -227,9 +228,9 @@ MEMBERSHIP_TIER_UPGRADED                  200 (幂等，返回当前等级)
 
 **要点：** 支付下单 → `wx.chooseWXPay` 调起 → 成功跳注册页 → 手机号 + 信息提交 → 复用现有档案表单能力；微信外打开给出兜底提示。
 
-- [ ] 写失败测试：注册页提交 payload、支付状态查询
-- [ ] 实现页面与 store
-- [ ] commit
+- [x] 写失败测试：注册页提交 payload、支付状态查询
+- [x] 实现页面与 store
+- [x] commit
 
 ### Task 7：文档与收尾
 
@@ -237,9 +238,9 @@ MEMBERSHIP_TIER_UPGRADED                  200 (幂等，返回当前等级)
 
 **要点：** 记录新端点、环境变量、双路径说明、会员规则；`git diff --check`；完整测试 + 打包验证。
 
-- [ ] 更新文档与配置示例
-- [ ] 全量验证（`./mvnw -pl services/platform-api test`、前端 build/test）
-- [ ] commit
+- [x] 更新文档与配置示例
+- [x] 全量验证（`./mvnw -pl services/platform-api test`、前端 build/test）
+- [x] commit
 
 ---
 
@@ -258,8 +259,28 @@ cd apps/guest-app && npx vitest run --config vitest.config.ts && npm run type-ch
 ./mvnw -pl services/platform-api test -Dtest=ModularityTest,SensitiveDataGuardTest,LombokEntitySafetyTest
 ```
 
-## 待确认事项（实现前必须拍板）
+## 实现与计划的差异（已落地）
 
-1. 支付产品：**JSAPI（公众号）** 还是 **小程序**？（默认 JSAPI）
-2. SVIP 门槛：**单笔达标** 还是 **累计额度**？（默认累计）
-3. SVIP 额度阈值具体金额？（待定）
+1. **敏感列改名**：`payment_record.transaction_id` 与 `wechat_payment_order.openid` 落库为
+   `*_ciphertext` + `*_hmac`（AES-256-GCM + HMAC 等值索引），遵守「openid、支付交易号不落明文」的全局约束。
+2. **付款记录时序**：线上支付发生在账号之前，因此 `payment_record.user_account_id` /
+   `operator_admin_id` 与 `user_account.created_by_admin_id` 放宽为可空，并新增
+   `payment_channel` / `registration_channel` 的 CHECK 约束按渠道重新固定原有不变量。
+3. **注册令牌签发时机**：改为「支付成功后由客户端按订单号领取」。库内只存 HMAC，
+   明文无法在回调时刻回传客户端，因此必须在领取请求的响应里返回一次。
+4. **授权书版本**：`payment` 通过 `CurrentAuthorizationDocumentPort` 反向注入取得，
+   避免 `payment → consent` 与既有 `consent → payment` 形成模块环。
+5. **个人基本信息**：注册接口只建账号并返回访客会话；「个人基本信息」继续复用既有
+   `/guest/profile/draft` 表单（`identity` 不能依赖 `guest`，否则与 `guest → identity` 成环）。
+6. **额外端点**：新增 `GET /api/v1/guest/membership`（本人等级）与工作台 VIP/SVIP 人数统计。
+7. **额外错误码**：`PAYMENT_ORDER_PAYER_MISMATCH`、`PAYMENT_ORDER_STATE_CONFLICT`、
+   `PAYMENT_CHANNEL_*`、`WECHAT_AUTHORIZATION_CODE_INVALID`、`WECHAT_ACCOUNT_ALREADY_BOUND`、
+   `REGISTRATION_ALREADY_COMPLETED`；`MEMBERSHIP_TIER_UPGRADED` 未使用（升级是内部幂等动作，
+   不作为对外错误码）。
+
+## 验证结果
+
+- `./mvnw -pl services/platform-api test`：259 个测试通过（1 个跳过，为默认关闭的 COS 真桶冒烟）。
+- `./mvnw -pl services/platform-api package -DskipTests`：通过。
+- `apps/guest-app`：`vitest run` 50 个测试通过、`type-check` 与 `build:h5` 通过。
+- `apps/admin-web`：`npm run test` 16 个测试通过、`npm run build` 通过。
