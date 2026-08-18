@@ -5,6 +5,11 @@ import type {
   GuestFieldDefinition,
   GuestProfileDraft,
   GuestSession,
+  IssuedRegistrationToken,
+  MembershipView,
+  OnlineOrder,
+  OnlineOrderStatus,
+  OnlinePaymentSettings,
   PhotoUploadResult,
   ProfilePhotoView,
 } from '@/types'
@@ -82,3 +87,43 @@ export function submitProfile(idempotencyKey: string) {
 }
 
 export { uploadPhoto }
+
+export function membership() {
+  return request<MembershipView>({ url: '/guest/membership' })
+}
+
+// ---- 线上支付 → 注册建档 ----
+
+export function onlinePaymentSettings() {
+  return request<OnlinePaymentSettings>({ url: '/public/online-payments/settings' })
+}
+
+/** 用公众号网页授权 code 下单；金额由后端配置决定，前端不传金额。 */
+export function createOnlineOrder(authorizationCode: string, authorizationDocumentVersion: string) {
+  return request<OnlineOrder>({
+    url: '/public/online-payments/orders',
+    method: 'POST',
+    data: { authorizationCode, authorizationDocumentVersion },
+  })
+}
+
+export function onlineOrderStatus(outTradeNo: string) {
+  return request<OnlineOrderStatus>({
+    url: `/public/online-payments/orders/${encodeURIComponent(outTradeNo)}`,
+  })
+}
+
+export function issueRegistrationToken(outTradeNo: string) {
+  return request<IssuedRegistrationToken>({
+    url: `/public/online-payments/orders/${encodeURIComponent(outTradeNo)}/registration-tokens`,
+    method: 'POST',
+  })
+}
+
+export function registerOnline(registrationToken: string, phone: string, password: string) {
+  return request<GuestSession>({
+    url: '/public/registrations',
+    method: 'POST',
+    data: { registrationToken, phone, password },
+  })
+}

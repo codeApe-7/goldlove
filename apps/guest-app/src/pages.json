@@ -4,6 +4,8 @@
     { "path": "pages/status/index", "style": { "navigationBarTitleText": "审核状态" } },
     { "path": "pages/mine/index", "style": { "navigationBarTitleText": "我的" } },
     { "path": "pages/auth/index", "style": { "navigationBarTitleText": "登录", "navigationStyle": "custom" } },
+    { "path": "pages/payment/index", "style": { "navigationBarTitleText": "建档服务", "navigationStyle": "custom" } },
+    { "path": "pages/register/index", "style": { "navigationBarTitleText": "完成注册" } },
     { "path": "pages/consent/index", "style": { "navigationBarTitleText": "授权书" } }
   ],
   "tabBar": {

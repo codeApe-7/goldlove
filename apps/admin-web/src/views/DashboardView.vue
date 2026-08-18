@@ -13,6 +13,8 @@ const cards = [
   { key: 'todayRegistrations', label: '今日登记', hint: '今日新登记访客' },
   { key: 'todayReviews', label: '今日审核', hint: '今日完成审核' },
   { key: 'totalProfiles', label: '累计建档', hint: '总档案数量' },
+  { key: 'vipMembers', label: 'VIP 会员', hint: '建档注册即 VIP' },
+  { key: 'svipMembers', label: 'SVIP 会员', hint: '累计付费达标自动升级' },
 ] as const
 
 onMounted(async () => {

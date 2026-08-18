@@ -66,3 +66,48 @@ export interface PhotoUploadResult {
   category: 'AVATAR' | 'LIFE'
   previewUrl: string
 }
+
+export interface MembershipView {
+  tier: 'VIP' | 'SVIP'
+  creditMinor: number
+  svipThresholdMinor: number
+  creditToNextTierMinor: number
+}
+
+/** 可以下发前端的渠道设置，不含任何密钥。 */
+export interface OnlinePaymentSettings {
+  appId: string
+  amountMinor: number
+  orderDescription: string
+  authorizeUrl: string
+  state: string
+}
+
+/** 微信内调起支付所需的参数，全部由后端签名。 */
+export interface JsapiPayParameters {
+  appId: string
+  timeStamp: string
+  nonceStr: string
+  packageValue: string
+  signType: string
+  paySign: string
+}
+
+export interface OnlineOrder {
+  outTradeNo: string
+  amountMinor: number
+  authorizationDocumentVersion: string
+  payParameters: JsapiPayParameters
+}
+
+export interface OnlineOrderStatus {
+  outTradeNo: string
+  status: 'CREATED' | 'PAID' | 'CLOSED' | 'REFUNDED'
+  amountMinor: number
+  registered: boolean
+}
+
+export interface IssuedRegistrationToken {
+  token: string
+  expiresAt: string
+}

@@ -9,6 +9,8 @@ export interface AdminDashboardStats {
   todayRegistrations: number
   todayReviews: number
   totalProfiles: number
+  vipMembers: number
+  svipMembers: number
 }
 
 export interface ProvisionedGuest {
