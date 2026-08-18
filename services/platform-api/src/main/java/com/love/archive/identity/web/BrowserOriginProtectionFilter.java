@@ -25,13 +25,17 @@ public final class BrowserOriginProtectionFilter extends OncePerRequestFilter {
 
     private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
 
+    private static final String ALLOW_ALL = "*";
+
     private final Set<String> allowedOrigins;
+    private final boolean allowAllOrigins;
     private final Set<String> authCookieNames;
 
     public BrowserOriginProtectionFilter(BrowserSecurityProperties properties, AuthLogics authLogics) {
         this.allowedOrigins = properties.getAllowedOrigins().stream()
                 .map(BrowserOriginProtectionFilter::removeTrailingSlash)
                 .collect(Collectors.toUnmodifiableSet());
+        this.allowAllOrigins = this.allowedOrigins.contains(ALLOW_ALL);
         this.authCookieNames = Set.of(authLogics.admin().getTokenName());
     }
 
@@ -40,7 +44,8 @@ public final class BrowserOriginProtectionFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        if (SAFE_METHODS.contains(request.getMethod())
+        if (allowAllOrigins
+                || SAFE_METHODS.contains(request.getMethod())
                 || !hasAuthenticationCookie(request)
                 || hasTrustedOrigin(request)) {
             filterChain.doFilter(request, response);

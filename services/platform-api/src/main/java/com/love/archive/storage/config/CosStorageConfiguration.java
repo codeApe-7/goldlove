@@ -17,7 +17,7 @@ import org.springframework.util.StringUtils;
 @EnableConfigurationProperties(CosStorageProperties.class)
 public class CosStorageConfiguration {
 
-    @Bean
+    @Bean(destroyMethod = "shutdown")
     @Conditional(CosCredentialsConfigured.class)
     COSClient cosClient(CosStorageProperties properties) {
         BasicCOSCredentials credentials = new BasicCOSCredentials(
@@ -27,7 +27,6 @@ public class CosStorageConfiguration {
         clientConfig.setSocketTimeout(20_000);
         clientConfig.setRequestTimeout(30_000);
         clientConfig.setRequestTimeOutEnable(true);
-        clientConfig.setMaxErrorRetry(0);
         return new COSClient(credentials, clientConfig);
     }
 

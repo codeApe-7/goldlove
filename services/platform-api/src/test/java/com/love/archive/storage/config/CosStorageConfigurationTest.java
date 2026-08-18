@@ -50,7 +50,7 @@ class CosStorageConfigurationTest {
                     assertThat(config.getSocketTimeout()).isEqualTo(20_000);
                     assertThat(config.getRequestTimeout()).isEqualTo(30_000);
                     assertThat(config.getRequestTimeOutEnable()).isTrue();
-                    assertThat(config.getMaxErrorRetry()).isZero();
+                    assertThat(config.getMaxErrorRetry()).isEqualTo(3);
                 });
     }
 }

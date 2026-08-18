@@ -4,6 +4,7 @@ import { onShow } from '@dcloudio/uni-app'
 import * as api from '@/api'
 import AppIcon from '@/components/AppIcon.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import ArchiveTabBar from '@/components/ArchiveTabBar.vue'
 import { guestStatusMeta } from '@/utils/presentation'
 
 const status = ref<{
@@ -56,6 +57,7 @@ function editAgain(): void {
     </view>
 
     <view class="privacy-tip"><AppIcon name="shield" :size="17" /><text>档案审核全程遵循隐私保护规范，审核结果以系统状态为准。</text></view>
+    <ArchiveTabBar current="status" />
   </view>
 </template>
 

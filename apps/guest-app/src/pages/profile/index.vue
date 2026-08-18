@@ -8,6 +8,7 @@ import { choosePhotos } from '@/adapters/media'
 import type { GuestFieldDefinition, PhotoUploadResult } from '@/types'
 import SectionCard from '@/components/SectionCard.vue'
 import AppIcon from '@/components/AppIcon.vue'
+import ArchiveTabBar from '@/components/ArchiveTabBar.vue'
 import {
   profileCompletion,
   profileGroup,
@@ -188,6 +189,7 @@ async function submit(): Promise<void> {
       <button class="archive-button-secondary" :disabled="saving" @tap="save">保存草稿</button>
       <button class="archive-button-primary" :disabled="submitting" @tap="submit">提交审核</button>
     </view>
+    <ArchiveTabBar current="profile" />
   </view>
 </template>
 

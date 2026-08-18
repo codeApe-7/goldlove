@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useConsentStore } from '@/stores/consent'
 import AppIcon from '@/components/AppIcon.vue'
 import SectionCard from '@/components/SectionCard.vue'
+import ArchiveTabBar from '@/components/ArchiveTabBar.vue'
 
 const auth = useAuthStore()
 const consent = useConsentStore()
@@ -45,13 +46,13 @@ function unavailable(): void {
     </SectionCard>
 
     <SectionCard>
-      <view class="menu-row" @tap="renewConsent"><AppIcon name="document" :size="18" /><text>查看 / 重新同意授权书</text><AppIcon name="chevron" :size="18" /></view>
+      <view class="menu-row" @tap="renewConsent"><AppIcon name="authorization" :size="18" /><text>查看 / 重新同意授权书</text><AppIcon name="chevron" :size="18" /></view>
     </SectionCard>
 
     <SectionCard>
       <view class="menu-row" @tap="unavailable"><AppIcon name="shield" :size="18" /><text>隐私政策</text><AppIcon name="chevron" :size="18" /></view>
       <view class="menu-row" @tap="unavailable"><AppIcon name="document" :size="18" /><text>用户协议</text><AppIcon name="chevron" :size="18" /></view>
-      <view class="menu-row" @tap="unavailable"><AppIcon name="lock" :size="18" /><text>账户与安全</text><AppIcon name="chevron" :size="18" /></view>
+      <view class="menu-row" @tap="unavailable"><AppIcon name="account" :size="18" /><text>账户与安全</text><AppIcon name="chevron" :size="18" /></view>
     </SectionCard>
 
     <SectionCard>
@@ -60,6 +61,7 @@ function unavailable(): void {
     </SectionCard>
 
     <button class="logout" @tap="logout">退出登录</button>
+    <ArchiveTabBar current="mine" />
   </view>
 </template>
 
