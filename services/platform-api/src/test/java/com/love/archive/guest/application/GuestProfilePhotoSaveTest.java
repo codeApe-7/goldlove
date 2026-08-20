@@ -20,11 +20,6 @@ import com.love.archive.guest.persistence.ProfilePhotoMapper;
 import com.love.archive.identity.domain.AccountStatus;
 import com.love.archive.identity.persistence.UserAccountEntity;
 import com.love.archive.identity.persistence.UserAccountMapper;
-import com.love.archive.review.domain.RevisionStatus;
-import com.love.archive.review.persistence.ProfileRevisionEntity;
-import com.love.archive.review.persistence.ProfileRevisionMapper;
-import com.love.archive.review.persistence.ProfileRevisionPhotoEntity;
-import com.love.archive.review.persistence.ProfileRevisionPhotoMapper;
 import com.love.archive.storage.application.ObjectStorageService;
 import com.love.archive.storage.application.StoredObjectView;
 import com.love.archive.testsupport.ApiIntegrationTest;
@@ -46,8 +41,6 @@ class GuestProfilePhotoSaveTest extends ApiIntegrationTest {
     @Autowired private UserAccountMapper accountMapper;
     @Autowired private GuestProfileMapper profileMapper;
     @Autowired private ProfilePhotoMapper photoMapper;
-    @Autowired private ProfileRevisionMapper revisionMapper;
-    @Autowired private ProfileRevisionPhotoMapper revisionPhotoMapper;
     @MockitoBean private ObjectStorageService storageService;
 
     private long accountId;
@@ -65,12 +58,11 @@ class GuestProfilePhotoSaveTest extends ApiIntegrationTest {
         adminMapper.insert(admin);
 
         UserAccountEntity account = new UserAccountEntity();
-        account.setPhoneCiphertext("photo-save".getBytes(StandardCharsets.UTF_8));
-        account.setPhoneHmac("photo-save");
+        account.setPhone("13800138000");
         account.setPasswordHash("not-used");
         account.setStatus(AccountStatus.ACTIVE);
-        account.setCreatedByAdminId(admin.getId());
-        account.setActivatedAt(OffsetDateTime.now());
+        account.setMembershipTier(com.love.archive.identity.domain.MembershipTier.FREE);
+        account.setMembershipCreditMinor(0L);
         account.setCreatedAt(OffsetDateTime.now());
         account.setUpdatedAt(OffsetDateTime.now());
         account.setVersion(0L);
@@ -149,16 +141,6 @@ class GuestProfilePhotoSaveTest extends ApiIntegrationTest {
     }
 
     @Test
-    void keepsObjectsReferencedByRevisions() {
-        draftService.save(accountId, command(null, target(avatarKey("a"), List.of())), REQUEST_ID);
-        insertRevisionSnapshot(avatarKey("a"));
-
-        draftService.save(accountId, command(currentVersion(), target(avatarKey("b"), List.of())), REQUEST_ID);
-
-        verify(storageService, never()).delete(anyString());
-    }
-
-    @Test
     void saveTransactionNeverCallsObjectStoragePut() {
         draftService.save(accountId, command(null, target(avatarKey("a"), List.of())), REQUEST_ID);
 
@@ -193,31 +175,6 @@ class GuestProfilePhotoSaveTest extends ApiIntegrationTest {
         return new SaveGuestProfileCommand(
                 expectedVersion, "男", null, null, null, null, null, null,
                 null, null, null, null, List.of(), photos);
-    }
-
-    private void insertRevisionSnapshot(String objectKey) {
-        OffsetDateTime now = OffsetDateTime.now();
-        ProfileRevisionEntity revision = new ProfileRevisionEntity();
-        revision.setGuestProfileId(profileMapper.selectList(Wrappers.lambdaQuery())
-                .getFirst().getId());
-        revision.setRevisionNumber(1);
-        revision.setStatus(RevisionStatus.APPROVED);
-        revision.setSubmittedByAccountId(accountId);
-        revision.setSubmittedAt(now);
-        revision.setReviewDeadlineAt(now.plusHours(24));
-        revision.setSubmissionKeyHmac(UUID.randomUUID().toString());
-        revision.setRequestPayloadSha256("b".repeat(64));
-        revision.setVersion(0L);
-        revision.setCreatedAt(now);
-        revisionMapper.insert(revision);
-
-        ProfileRevisionPhotoEntity snapshot = new ProfileRevisionPhotoEntity();
-        snapshot.setProfileRevisionId(revision.getId());
-        snapshot.setCategory(PhotoCategory.AVATAR);
-        snapshot.setObjectKey(objectKey);
-        snapshot.setSortOrder(0);
-        snapshot.setCreatedAt(now);
-        revisionPhotoMapper.insert(snapshot);
     }
 
     private static void assertCode(Operation operation, String expectedCode) {

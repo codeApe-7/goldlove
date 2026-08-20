@@ -1,140 +1,62 @@
 package com.love.archive.consent.web;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.love.archive.admin.domain.AdminStatus;
-import com.love.archive.admin.persistence.AdminUserEntity;
-import com.love.archive.admin.persistence.AdminUserMapper;
-import com.love.archive.identity.application.GuestProvisioningService;
-import com.love.archive.identity.web.ProvisionedGuestView;
 import com.love.archive.testsupport.ApiIntegrationTest;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.time.OffsetDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 
+/**
+ * 授权书完全公开：注册页的勾选框要能点开全文，而此时用户还没有账号。
+ */
 class AuthorizationDocumentApiTest extends ApiIntegrationTest {
 
-    @Autowired private MockMvc mockMvc;
-    @Autowired private AdminUserMapper adminUserMapper;
-    @Autowired private GuestProvisioningService provisioningService;
+    private static final String DOCUMENT_CODE = "PROFILE_LIVE_CONTENT";
 
-    private long adminId;
+    @Autowired private MockMvc mockMvc;
 
     @BeforeEach
     void cleanState() {
         resetDatabase();
-        resetAuthorizationDocuments();
-        OffsetDateTime now = OffsetDateTime.now();
-        AdminUserEntity admin = new AdminUserEntity();
-        admin.setUsername("authorization-document-admin");
-        admin.setDisplayName("Authorization Document Admin");
-        admin.setPasswordHash("$argon2id$test-placeholder");
-        admin.setStatus(AdminStatus.ACTIVE);
-        admin.setCreatedAt(now);
-        admin.setUpdatedAt(now);
-        adminUserMapper.insert(admin);
-        adminId = admin.getId();
     }
 
     @Test
-    void exposesOnlyTheActiveDocumentPublicly() throws Exception {
+    void exposesTheActiveDocumentWithoutLogin() throws Exception {
         mockMvc.perform(get("/api/v1/public/authorization-documents/current"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.version").value("v0.3"))
+                .andExpect(jsonPath("$.data.version").value("v1.0"))
                 .andExpect(jsonPath("$.data.contentSha256").isNotEmpty());
     }
 
     @Test
-    void requiresLoginForRetiredDocumentVersion() throws Exception {
-        retireV03AndActivateV04();
-
-        mockMvc.perform(get("/api/v1/guest/authorization-documents/v0.3"))
-                .andExpect(status().isUnauthorized());
+    void exposesASpecificActiveVersionWithoutLogin() throws Exception {
+        mockMvc.perform(get("/api/v1/public/authorization-documents/v1.0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value("v1.0"));
     }
 
     @Test
-    void letsGuestReadRetiredVersionReferencedByOwnPaidRecord() throws Exception {
-        ProvisionedGuestView provisioned = provisioningService.provision(
-                adminId,
-                "13800138000",
-                "PAY-RETIRED-DOCUMENT",
-                199_00L,
-                OffsetDateTime.now().minusMinutes(5),
-                "v0.3",
-                "线下付款",
-                "retired-document-test");
-        retireV03AndActivateV04();
-        String guestToken = activateAndLogin(provisioned);
-
-        mockMvc.perform(get("/api/v1/guest/authorization-documents/v0.3")
-                        .header("Authorization", "Bearer " + guestToken))
-                .andExpect(status().isOk());
+    void rejectsUnknownVersion() throws Exception {
+        mockMvc.perform(get("/api/v1/public/authorization-documents/v9.9"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("AUTHORIZATION_DOCUMENT_NOT_FOUND"));
     }
 
-    private String activateAndLogin(ProvisionedGuestView provisioned) throws Exception {
-        mockMvc.perform(post("/api/v1/guest/auth/activate")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"phone":"13800138000","initialCredential":"%s","newPassword":"New-password-2026"}
-                                """.formatted(provisioned.initialCredential())))
-                .andExpect(status().isOk());
+    @Test
+    void refusesRetiredVersions() throws Exception {
+        insertAuthorizationDocument("v0.9", "RETIRED");
 
-        MvcResult login = mockMvc.perform(post("/api/v1/guest/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"phone":"13800138000","password":"New-password-2026"}
-                                """))
-                .andExpect(status().isOk())
-                .andReturn();
-        return new ObjectMapper()
-                .readTree(login.getResponse().getContentAsString())
-                .get("data")
-                .get("accessToken")
-                .asText();
-    }
-
-    private void retireV03AndActivateV04() throws SQLException {
-        try (Connection owner = DriverManager.getConnection(
-                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
-                PreparedStatement retire = owner.prepareStatement("""
-                        UPDATE authorization_document
-                        SET status = 'RETIRED'
-                        WHERE document_code = 'PAID_PROFILE_LIVE_CONTENT' AND version = 'v0.3'
-                        """)) {
-            retire.executeUpdate();
-        }
-        insertAuthorizationDocument("v0.4", "ACTIVE");
-    }
-
-    private void resetAuthorizationDocuments() {
-        try (Connection owner = DriverManager.getConnection(
-                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
-                PreparedStatement delete = owner.prepareStatement("""
-                        DELETE FROM authorization_document
-                        WHERE document_code = 'PAID_PROFILE_LIVE_CONTENT' AND version <> 'v0.3'
-                        """);
-                PreparedStatement activate = owner.prepareStatement("""
-                        UPDATE authorization_document
-                        SET status = 'ACTIVE'
-                        WHERE document_code = 'PAID_PROFILE_LIVE_CONTENT' AND version = 'v0.3'
-                        """)) {
-            delete.executeUpdate();
-            activate.executeUpdate();
-        } catch (SQLException exception) {
-            throw new IllegalStateException("测试授权文档重置失败", exception);
-        }
+        mockMvc.perform(get("/api/v1/public/authorization-documents/v0.9"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("AUTHORIZATION_DOCUMENT_NOT_ACTIVE"));
     }
 
     private void insertAuthorizationDocument(String version, String status) throws SQLException {
@@ -144,13 +66,14 @@ class AuthorizationDocumentApiTest extends ApiIntegrationTest {
                         INSERT INTO authorization_document
                             (document_code, version, title, content, content_sha256, status, effective_at)
                         VALUES (
-                            'PAID_PROFILE_LIVE_CONTENT', ?, '测试授权书', '测试授权书内容',
+                            ?, ?, '测试授权书', '测试授权书内容',
                             encode(digest(convert_to('测试授权书内容', 'UTF8'), 'sha256'), 'hex'),
                             ?, CURRENT_TIMESTAMP
                         )
                         """)) {
-            insert.setString(1, version);
-            insert.setString(2, status);
+            insert.setString(1, DOCUMENT_CODE);
+            insert.setString(2, version);
+            insert.setString(3, status);
             insert.executeUpdate();
         }
     }

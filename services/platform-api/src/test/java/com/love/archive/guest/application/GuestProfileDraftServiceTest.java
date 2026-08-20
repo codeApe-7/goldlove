@@ -102,12 +102,8 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
         assertCode(() -> service.save(accountId, validCommand(99L), REQUEST_ID),
                 "PROFILE_VERSION_CONFLICT");
 
-        profileMapper.update(Wrappers.<GuestProfileEntity>lambdaUpdate()
-                .eq(GuestProfileEntity::getUserAccountId, accountId)
-                .set(GuestProfileEntity::getStatus,
-                        com.love.archive.guest.domain.ProfileStatus.PENDING_REVIEW));
-        assertCode(() -> service.save(accountId, validCommand(0L), REQUEST_ID),
-                "PROFILE_REVIEW_IN_PROGRESS");
+        // 没有审核环节了，只要版本号对就能一直改。
+        assertThat(service.save(accountId, validCommand(0L), REQUEST_ID).version()).isEqualTo(1L);
     }
 
     @Test
@@ -123,17 +119,15 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
     }
 
     @Test
-    void reportsEveryMissingCoreFieldAtSubmissionValidation() {
+    void reportsEveryMissingCoreFieldAndStaysDraft() {
         service.save(accountId, new SaveGuestProfileCommand(
                 null, null, null, null, null, null, null, null,
                 null, null, null, null, List.of()), REQUEST_ID);
 
-        assertThatThrownBy(() -> service.validateForSubmission(accountId))
-                .isInstanceOf(ApiException.class)
-                .extracting(Throwable::getMessage)
-                .asString()
+        assertThat(service.get(accountId).missingRequiredFieldCodes())
                 .contains("gender", "birth_date", "height_cm", "education",
                         "occupation", "income_range", "city");
+        assertThat(service.get(accountId).status()).isEqualTo("DRAFT");
     }
 
     @Test
@@ -374,18 +368,6 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
     }
 
     @Test
-    void encryptsSameIdentifierToDifferentCiphertextAcrossSaves() {
-        service.save(accountId, validCommand(null), REQUEST_ID);
-        byte[] first = profile().getWechatIdCiphertext();
-
-        service.save(accountId, validCommand(0L), REQUEST_ID);
-        byte[] second = profile().getWechatIdCiphertext();
-
-        assertThat(first).isNotEqualTo(second);
-        assertThat(service.get(accountId).wechatId()).isEqualTo("wx-private-123");
-    }
-
-    @Test
     void auditContainsChangedFieldCodesButNoProtectedPlaintext() {
         service.save(accountId, validCommand(null), REQUEST_ID);
 
@@ -606,15 +588,17 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
         return admin.getId();
     }
 
+    /** 手机号有唯一约束，按 seed 派生出稳定但互不相同的号码。 */
+    private static String phoneFor(String seed) {
+        return "138" + String.format("%08d", Math.floorMod(seed.hashCode(), 100_000_000));
+    }
+
     private long insertAccount(AccountStatus status, String seed) {
         OffsetDateTime now = OffsetDateTime.now();
         UserAccountEntity account = new UserAccountEntity();
-        account.setPhoneCiphertext(seed.getBytes(StandardCharsets.UTF_8));
-        account.setPhoneHmac(seed);
+        account.setPhone(phoneFor(seed));
         account.setPasswordHash("not-used-in-service-test");
         account.setStatus(status);
-        account.setCreatedByAdminId(adminId);
-        account.setActivatedAt(now);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
         accountMapper.insert(account);

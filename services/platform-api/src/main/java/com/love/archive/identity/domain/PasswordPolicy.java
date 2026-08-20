@@ -4,7 +4,7 @@ import com.love.archive.common.web.ApiException;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 
-/** 访客密码策略，激活与线上注册共用。 */
+/** 访客密码策略。 */
 public final class PasswordPolicy {
 
     private static final Pattern HAS_LETTER = Pattern.compile(".*[A-Za-z].*");
@@ -21,14 +21,6 @@ public final class PasswordPolicy {
                 || password.length() > MAX_LENGTH
                 || !HAS_LETTER.matcher(password).matches()
                 || !HAS_DIGIT.matcher(password).matches()) {
-            throw violation();
-        }
-    }
-
-    /** 激活时新密码还不能与一次性初始凭证相同。 */
-    public static void validateDiffersFrom(String password, String initialCredential) {
-        validate(password);
-        if (password.equals(initialCredential)) {
             throw violation();
         }
     }

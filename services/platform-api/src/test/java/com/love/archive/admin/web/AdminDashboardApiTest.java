@@ -58,16 +58,17 @@ class AdminDashboardApiTest extends ApiIntegrationTest {
     }
 
     @Test
-    void returnsStatCountersIncludingMembershipTiers() throws Exception {
+    void returnsStatCountersIncludingMembershipTiersAndTodayRevenue() throws Exception {
         mockMvc.perform(get("/api/v1/admin/dashboard/stats").cookie(adminCookie))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.pendingReviews").value(2))
+                .andExpect(jsonPath("$.data.totalAccounts").value(4))
                 .andExpect(jsonPath("$.data.todayRegistrations").value(3))
-                .andExpect(jsonPath("$.data.todayReviews").value(1))
                 .andExpect(jsonPath("$.data.totalProfiles").value(4))
-                // 4 个账号默认 VIP，其中 1 个已升 SVIP。
-                .andExpect(jsonPath("$.data.vipMembers").value(3))
-                .andExpect(jsonPath("$.data.svipMembers").value(1));
+                .andExpect(jsonPath("$.data.completedProfiles").value(2))
+                // 4 个账号默认 FREE，其中 1 个升 VIP、1 个升 SVIP。
+                .andExpect(jsonPath("$.data.vipMembers").value(1))
+                .andExpect(jsonPath("$.data.svipMembers").value(1))
+                .andExpect(jsonPath("$.data.todayPaidAmountMinor").value(9900));
     }
 
     private void seedStatsRows() throws SQLException {
@@ -75,61 +76,47 @@ class AdminDashboardApiTest extends ApiIntegrationTest {
                         POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
                 PreparedStatement statement = connection.prepareStatement("""
                         INSERT INTO user_account (
-                            phone_ciphertext, phone_hmac, password_hash, status,
-                            created_by_admin_id, activated_at, created_at, updated_at, version
-                        ) VALUES (?, ?, 'x', 'ACTIVE', ?, ?, ?, ?, 0)
+                            phone, password_hash, status, created_at, updated_at, version
+                        ) VALUES (?, 'x', 'ACTIVE', ?, ?, 0)
                         """)) {
             // 今日（Asia/Shanghai 2030-07-01，UTC [06-30 16:00, 07-01 16:00)）：3 条在边界内
             for (int i = 0; i < 3; i++) {
-                statement.setBytes(1, ("phone-" + i).getBytes());
-                statement.setString(2, "phone-hmac-" + i);
-                statement.setLong(3, adminId);
-                statement.setObject(4, OffsetDateTime.parse("2030-07-01T10:00:00Z"));
-                statement.setObject(5, OffsetDateTime.parse("2030-06-30T16:30:00Z"));
-                statement.setObject(6, OffsetDateTime.parse("2030-06-30T16:30:00Z"));
+                statement.setString(1, "1380013800" + i);
+                statement.setObject(2, OffsetDateTime.parse("2030-06-30T16:30:00Z"));
+                statement.setObject(3, OffsetDateTime.parse("2030-06-30T16:30:00Z"));
                 statement.addBatch();
             }
             statement.executeBatch();
-            // 第 4 个账号在今日边界之外（UTC 06-30 15:00），计入累计建档但不计入今日登记
-            statement.setBytes(1, "phone-3".getBytes());
-            statement.setString(2, "phone-hmac-3");
-            statement.setLong(3, adminId);
-            statement.setObject(4, OffsetDateTime.parse("2030-06-30T15:00:00Z"));
-            statement.setObject(5, OffsetDateTime.parse("2030-06-30T14:30:00Z"));
-            statement.setObject(6, OffsetDateTime.parse("2030-06-30T14:30:00Z"));
+            // 第 4 个账号在今日边界之外（UTC 06-30 15:00），计入累计但不计入今日注册
+            statement.setString(1, "13800138003");
+            statement.setObject(2, OffsetDateTime.parse("2030-06-30T14:30:00Z"));
+            statement.setObject(3, OffsetDateTime.parse("2030-06-30T14:30:00Z"));
             statement.executeUpdate();
         }
         execute("""
                 INSERT INTO guest_profile (profile_no, user_account_id, status, version)
-                SELECT gen_random_uuid(), ua.id, 'DRAFT', 0
-                FROM user_account ua LIMIT 4
+                SELECT gen_random_uuid(), ua.id,
+                       CASE WHEN ua.phone IN ('13800138000', '13800138001') THEN 'COMPLETED' ELSE 'DRAFT' END,
+                       0
+                FROM user_account ua
+                """);
+        // 今日一笔 ¥99 付款，账号升 VIP；另一个账号直接置 SVIP 模拟累计达标。
+        execute("""
+                INSERT INTO payment_record (
+                    user_account_id, out_trade_no, transaction_id, channel, amount_minor,
+                    status, membership_credit_minor, paid_at
+                )
+                SELECT ua.id, 'OTN-STATS-1', 'TXN-STATS-1', 'XPAY_ALIPAY', 9900,
+                       'PAID', 9900, ?
+                FROM user_account ua WHERE ua.phone = '13800138000'
+                """, OffsetDateTime.parse("2030-07-01T02:00:00Z"));
+        execute("""
+                UPDATE user_account SET membership_tier = 'VIP', membership_credit_minor = 9900
+                WHERE phone = '13800138000'
                 """);
         execute("""
-                INSERT INTO profile_revision (
-                    guest_profile_id, revision_number, status, submitted_by_account_id,
-                    submitted_at, review_deadline_at, submission_key_hmac,
-                    request_payload_sha256, version, created_at
-                )
-                SELECT gp.id, 1, 'PENDING', ua.id, ?, ?, md5(gp.id::text),
-                       repeat('0', 64), 0, ?
-                FROM guest_profile gp JOIN user_account ua ON ua.id = gp.user_account_id
-                LIMIT 2
-                """,
-                OffsetDateTime.parse("2030-07-01T01:00:00Z"),
-                OffsetDateTime.parse("2030-07-02T01:00:00Z"),
-                OffsetDateTime.parse("2030-07-01T01:00:00Z"));
-        execute("""
-                INSERT INTO profile_review_record (
-                    profile_revision_id, reviewer_admin_id, result, reviewed_at, request_id
-                )
-                SELECT r.id, ?, 'APPROVED', ?, 'stats-review'
-                FROM profile_revision r
-                WHERE r.status = 'PENDING'
-                LIMIT 1
-                """, adminId, OffsetDateTime.parse("2030-07-01T11:00:00Z"));
-        execute("""
                 UPDATE user_account SET membership_tier = 'SVIP', membership_credit_minor = 59900
-                WHERE phone_hmac = 'phone-hmac-0'
+                WHERE phone = '13800138001'
                 """);
     }
 

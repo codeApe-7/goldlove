@@ -58,16 +58,8 @@ public abstract class ApiIntegrationTest {
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
         registry.add("spring.data.redis.password", () -> "");
-        registry.add("app.identity.security.phone-encryption-key",
-                () -> "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");
-        registry.add("app.identity.security.phone-search-key",
-                () -> "//////////////////////////////////////////8=");
         registry.add("app.identity.security.argon2.memory-ki-b", () -> "1024");
         registry.add("app.identity.security.argon2.iterations", () -> "1");
-        registry.add("app.sensitive-security.encryption-key",
-                () -> "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");
-        registry.add("app.sensitive-security.hmac-key",
-                () -> "//////////////////////////////////////////8=");
     }
 
     /**
@@ -84,23 +76,49 @@ public abstract class ApiIntegrationTest {
         }
     }
 
+    /**
+     * 走公开注册接口建一个访客并返回会话令牌。注册免费且无前置条件，
+     * 所以这是所有访客用例最短的准备路径。
+     */
+    protected final String registerGuest(
+            org.springframework.test.web.servlet.MockMvc mockMvc,
+            String phone,
+            String password) throws Exception {
+        var result = mockMvc.perform(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                                .post("/api/v1/guest/auth/register")
+                                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {"phone":"%s","password":"%s","confirmPassword":"%s",
+                                         "acceptedAuthorization":true}
+                                        """.formatted(phone, password, password)))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .status().isOk())
+                .andReturn();
+        return new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(result.getResponse().getContentAsString())
+                .path("data")
+                .path("accessToken")
+                .asText();
+    }
+
     protected final void resetDatabase() {
         try (var connection = DriverManager.getConnection(
                         POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
                 var statement = connection.createStatement()) {
             statement.execute("""
-                    TRUNCATE TABLE audit_log, profile_review_record, profile_revision_field_value,
-                        profile_revision, profile_revision_photo, profile_photo,
-                        profile_field_value, guest_profile, authorization_record,
-                        activation_credential, registration_token, wechat_payment_order,
-                        payment_record, external_identity, user_account,
+                    TRUNCATE TABLE audit_log, profile_photo, profile_field_value,
+                        guest_profile, authorization_record, activation_code,
+                        payment_order, payment_record, user_account,
                         admin_user RESTART IDENTITY CASCADE
                     """);
+            // 授权书由迁移种下，TRUNCATE 没有清它；这里只保证测试拿到确定的一版。
+            statement.execute("DELETE FROM authorization_document");
             statement.execute("""
                     INSERT INTO authorization_document (
                         document_code, version, title, content, content_sha256, status, effective_at
                     ) VALUES (
-                        'PAID_PROFILE_LIVE_CONTENT', 'v0.3', '付费建档与直播内容授权书',
+                        'PROFILE_LIVE_CONTENT', 'v1.0', '档案与直播内容授权书',
                         '测试授权书内容',
                         encode(digest(convert_to('测试授权书内容', 'UTF8'), 'sha256'), 'hex'),
                         'ACTIVE', CURRENT_TIMESTAMP

@@ -3,9 +3,10 @@ package com.love.archive.payment.application;
 import com.love.archive.common.web.ApiException;
 import com.love.archive.payment.config.OnlinePaymentProperties;
 import com.love.archive.payment.domain.PaymentChannelType;
-import com.love.archive.payment.domain.WechatOrderStatus;
+import com.love.archive.payment.domain.PaymentOrderStatus;
+import com.love.archive.payment.persistence.PaymentOrderEntity;
 import com.love.archive.payment.persistence.PaymentRecordEntity;
-import com.love.archive.payment.persistence.WechatPaymentOrderEntity;
+import com.love.archive.payment.persistence.PaymentRecordMapper;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.List;
@@ -15,8 +16,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 /**
- * 线上支付编排：按配置选择渠道，生成商户订单号 → 落订单 → 渠道下单，
- * 以及回调验签后的幂等结算。金额永远取服务端配置，绝不信任前端传入。
+ * VIP 升级支付编排：生成商户订单号 → 落订单 → 渠道下单，以及回调验签后的幂等结算。
+ * 金额永远取服务端配置，绝不信任前端传入；付款人一定是已登录账号。
  */
 @Service
 @RequiredArgsConstructor
@@ -25,99 +26,87 @@ public class OnlinePaymentService {
     private static final int OUT_TRADE_NO_RANDOM_BYTES = 24;
 
     private final List<PaymentChannel> channels;
-    private final CurrentAuthorizationDocumentPort authorizationDocumentPort;
-    private final RegistrationEligibilityPort eligibilityPort;
-    private final WechatPaymentOrderStore orderStore;
+    private final PaymentOrderStore orderStore;
+    private final PaymentRecordMapper paymentRecordMapper;
+    private final MembershipGrantPort membershipGrantPort;
     private final OnlinePaymentProperties properties;
     private final SecureRandom secureRandom;
 
-    /** 渠道类型与下单金额，供前端决定跳转授权或直接下单。 */
+    /** 渠道类型与升级金额，供前端展示。 */
     public OnlinePaymentSettingsView settings() {
         PaymentChannel channel = activeChannel();
         return new OnlinePaymentSettingsView(
                 channel.kind(),
-                properties.getRegistrationAmountMinor(),
+                properties.getVipUpgradeAmountMinor(),
                 properties.getOrderDescription());
     }
 
-    public boolean requiresPayerAuthorization() {
-        return activeChannel().requiresPayerAuthorization();
-    }
-
-    public String payerAuthorizationUrl(String state) {
-        return activeChannel().payerAuthorizationUrl(state);
-    }
-
-    /**
-     * 下单：先预检手机号（格式、是否已有账号、探测限流），再按渠道下单。
-     * 若该手机号已有一笔已支付未注册的订单，直接复用那笔而不重复收款。
-     *
-     * @param authorizationDocumentVersion 用户付款前看到的授权书版本
-     * @param rawPhone                     用户提交的手机号，仅用于预检，本模块不落明文
-     * @param clientAddress                调用方地址，用于探测限流
-     */
-    public OnlineOrderView createOrder(
-            String authorizationCode,
-            String authorizationDocumentVersion,
-            String rawPhone,
-            String clientAddress) {
-        String phoneToken = eligibilityPort.requireRegistrablePhone(rawPhone, clientAddress);
-        Optional<WechatPaymentOrderEntity> reusable = orderStore.findReusablePaidOrder(phoneToken);
-        if (reusable.isPresent()) {
-            WechatPaymentOrderEntity paid = reusable.get();
-            return new OnlineOrderView(
-                    paid.getOutTradeNo(), paid.getAmountMinor(), authorizationDocumentVersion, null, true);
-        }
-
+    /** 为当前登录账号创建一笔 VIP 升级订单并向渠道下单。 */
+    public OnlineOrderView createOrder(long accountId) {
         PaymentChannel channel = activeChannel();
-        String payer = channel.requiresPayerAuthorization()
-                ? channel.resolvePayer(authorizationCode)
-                : null;
-        long documentId = authorizationDocumentPort.requireActiveDocumentId(authorizationDocumentVersion);
-        long amountMinor = properties.getRegistrationAmountMinor();
+        long amountMinor = properties.getVipUpgradeAmountMinor();
         String description = properties.getOrderDescription();
         String outTradeNo = generateOutTradeNo();
 
-        orderStore.insertCreated(new NewOnlineOrder(
-                outTradeNo, payer, phoneToken, channel.kind(), documentId, amountMinor, description));
+        orderStore.insertCreated(new NewOnlineOrder(outTradeNo, accountId, channel.kind(), amountMinor));
         CreateOrderResult channelResult = channel.createOrder(
-                new CreateOrderCommand(outTradeNo, description, amountMinor, payer));
-        orderStore.attachPrepayId(outTradeNo, channelResult.channelReference());
-        return new OnlineOrderView(
-                outTradeNo, amountMinor, authorizationDocumentVersion, channelResult.payParameters(), false);
+                new CreateOrderCommand(outTradeNo, description, amountMinor, null));
+        return new OnlineOrderView(outTradeNo, amountMinor, channelResult.payParameters());
     }
 
     /**
-     * 处理渠道支付回调：先验签解析，再幂等结算。
-     *
-     * @return 结算后的订单状态
+     * 处理渠道支付回调：先验签解析，再幂等结算并授予会员。
      */
-    public WechatOrderStatus handleNotification(PaymentChannelType channelType, NotifyPayload payload) {
+    public PaymentOrderStatus handleNotification(
+            PaymentChannelType channelType, NotifyPayload payload) {
         PaymentChannel channel = channelOf(channelType);
         PaymentResult result = channel.verifyAndDecodeNotify(payload);
         if (result.outTradeNo() == null || result.outTradeNo().isBlank()) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST, "PAYMENT_NOTIFY_SIGNATURE_INVALID", "支付回调验签失败");
         }
-        return orderStore.settle(result).status();
+        return settleAndGrant(result).status();
     }
 
     /**
      * 查询订单状态。回调可能晚到或丢失，因此本地仍为 CREATED 时主动向渠道查单补偿。
+     * 只允许查询本人的订单。
      */
-    public OnlineOrderStatusView status(String outTradeNo) {
-        PaymentChannel channel = activeChannel();
-        WechatPaymentOrderEntity order = orderStore.findByOutTradeNo(outTradeNo)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND, "PAYMENT_ORDER_NOT_FOUND", "支付订单不存在"));
-        if (order.getStatus() == WechatOrderStatus.CREATED) {
-            Optional<PaymentResult> channelResult = channel.queryByOutTradeNo(outTradeNo);
+    public OnlineOrderStatusView status(long accountId, String outTradeNo) {
+        PaymentOrderEntity order = requireOwnOrder(accountId, outTradeNo);
+        if (order.getStatus() == PaymentOrderStatus.CREATED) {
+            Optional<PaymentResult> channelResult = activeChannel().queryByOutTradeNo(outTradeNo);
             if (channelResult.isPresent() && channelResult.get().paid()) {
-                orderStore.settle(channelResult.get());
-                return reload(outTradeNo);
+                settleAndGrant(channelResult.get());
+                return toStatusView(requireOwnOrder(accountId, outTradeNo));
             }
         }
         return toStatusView(order);
+    }
+
+    /**
+     * 结算并授予会员。授予放在结算事务之外：结算已幂等落库，
+     * 而 {@code grantPaidMembership} 自身也按付款记录幂等，重放安全。
+     */
+    private PaymentOrderStore.SettlementOutcome settleAndGrant(PaymentResult result) {
+        PaymentOrderStore.SettlementOutcome outcome = orderStore.settle(result);
+        if (outcome.status() == PaymentOrderStatus.PAID
+                && outcome.userAccountId() != null
+                && outcome.paymentRecordId() != null) {
+            membershipGrantPort.grantPaidMembership(
+                    outcome.userAccountId(), outcome.paymentRecordId(), outcome.amountMinor());
+        }
+        return outcome;
+    }
+
+    private PaymentOrderEntity requireOwnOrder(long accountId, String outTradeNo) {
+        PaymentOrderEntity order = orderStore.findByOutTradeNo(outTradeNo)
+                .orElseThrow(() -> orderNotFound());
+        // 订单号是随机的，但仍不能让别人的订单被任意账号读到。
+        if (order.getUserAccountId() == null || order.getUserAccountId() != accountId) {
+            throw orderNotFound();
+        }
+        return order;
     }
 
     private PaymentChannel activeChannel() {
@@ -136,7 +125,9 @@ public class OnlinePaymentService {
         }
         if (configured.size() > 1) {
             throw new ApiException(
-                    HttpStatus.INTERNAL_SERVER_ERROR, "PAYMENT_CHANNEL_AMBIGUOUS", "已配置多个支付渠道，请指定 provider");
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "PAYMENT_CHANNEL_AMBIGUOUS",
+                    "已配置多个支付渠道，请指定 provider");
         }
         return configured.get(0);
     }
@@ -148,26 +139,26 @@ public class OnlinePaymentService {
                 .orElseThrow(OnlinePaymentService::notConfigured);
     }
 
-    private OnlineOrderStatusView reload(String outTradeNo) {
-        return toStatusView(orderStore.findByOutTradeNo(outTradeNo)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND, "PAYMENT_ORDER_NOT_FOUND", "支付订单不存在")));
-    }
-
-    private OnlineOrderStatusView toStatusView(WechatPaymentOrderEntity order) {
-        boolean registered = false;
+    private OnlineOrderStatusView toStatusView(PaymentOrderEntity order) {
+        boolean granted = false;
         if (order.getPaymentRecordId() != null) {
-            PaymentRecordEntity payment = orderStore.requirePaymentRecord(order.getPaymentRecordId());
-            registered = Boolean.TRUE.equals(payment.getRegistered());
+            PaymentRecordEntity payment = paymentRecordMapper.selectById(order.getPaymentRecordId());
+            granted = payment != null
+                    && payment.getMembershipCreditMinor() != null
+                    && payment.getMembershipCreditMinor() > 0;
         }
         return new OnlineOrderStatusView(
-                order.getOutTradeNo(), order.getStatus(), order.getAmountMinor(), registered);
+                order.getOutTradeNo(), order.getStatus(), order.getAmountMinor(), granted);
     }
 
     private String generateOutTradeNo() {
         byte[] random = new byte[OUT_TRADE_NO_RANDOM_BYTES];
         secureRandom.nextBytes(random);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
+    }
+
+    private static ApiException orderNotFound() {
+        return new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_ORDER_NOT_FOUND", "支付订单不存在");
     }
 
     private static ApiException notConfigured() {

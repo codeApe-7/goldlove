@@ -3,7 +3,6 @@ package com.love.archive.identity.domain;
 import com.baomidou.mybatisplus.annotation.EnumValue;
 
 public enum AccountStatus {
-    PAID_PENDING_ACTIVATION("PAID_PENDING_ACTIVATION"),
     ACTIVE("ACTIVE"),
     SUSPENDED("SUSPENDED"),
     CLOSED("CLOSED");

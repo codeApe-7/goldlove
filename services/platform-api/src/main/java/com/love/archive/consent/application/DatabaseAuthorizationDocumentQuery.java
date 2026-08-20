@@ -5,7 +5,6 @@ import com.love.archive.common.web.ApiException;
 import com.love.archive.consent.domain.AuthorizationDocumentStatus;
 import com.love.archive.consent.persistence.AuthorizationDocumentEntity;
 import com.love.archive.consent.persistence.AuthorizationDocumentMapper;
-import com.love.archive.payment.application.PaymentAuthorizationEvidence;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 class DatabaseAuthorizationDocumentQuery implements AuthorizationDocumentQuery {
 
     private final AuthorizationDocumentMapper authorizationDocumentMapper;
-    private final PaymentAuthorizationEvidence paymentAuthorizationEvidence;
 
     @Override
     public AuthorizationDocumentView current(String documentCode) {
@@ -38,25 +36,6 @@ class DatabaseAuthorizationDocumentQuery implements AuthorizationDocumentQuery {
             throw documentNotFound();
         }
         if (document.getStatus() != AuthorizationDocumentStatus.ACTIVE) {
-            throw documentNotActive();
-        }
-        return toView(document);
-    }
-
-    @Override
-    public AuthorizationDocumentView requireVisibleToGuest(long accountId, String documentCode, String version) {
-        AuthorizationDocumentEntity document = find(documentCode, version);
-        if (document == null) {
-            throw documentNotFound();
-        }
-        if (document.getStatus() == AuthorizationDocumentStatus.ACTIVE) {
-            return toView(document);
-        }
-        boolean referencesDocument = document.getStatus() == AuthorizationDocumentStatus.RETIRED
-                && paymentAuthorizationEvidence.findPaidAuthorization(accountId)
-                        .map(presented -> presented.authorizationDocumentId() == document.getId())
-                        .orElse(false);
-        if (!referencesDocument) {
             throw documentNotActive();
         }
         return toView(document);

@@ -2,7 +2,11 @@ package com.love.archive.identity.security;
 
 import com.love.archive.common.web.ApiException;
 import com.love.archive.identity.config.AuthenticationRateLimitProperties;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.dao.DataAccessException;
@@ -23,7 +27,6 @@ public class AuthenticationAttemptLimiter {
             """, Long.class);
 
     private final StringRedisTemplate redis;
-    private final PhoneProtector keyProtector;
     private final int accountMaxAttempts;
     private final Duration accountWindow;
     private final int clientMaxAttempts;
@@ -31,10 +34,8 @@ public class AuthenticationAttemptLimiter {
 
     public AuthenticationAttemptLimiter(
             StringRedisTemplate redis,
-            PhoneProtector keyProtector,
             AuthenticationRateLimitProperties properties) {
         this.redis = redis;
-        this.keyProtector = keyProtector;
         this.accountMaxAttempts = requirePositive(properties.getAccountMaxAttempts(), "账号限流次数必须大于零");
         this.accountWindow = requirePositive(properties.getAccountWindow(), "账号限流窗口必须大于零");
         this.clientMaxAttempts = requirePositive(properties.getClientMaxAttempts(), "客户端限流次数必须大于零");
@@ -77,13 +78,22 @@ public class AuthenticationAttemptLimiter {
     }
 
     private String accountKey(String flow, String identifier) {
-        return "auth:attempt:" + flow + ":account:"
-                + keyProtector.searchHash(normalize(identifier));
+        return "auth:attempt:" + flow + ":account:" + digest(identifier);
     }
 
     private String clientKey(String flow, String clientAddress) {
-        return "auth:attempt:" + flow + ":client:"
-                + keyProtector.searchHash(normalize(clientAddress));
+        return "auth:attempt:" + flow + ":client:" + digest(clientAddress);
+    }
+
+    /** 手机号与来源地址不进 Redis 键：无密钥 SHA-256 就够，键长也统一。 */
+    private static String digest(String value) {
+        byte[] input = normalize(value).getBytes(StandardCharsets.UTF_8);
+        try {
+            return Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(MessageDigest.getInstance("SHA-256").digest(input));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 不可用", exception);
+        }
     }
 
     private static String normalize(String value) {

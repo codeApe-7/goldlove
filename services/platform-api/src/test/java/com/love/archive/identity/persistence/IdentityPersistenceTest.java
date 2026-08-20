@@ -39,10 +39,11 @@ class IdentityPersistenceTest extends PostgresIntegrationTest {
         assertThat(adminUserMapper.insert(admin)).isOne();
 
         UserAccountEntity account = new UserAccountEntity();
-        account.setPhoneCiphertext(new byte[] {1, 2, 3});
-        account.setPhoneHmac("phone-hmac-for-persistence-test");
-        account.setStatus(AccountStatus.PAID_PENDING_ACTIVATION);
-        account.setCreatedByAdminId(admin.getId());
+        account.setPhone("13800138000");
+        account.setPasswordHash("$argon2id$test-only-placeholder");
+        account.setStatus(AccountStatus.ACTIVE);
+        account.setMembershipTier(com.love.archive.identity.domain.MembershipTier.FREE);
+        account.setMembershipCreditMinor(0L);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
 
@@ -51,17 +52,15 @@ class IdentityPersistenceTest extends PostgresIntegrationTest {
 
         UserAccountEntity reloaded = userAccountMapper.selectOne(
                 Wrappers.<UserAccountEntity>lambdaQuery()
-                        .eq(UserAccountEntity::getPhoneHmac, account.getPhoneHmac()));
+                        .eq(UserAccountEntity::getPhone, account.getPhone()));
 
         assertThat(reloaded.getId()).isEqualTo(account.getId());
-        assertThat(reloaded.getStatus()).isEqualTo(AccountStatus.PAID_PENDING_ACTIVATION);
-        assertThat(reloaded.getPhoneCiphertext()).containsExactly(1, 2, 3);
+        assertThat(reloaded.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+        assertThat(reloaded.getMembershipTier())
+                .isEqualTo(com.love.archive.identity.domain.MembershipTier.FREE);
+        assertThat(reloaded.getPhone()).isEqualTo("13800138000");
         assertThat(tableCount("user_account")).isOne();
         assertThat(tableCount("admin_user")).isOne();
-        assertThat(tableCount("activation_credential")).isOne();
-        assertThat(tableCount("external_identity")).isOne();
-        assertThat(tableCount("payment_record")).isOne();
-        assertThat(tableCount("audit_log")).isOne();
     }
 
     @Test

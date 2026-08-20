@@ -1,15 +1,15 @@
 package com.love.archive.payment.application;
 
-import com.love.archive.payment.domain.WechatOrderStatus;
+import com.love.archive.payment.domain.PaymentOrderStatus;
 
 /**
  * 订单状态查询结果。
  *
- * @param registered 该订单是否已用于完成注册
+ * @param membershipGranted 该笔付款是否已计入会员额度
  */
 public record OnlineOrderStatusView(
         String outTradeNo,
-        WechatOrderStatus status,
+        PaymentOrderStatus status,
         long amountMinor,
-        boolean registered) {
+        boolean membershipGranted) {
 }

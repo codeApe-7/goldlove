@@ -3,7 +3,6 @@ package com.love.archive.guest.application;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.love.archive.audit.application.AuditEvent;
 import com.love.archive.audit.application.AuditTrail;
-import com.love.archive.common.security.SensitiveValueProtector;
 import com.love.archive.common.web.ApiException;
 import com.love.archive.guest.domain.FieldStorageKind;
 import com.love.archive.guest.domain.PhotoCategory;
@@ -51,10 +50,6 @@ public class GuestProfileDraftService {
 
     private static final org.slf4j.Logger LOGGER =
             org.slf4j.LoggerFactory.getLogger(GuestProfileDraftService.class);
-    private static final String WECHAT_ID_DOMAIN = "profile:wechat-id";
-    private static final String DOUYIN_ID_DOMAIN = "profile:douyin-id";
-    private static final String DOUYIN_NICKNAME_DOMAIN = "profile:douyin-nickname";
-    private static final String DOUYIN_PROFILE_URL_DOMAIN = "profile:douyin-profile-url";
     private static final String CORE_GENDER_FIELD_CODE = "gender";
     private static final String CORE_INCOME_RANGE_FIELD_CODE = "income_range";
     private static final Pattern PHOTO_OBJECT_KEY = Pattern.compile(
@@ -67,7 +62,6 @@ public class GuestProfileDraftService {
     private final ProfileFieldValueMapper valueMapper;
     private final ProfilePhotoMapper photoMapper;
     private final ObjectStorageService storageService;
-    private final SensitiveValueProtector protector;
     private final ProfileSubmissionReadinessValidator readinessValidator;
     private final AuditTrail auditTrail;
 
@@ -108,30 +102,43 @@ public class GuestProfileDraftService {
         List<TargetPhoto> targets = validatePhotos(accountId, command.photos());
         Set<String> removedKeys = syncPhotos(saved.getId(), targets);
         scheduleOrphanDeletion(removedKeys);
+        // 没有审核环节，保存即生效，因此保存时就把「必填项齐不齐」固定到状态上。
+        refreshStatus(saved, now);
         appendAudit(accountId, saved.getId(), requestId, changedCodes, now);
         return toView(saved);
     }
 
-    @Transactional(readOnly = true)
-    public void validateForSubmission(long accountId) {
-        GuestProfileEntity profile = findOwnedProfile(accountId);
-        if (profile == null) {
-            throw new ApiException(HttpStatus.CONFLICT,
-                    "PROFILE_NOT_STARTED", "请先保存档案草稿");
+    /** 必填项齐全（含头像）即 COMPLETED，否则 DRAFT。 */
+    private void refreshStatus(GuestProfileEntity profile, OffsetDateTime now) {
+        ProfileStatus status = missingRequiredFieldCodes(profile).isEmpty()
+                        && hasAvatar(profile.getId())
+                ? ProfileStatus.COMPLETED
+                : ProfileStatus.DRAFT;
+        if (status == profile.getStatus()) {
+            return;
         }
+        profileMapper.update(Wrappers.<GuestProfileEntity>lambdaUpdate()
+                .eq(GuestProfileEntity::getId, profile.getId())
+                .set(GuestProfileEntity::getStatus, status)
+                .set(GuestProfileEntity::getUpdatedAt, now));
+        profile.setStatus(status);
+    }
+
+    private boolean hasAvatar(long profileId) {
+        return photoMapper.selectCount(Wrappers.<ProfilePhotoEntity>lambdaQuery()
+                .eq(ProfilePhotoEntity::getGuestProfileId, profileId)
+                .eq(ProfilePhotoEntity::getCategory, PhotoCategory.AVATAR)) > 0;
+    }
+
+    private List<String> missingRequiredFieldCodes(GuestProfileEntity profile) {
         List<ProfileFieldDefinitionEntity> definitions = definitionMapper.selectList(
                 Wrappers.<ProfileFieldDefinitionEntity>lambdaQuery()
                         .eq(ProfileFieldDefinitionEntity::getEnabled, true)
                         .eq(ProfileFieldDefinitionEntity::getRequired, true)
                         .orderByAsc(ProfileFieldDefinitionEntity::getSortOrder)
                         .orderByAsc(ProfileFieldDefinitionEntity::getId));
-        List<String> missing = readinessValidator.missingRequiredFieldCodes(
+        return readinessValidator.missingRequiredFieldCodes(
                 profile, definitions, valuesForProfile(profile.getId()));
-        if (!missing.isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "PROFILE_VALIDATION_FAILED",
-                    "缺少必填字段: " + String.join(",", missing));
-        }
     }
 
     private List<TargetPhoto> validatePhotos(long accountId, ProfilePhotoTarget photos) {
@@ -235,17 +242,16 @@ public class GuestProfileDraftService {
         if (removedKeys.isEmpty()) {
             return;
         }
+        // 没有版本快照要留档了，草稿里移除的对象可以直接删。
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
                         for (String objectKey : removedKeys) {
-                            if (photoMapper.countRevisionReferences(objectKey) == 0) {
-                                try {
-                                    storageService.delete(objectKey);
-                                } catch (RuntimeException exception) {
-                                    LOGGER.warn("删除未引用照片对象失败", exception);
-                                }
+                            try {
+                                storageService.delete(objectKey);
+                            } catch (RuntimeException exception) {
+                                LOGGER.warn("删除未引用照片对象失败", exception);
                             }
                         }
                     }
@@ -274,21 +280,10 @@ public class GuestProfileDraftService {
             Long expectedVersion,
             NormalizedProfile data,
             OffsetDateTime now) {
-        if (current.getStatus() == ProfileStatus.PENDING_REVIEW) {
-            throw new ApiException(HttpStatus.CONFLICT,
-                    "PROFILE_REVIEW_IN_PROGRESS", "档案正在审核，暂时不能修改");
-        }
-        if (current.getStatus() != ProfileStatus.DRAFT
-                && current.getStatus() != ProfileStatus.APPROVED
-                && current.getStatus() != ProfileStatus.CHANGES_REQUESTED) {
-            throw new ApiException(HttpStatus.CONFLICT,
-                    "PROFILE_NOT_EDITABLE", "当前档案状态不允许修改");
-        }
         if (expectedVersion == null || !expectedVersion.equals(current.getVersion())) {
             throw versionConflict();
         }
 
-        ProtectedValues protectedValues = protect(data);
         int updated = profileMapper.update(Wrappers.<GuestProfileEntity>lambdaUpdate()
                 .eq(GuestProfileEntity::getId, current.getId())
                 .eq(GuestProfileEntity::getUserAccountId, current.getUserAccountId())
@@ -300,36 +295,23 @@ public class GuestProfileDraftService {
                 .set(GuestProfileEntity::getOccupation, data.occupation())
                 .set(GuestProfileEntity::getIncomeRange, data.incomeRange())
                 .set(GuestProfileEntity::getCity, data.city())
-                .set(GuestProfileEntity::getWechatIdCiphertext, protectedValues.wechatCiphertext())
-                .set(GuestProfileEntity::getWechatIdHmac, protectedValues.wechatHmac())
-                .set(GuestProfileEntity::getDouyinIdCiphertext, protectedValues.douyinCiphertext())
-                .set(GuestProfileEntity::getDouyinIdHmac, protectedValues.douyinHmac())
-                .set(GuestProfileEntity::getDouyinNicknameCiphertext,
-                        protectedValues.douyinNicknameCiphertext())
-                .set(GuestProfileEntity::getDouyinProfileUrlCiphertext,
-                        protectedValues.douyinProfileUrlCiphertext())
-                .set(GuestProfileEntity::getStatus, ProfileStatus.DRAFT)
+                .set(GuestProfileEntity::getWechatId, data.wechatId())
+                .set(GuestProfileEntity::getDouyinId, data.douyinId())
+                .set(GuestProfileEntity::getDouyinNickname, data.douyinNickname())
+                .set(GuestProfileEntity::getDouyinProfileUrl, data.douyinProfileUrl())
                 .set(GuestProfileEntity::getVersion, expectedVersion + 1)
                 .set(GuestProfileEntity::getUpdatedAt, now));
         if (updated != 1) {
             throw versionConflict();
         }
 
-        apply(current, data, protectedValues);
-        current.setStatus(ProfileStatus.DRAFT);
+        apply(current, data);
         current.setVersion(expectedVersion + 1);
         current.setUpdatedAt(now);
         return current;
     }
 
-    private void apply(GuestProfileEntity profile, NormalizedProfile data) {
-        apply(profile, data, protect(data));
-    }
-
-    private static void apply(
-            GuestProfileEntity profile,
-            NormalizedProfile data,
-            ProtectedValues protectedValues) {
+    private static void apply(GuestProfileEntity profile, NormalizedProfile data) {
         profile.setGender(data.gender());
         profile.setBirthDate(data.birthDate());
         profile.setHeightCm(data.heightCm());
@@ -337,22 +319,10 @@ public class GuestProfileDraftService {
         profile.setOccupation(data.occupation());
         profile.setIncomeRange(data.incomeRange());
         profile.setCity(data.city());
-        profile.setWechatIdCiphertext(protectedValues.wechatCiphertext());
-        profile.setWechatIdHmac(protectedValues.wechatHmac());
-        profile.setDouyinIdCiphertext(protectedValues.douyinCiphertext());
-        profile.setDouyinIdHmac(protectedValues.douyinHmac());
-        profile.setDouyinNicknameCiphertext(protectedValues.douyinNicknameCiphertext());
-        profile.setDouyinProfileUrlCiphertext(protectedValues.douyinProfileUrlCiphertext());
-    }
-
-    private ProtectedValues protect(NormalizedProfile data) {
-        return new ProtectedValues(
-                encrypt(WECHAT_ID_DOMAIN, data.wechatId()),
-                hmac(WECHAT_ID_DOMAIN, data.wechatId()),
-                encrypt(DOUYIN_ID_DOMAIN, data.douyinId()),
-                hmac(DOUYIN_ID_DOMAIN, data.douyinId()),
-                encrypt(DOUYIN_NICKNAME_DOMAIN, data.douyinNickname()),
-                encrypt(DOUYIN_PROFILE_URL_DOMAIN, data.douyinProfileUrl()));
+        profile.setWechatId(data.wechatId());
+        profile.setDouyinId(data.douyinId());
+        profile.setDouyinNickname(data.douyinNickname());
+        profile.setDouyinProfileUrl(data.douyinProfileUrl());
     }
 
     private List<PreparedFieldValue> prepareDynamicValues(List<ProfileFieldInput> inputs) {
@@ -518,8 +488,7 @@ public class GuestProfileDraftService {
                             value.getDateValue(), value.getBooleanValue(), value.getOptionValue());
                 })
                 .toList();
-        String profileUrl = decrypt(DOUYIN_PROFILE_URL_DOMAIN,
-                profile.getDouyinProfileUrlCiphertext());
+        String profileUrl = profile.getDouyinProfileUrl();
         return new GuestProfileDraftView(
                 profile.getProfileNo(),
                 profile.getStatus().name(),
@@ -531,12 +500,11 @@ public class GuestProfileDraftService {
                 profile.getOccupation(),
                 profile.getIncomeRange(),
                 profile.getCity(),
-                decrypt(WECHAT_ID_DOMAIN, profile.getWechatIdCiphertext()),
-                decrypt(DOUYIN_ID_DOMAIN, profile.getDouyinIdCiphertext()),
-                decrypt(DOUYIN_NICKNAME_DOMAIN, profile.getDouyinNicknameCiphertext()),
+                profile.getWechatId(),
+                profile.getDouyinId(),
+                profile.getDouyinNickname(),
                 profileUrl == null ? null : URI.create(profileUrl),
-                profile.getPendingRevisionId(),
-                profile.getCurrentApprovedRevisionId(),
+                missingRequiredFieldCodes(profile),
                 dynamic);
     }
 
@@ -585,16 +553,12 @@ public class GuestProfileDraftService {
         compare(changed, "occupation", current == null ? null : current.getOccupation(), data.occupation());
         compare(changed, "income_range", current == null ? null : current.getIncomeRange(), data.incomeRange());
         compare(changed, "city", current == null ? null : current.getCity(), data.city());
-        compare(changed, "wechat_id", current == null ? null : current.getWechatIdHmac(),
-                hmac(WECHAT_ID_DOMAIN, data.wechatId()));
-        compare(changed, "douyin_id", current == null ? null : current.getDouyinIdHmac(),
-                hmac(DOUYIN_ID_DOMAIN, data.douyinId()));
+        compare(changed, "wechat_id", current == null ? null : current.getWechatId(), data.wechatId());
+        compare(changed, "douyin_id", current == null ? null : current.getDouyinId(), data.douyinId());
         compare(changed, "douyin_nickname",
-                current == null ? null : decrypt(DOUYIN_NICKNAME_DOMAIN,
-                        current.getDouyinNicknameCiphertext()), data.douyinNickname());
+                current == null ? null : current.getDouyinNickname(), data.douyinNickname());
         compare(changed, "douyin_profile_url",
-                current == null ? null : decrypt(DOUYIN_PROFILE_URL_DOMAIN,
-                        current.getDouyinProfileUrlCiphertext()), data.douyinProfileUrl());
+                current == null ? null : current.getDouyinProfileUrl(), data.douyinProfileUrl());
 
         Map<Long, TypedValue> oldByDefinition = new HashMap<>();
         for (ProfileFieldValueEntity old : oldValues) {
@@ -761,18 +725,6 @@ public class GuestProfileDraftService {
         return List.copyOf(options);
     }
 
-    private byte[] encrypt(String domain, String value) {
-        return value == null ? null : protector.encrypt(domain, value);
-    }
-
-    private String hmac(String domain, String value) {
-        return value == null ? null : protector.hmac(domain, value.toLowerCase(Locale.ROOT));
-    }
-
-    private String decrypt(String domain, byte[] value) {
-        return value == null ? null : protector.decrypt(domain, value);
-    }
-
     private static void compare(Set<String> changed, String code, Object before, Object after) {
         if (!Objects.equals(before, after)) {
             changed.add(code);
@@ -788,7 +740,7 @@ public class GuestProfileDraftService {
     private static GuestProfileDraftView notStarted() {
         return new GuestProfileDraftView(
                 null, "NOT_STARTED", null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, List.of());
+                null, null, null, null, List.of(), List.of());
     }
 
     private static ApiException invalidFieldValue(String message) {
@@ -816,15 +768,6 @@ public class GuestProfileDraftService {
             String douyinId,
             String douyinNickname,
             String douyinProfileUrl) {
-    }
-
-    private record ProtectedValues(
-            byte[] wechatCiphertext,
-            String wechatHmac,
-            byte[] douyinCiphertext,
-            String douyinHmac,
-            byte[] douyinNicknameCiphertext,
-            byte[] douyinProfileUrlCiphertext) {
     }
 
     private record PreparedFieldValue(

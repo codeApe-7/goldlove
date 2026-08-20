@@ -22,11 +22,6 @@ app:
       allowed-origins:
         - https://h5.example.test
     security:
-      phone-encryption-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-      phone-search-key: //////////////////////////////////////////8=
       argon2:
         memory-ki-b: 1024
         iterations: 1
-  sensitive-security:
-    encryption-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-    hmac-key: //////////////////////////////////////////8=

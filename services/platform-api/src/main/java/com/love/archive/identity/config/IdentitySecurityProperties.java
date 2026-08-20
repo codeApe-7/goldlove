@@ -1,6 +1,5 @@
 package com.love.archive.identity.config;
 
-import java.time.Duration;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -10,11 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties("app.identity.security")
 public class IdentitySecurityProperties {
 
-    private String phoneEncryptionKey;
-    private String phoneSearchKey;
     private final Argon2 argon2 = new Argon2();
-    private int initialCredentialLength = 20;
-    private Duration activationTtl = Duration.ofDays(7);
 
     @Getter
     @Setter

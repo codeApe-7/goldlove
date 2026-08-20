@@ -77,7 +77,6 @@ class XpayPaymentChannelTest {
         assertThat(result.channelReference()).isNull();
         assertThat(result.payParameters().channelType()).isEqualTo(PaymentChannelType.XPAY_ALIPAY);
         assertThat(result.payParameters().jumpUrl()).isEqualTo("https://cashier.example/pay?order=1");
-        assertThat(result.payParameters().wechatJsapi()).isNull();
     }
 
     @Test
@@ -170,7 +169,7 @@ class XpayPaymentChannelTest {
                 "10192",
                 pem("PRIVATE KEY", merchantKeyPair.getPrivate().getEncoded()),
                 pem("PUBLIC KEY", platformKeyPair.getPublic().getEncoded()),
-                "https://api.example.test/api/v1/public/online-payments/notifications/xpay",
+                "https://api.example.test/api/v1/public/payment-notifications/xpay",
                 "https://h5.example.test/pay",
                 "https://xpay.example.test");
     }

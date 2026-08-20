@@ -67,21 +67,6 @@ public class XpayPaymentChannel implements PaymentChannel {
     }
 
     @Override
-    public boolean requiresPayerAuthorization() {
-        return false;
-    }
-
-    @Override
-    public String payerAuthorizationUrl(String state) {
-        throw payerAuthorizationUnsupported();
-    }
-
-    @Override
-    public String resolvePayer(String authorizationCode) {
-        throw payerAuthorizationUnsupported();
-    }
-
-    @Override
     public CreateOrderResult createOrder(CreateOrderCommand command) {
         XpayCryptography cryptography = requireCryptography();
         if (command.amountMinor() <= 0) {
@@ -113,7 +98,7 @@ public class XpayPaymentChannel implements PaymentChannel {
                         HttpStatus.BAD_GATEWAY, "PAYMENT_CHANNEL_RESPONSE_INVALID", "支付渠道响应缺少跳转链接");
             }
             return new CreateOrderResult(
-                    null, new PayParameters(PaymentChannelType.XPAY_ALIPAY, resolveJumpUrl(location), null));
+                    null, new PayParameters(PaymentChannelType.XPAY_ALIPAY, resolveJumpUrl(location)));
         }
         JsonNode payload = readJson(response.body());
         int code = payload.path("code").asInt(-1);
@@ -131,7 +116,7 @@ public class XpayPaymentChannel implements PaymentChannel {
         }
         return new CreateOrderResult(
                 tradeNo,
-                new PayParameters(PaymentChannelType.XPAY_ALIPAY, payInfo, null));
+                new PayParameters(PaymentChannelType.XPAY_ALIPAY, payInfo));
     }
 
     @Override
@@ -263,10 +248,5 @@ public class XpayPaymentChannel implements PaymentChannel {
     private static ApiException signatureInvalid() {
         return new ApiException(
                 HttpStatus.BAD_REQUEST, "PAYMENT_NOTIFY_SIGNATURE_INVALID", "支付回调验签失败");
-    }
-
-    private static ApiException payerAuthorizationUnsupported() {
-        return new ApiException(
-                HttpStatus.BAD_REQUEST, "PAYMENT_CHANNEL_UNSUPPORTED", "该渠道不支持支付者授权");
     }
 }

@@ -18,9 +18,7 @@ import com.love.archive.admin.persistence.AdminUserEntity;
 import com.love.archive.admin.persistence.AdminUserMapper;
 import com.love.archive.guest.persistence.GuestProfileMapper;
 import com.love.archive.guest.persistence.ProfilePhotoMapper;
-import com.love.archive.identity.application.GuestProvisioningService;
 import com.love.archive.identity.security.PasswordHasher;
-import com.love.archive.identity.web.ProvisionedGuestView;
 import com.love.archive.storage.application.ObjectStorageService;
 import com.love.archive.storage.application.StoredObjectView;
 import com.love.archive.testsupport.ApiIntegrationTest;
@@ -43,7 +41,7 @@ class GuestProfilePhotoApiTest extends ApiIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private AdminUserMapper adminMapper;
     @Autowired private PasswordHasher passwordHasher;
-    @Autowired private GuestProvisioningService provisioningService;
+    @Autowired private com.love.archive.identity.persistence.UserAccountMapper accountMapper;
     @Autowired private ProfilePhotoMapper photoMapper;
     @Autowired private GuestProfileMapper profileMapper;
     @Autowired private StringRedisTemplate redis;
@@ -58,12 +56,13 @@ class GuestProfilePhotoApiTest extends ApiIntegrationTest {
         resetDatabase();
         redis.getConnectionFactory().getConnection().serverCommands().flushDb();
         adminId = insertAdmin("photo-api-admin", "photo-admin-2026");
-        ProvisionedGuestView guest = provisioningService.provision(
-                adminId, "13800138000", "PAY-PHOTO-API", 199_00L,
-                OffsetDateTime.now().minusMinutes(5), "v0.3", null, "photo-api-provision");
-        guestAccountId = guest.accountId();
-        guestToken = activateAndLogin(
-                "13800138000", guest.initialCredential(), "Photo-password-2026");
+        guestToken = registerGuest(mockMvc, "13800138000", "Guest-photo-2026");
+        guestAccountId = accountMapper.selectOne(
+                        com.baomidou.mybatisplus.core.toolkit.Wrappers
+                                .<com.love.archive.identity.persistence.UserAccountEntity>lambdaQuery()
+                                .eq(com.love.archive.identity.persistence.UserAccountEntity::getPhone,
+                                        "13800138000"))
+                .getId();
         when(storageService.put(anyString(), any(byte[].class), anyString()))
                 .thenAnswer(invocation -> new StoredObjectView(
                         invocation.getArgument(0), "loveplatform-1314980040",
@@ -202,27 +201,4 @@ class GuestProfilePhotoApiTest extends ApiIntegrationTest {
         return admin.getId();
     }
 
-    private String activateAndLogin(String phone, String credential, String password)
-            throws Exception {
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .post("/api/v1/guest/auth/activate")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"phone":"%s","initialCredential":"%s","newPassword":"%s"}
-                                """.formatted(phone, credential, password)))
-                .andExpect(status().isOk());
-        MvcResult login = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .post("/api/v1/guest/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"phone":"%s","password":"%s"}
-                                """.formatted(phone, password)))
-                .andExpect(status().isOk())
-                .andReturn();
-        return new ObjectMapper()
-                .readTree(login.getResponse().getContentAsString())
-                .get("data")
-                .get("accessToken")
-                .asText();
-    }
 }

@@ -106,12 +106,11 @@ class ProfilePhotoServiceTest extends ApiIntegrationTest {
 
     private long insertAccount(String seed) {
         UserAccountEntity account = new UserAccountEntity();
-        account.setPhoneCiphertext(seed.getBytes(StandardCharsets.UTF_8));
-        account.setPhoneHmac(seed);
+        account.setPhone("13800138010");
         account.setPasswordHash("not-used");
         account.setStatus(AccountStatus.ACTIVE);
-        account.setCreatedByAdminId(adminMapper.selectList(Wrappers.lambdaQuery()).getFirst().getId());
-        account.setActivatedAt(OffsetDateTime.now());
+        account.setMembershipTier(com.love.archive.identity.domain.MembershipTier.FREE);
+        account.setMembershipCreditMinor(0L);
         account.setCreatedAt(OffsetDateTime.now());
         account.setUpdatedAt(OffsetDateTime.now());
         account.setVersion(0L);

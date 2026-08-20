@@ -2,16 +2,13 @@ package com.love.archive.identity.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.love.archive.admin.domain.AdminStatus;
-import com.love.archive.admin.persistence.AdminUserEntity;
-import com.love.archive.admin.persistence.AdminUserMapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.love.archive.identity.domain.AccountStatus;
 import com.love.archive.identity.domain.MembershipTier;
-import com.love.archive.identity.domain.RegistrationChannel;
 import com.love.archive.identity.persistence.UserAccountEntity;
 import com.love.archive.identity.persistence.UserAccountMapper;
-import com.love.archive.payment.application.PaidPayment;
-import com.love.archive.payment.application.PaymentRecorder;
+import com.love.archive.payment.domain.PaymentChannelType;
+import com.love.archive.payment.domain.PaymentStatus;
 import com.love.archive.payment.persistence.PaymentRecordEntity;
 import com.love.archive.payment.persistence.PaymentRecordMapper;
 import com.love.archive.testsupport.ApiIntegrationTest;
@@ -25,43 +22,29 @@ import org.springframework.test.context.TestPropertySource;
 class MembershipServiceTest extends ApiIntegrationTest {
 
     @Autowired private MembershipService membershipService;
-    @Autowired private PaymentRecorder paymentRecorder;
     @Autowired private UserAccountMapper userAccountMapper;
     @Autowired private PaymentRecordMapper paymentRecordMapper;
-    @Autowired private AdminUserMapper adminUserMapper;
-
-    private long adminId;
 
     @BeforeEach
     void cleanState() {
         resetDatabase();
-        OffsetDateTime now = OffsetDateTime.now();
-        AdminUserEntity admin = new AdminUserEntity();
-        admin.setUsername("membership-admin");
-        admin.setDisplayName("Membership Admin");
-        admin.setPasswordHash("$argon2id$test-placeholder");
-        admin.setStatus(AdminStatus.ACTIVE);
-        admin.setCreatedAt(now);
-        admin.setUpdatedAt(now);
-        adminUserMapper.insert(admin);
-        adminId = admin.getId();
     }
 
     @Test
-    void newAccountsStartAsVipWithoutCredit() {
-        long accountId = insertAccount("membership-new");
+    void newAccountsStartAsFreeWithoutCredit() {
+        long accountId = insertAccount("13800138000");
 
         MembershipView view = membershipService.current(accountId);
 
-        assertThat(view.tier()).isEqualTo(MembershipTier.VIP);
+        assertThat(view.tier()).isEqualTo(MembershipTier.FREE);
         assertThat(view.creditMinor()).isZero();
         assertThat(view.svipThresholdMinor()).isEqualTo(59_900L);
         assertThat(view.creditToNextTierMinor()).isEqualTo(59_900L);
     }
 
     @Test
-    void keepsVipBelowThreshold() {
-        long accountId = insertAccount("membership-below");
+    void anyPaymentLiftsFreeToVip() {
+        long accountId = insertAccount("13800138001");
         long paymentId = recordPaid(accountId, "PAY-BELOW", 19_900L);
 
         MembershipView view = membershipService.creditPayment(accountId, paymentId, 19_900L);
@@ -74,7 +57,7 @@ class MembershipServiceTest extends ApiIntegrationTest {
 
     @Test
     void upgradesToSvipOnceCumulativeCreditReachesThreshold() {
-        long accountId = insertAccount("membership-cumulative");
+        long accountId = insertAccount("13800138002");
         long first = recordPaid(accountId, "PAY-CUMULATIVE-1", 29_900L);
         long second = recordPaid(accountId, "PAY-CUMULATIVE-2", 30_000L);
 
@@ -90,7 +73,7 @@ class MembershipServiceTest extends ApiIntegrationTest {
 
     @Test
     void creditingTheSamePaymentTwiceIsIdempotent() {
-        long accountId = insertAccount("membership-idempotent");
+        long accountId = insertAccount("13800138003");
         long paymentId = recordPaid(accountId, "PAY-IDEMPOTENT", 59_900L);
 
         MembershipView first = membershipService.creditPayment(accountId, paymentId, 59_900L);
@@ -105,13 +88,35 @@ class MembershipServiceTest extends ApiIntegrationTest {
     }
 
     @Test
-    void alignsHistoricalAccountsWhoseCreditAlreadyReachesTheThreshold() {
-        long accountId = insertAccount("membership-backfilled");
-        userAccountMapper.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers
-                .<UserAccountEntity>lambdaUpdate()
+    void grantTierUpgradesWithoutTouchingPaidCredit() {
+        long accountId = insertAccount("13800138004");
+
+        MembershipView view = membershipService.grantTier(accountId, MembershipTier.VIP);
+
+        assertThat(view.tier()).isEqualTo(MembershipTier.VIP);
+        // 兑码不是付费，绝不能顶 SVIP 的累计阈值。
+        assertThat(view.creditMinor()).isZero();
+        assertThat(reloadCredit(accountId)).isZero();
+    }
+
+    @Test
+    void grantTierNeverDowngrades() {
+        long accountId = insertAccount("13800138005");
+        membershipService.grantTier(accountId, MembershipTier.SVIP);
+
+        MembershipView view = membershipService.grantTier(accountId, MembershipTier.VIP);
+
+        assertThat(view.tier()).isEqualTo(MembershipTier.SVIP);
+        assertThat(reloadTier(accountId)).isEqualTo(MembershipTier.SVIP);
+    }
+
+    @Test
+    void alignsAccountsWhoseCreditAlreadyReachesTheThreshold() {
+        long accountId = insertAccount("13800138006");
+        userAccountMapper.update(null, Wrappers.<UserAccountEntity>lambdaUpdate()
                 .eq(UserAccountEntity::getId, accountId)
                 .set(UserAccountEntity::getMembershipCreditMinor, 80_000L)
-                .set(UserAccountEntity::getMembershipTier, MembershipTier.VIP));
+                .set(UserAccountEntity::getMembershipTier, MembershipTier.FREE));
 
         MembershipView view = membershipService.current(accountId);
 
@@ -119,27 +124,13 @@ class MembershipServiceTest extends ApiIntegrationTest {
         assertThat(reloadTier(accountId)).isEqualTo(MembershipTier.SVIP);
     }
 
-    @Test
-    void manualProvisioningCreditIsRecordedOnThePaymentRecord() {
-        long accountId = insertAccount("membership-manual-anchor");
-        long paymentId = recordPaid(accountId, "PAY-MANUAL-ANCHOR", 19_900L);
-
-        membershipService.creditPayment(accountId, paymentId, 19_900L);
-
-        PaymentRecordEntity payment = paymentRecordMapper.selectById(paymentId);
-        assertThat(payment.getMembershipCreditMinor()).isEqualTo(19_900L);
-        assertThat(payment.getRegistered()).isFalse();
-    }
-
-    private long insertAccount(String phoneHmac) {
+    private long insertAccount(String phone) {
         OffsetDateTime now = OffsetDateTime.now();
         UserAccountEntity account = new UserAccountEntity();
-        account.setPhoneCiphertext(new byte[] {1, 2, 3});
-        account.setPhoneHmac(phoneHmac);
-        account.setStatus(AccountStatus.PAID_PENDING_ACTIVATION);
-        account.setCreatedByAdminId(adminId);
-        account.setRegistrationChannel(RegistrationChannel.ADMIN_MANUAL);
-        account.setMembershipTier(MembershipTier.VIP);
+        account.setPhone(phone);
+        account.setPasswordHash("$argon2id$test-placeholder");
+        account.setStatus(AccountStatus.ACTIVE);
+        account.setMembershipTier(MembershipTier.FREE);
         account.setMembershipCreditMinor(0L);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
@@ -147,16 +138,21 @@ class MembershipServiceTest extends ApiIntegrationTest {
         return account.getId();
     }
 
-    private long recordPaid(long accountId, String reference, long amountMinor) {
-        return paymentRecorder.recordPaid(new PaidPayment(
-                accountId,
-                reference,
-                amountMinor,
-                OffsetDateTime.now().minusMinutes(1),
-                adminId,
-                null,
-                "线下付款",
-                OffsetDateTime.now()));
+    private long recordPaid(long accountId, String outTradeNo, long amountMinor) {
+        OffsetDateTime now = OffsetDateTime.now();
+        PaymentRecordEntity payment = new PaymentRecordEntity();
+        payment.setUserAccountId(accountId);
+        payment.setOutTradeNo(outTradeNo);
+        payment.setTransactionId("TXN-" + outTradeNo);
+        payment.setChannel(PaymentChannelType.XPAY_ALIPAY);
+        payment.setAmountMinor(amountMinor);
+        payment.setCurrency("CNY");
+        payment.setStatus(PaymentStatus.PAID);
+        payment.setMembershipCreditMinor(0L);
+        payment.setPaidAt(now.minusMinutes(1));
+        payment.setCreatedAt(now);
+        paymentRecordMapper.insert(payment);
+        return payment.getId();
     }
 
     private MembershipTier reloadTier(long accountId) {
