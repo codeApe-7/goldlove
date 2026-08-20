@@ -6,14 +6,14 @@ import AppIcon from '@/components/AppIcon.vue'
 
 const payment = usePaymentStore()
 const auth = useAuthStore()
-const form = reactive({ phone: '', password: '', confirmPassword: '' })
+const form = reactive({ password: '', confirmPassword: '' })
 const loading = ref(false)
 const error = ref('')
 
+// 手机号在下单时已收下并校验过，这里只回显，改不了——改了后端也会拒。
+const phone = computed(() => payment.orderedPhone)
 const ready = computed(() => payment.readyToRegister)
-const canSubmit = computed(
-  () => ready.value && !loading.value && form.phone.trim() !== '' && form.password !== '',
-)
+const canSubmit = computed(() => ready.value && !loading.value && form.password !== '')
 
 function toast(message: string, icon: 'none' | 'success' = 'none'): void {
   uni.showToast({ title: message, icon })
@@ -23,12 +23,14 @@ onMounted(() => {
   payment.pending = payment.pending ?? null
   if (!ready.value) {
     error.value = '没有可用的注册凭证，请重新完成支付'
+  } else if (!phone.value) {
+    error.value = '未能取回下单时的手机号，请返回支付页重新领取凭证'
   }
 })
 
 function validate(): string | null {
-  if (!/^\d{11}$/.test(form.phone.trim().replace(/[\s-]/g, ''))) {
-    return '请输入 11 位手机号'
+  if (!phone.value) {
+    return '未能取回下单时的手机号，请返回支付页重新领取凭证'
   }
   if (form.password.length < 12 || form.password.length > 128) {
     return '密码需为 12 至 128 位'
@@ -51,7 +53,7 @@ async function submit(): Promise<void> {
   loading.value = true
   error.value = ''
   try {
-    const session = await payment.register(form.phone.trim(), form.password)
+    const session = await payment.register(phone.value, form.password)
     auth.session = session
     toast('账号创建成功', 'success')
     // 建档注册即 VIP；接着走已有的授权书与档案流程。
@@ -72,7 +74,7 @@ function backToPayment(): void {
   <view class="register-page archive-page">
     <view class="header">
       <text class="title">完成注册</text>
-      <text class="subtitle">支付已完成，填写手机号与密码即可建立账号</text>
+      <text class="subtitle">支付已完成，设置密码即可建立账号</text>
     </view>
 
     <view class="surface">
@@ -86,13 +88,8 @@ function backToPayment(): void {
 
       <label class="field-group">
         <text>手机号</text>
-        <input
-          v-model="form.phone"
-          class="field"
-          type="number"
-          maxlength="11"
-          placeholder="登录账号，请输入本人手机号"
-        />
+        <input :value="phone" class="field readonly" type="number" disabled />
+        <text class="hint">下单时已确认，如需更换请返回支付页重新下单</text>
       </label>
       <label class="field-group">
         <text>设置密码</text>
@@ -167,6 +164,17 @@ function backToPayment(): void {
   border: 1rpx solid #dfddd9;
   border-radius: 10rpx;
   font-size: 25rpx;
+}
+.field.readonly {
+  background: #f7f6f3;
+  color: #55565a;
+}
+.hint {
+  display: block;
+  margin-top: 8rpx;
+  color: #929397;
+  font-size: 19rpx;
+  font-weight: 400;
 }
 .error {
   display: block;

@@ -107,7 +107,9 @@ export interface OnlineOrder {
   outTradeNo: string
   amountMinor: number
   authorizationDocumentVersion: string
-  payParameters: PayParameters
+  /** paid 为真时后端复用了已支付订单，此字段为 null，前端不应再调起支付。 */
+  payParameters: PayParameters | null
+  paid: boolean
 }
 
 export interface OnlineOrderStatus {

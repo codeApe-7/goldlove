@@ -98,12 +98,19 @@ export function onlinePaymentSettings() {
   return request<OnlinePaymentSettings>({ url: '/public/online-payments/settings' })
 }
 
-/** 用公众号网页授权 code 下单；金额由后端配置决定，前端不传金额。 */
-export function createOnlineOrder(authorizationCode: string, authorizationDocumentVersion: string) {
+/**
+ * 下单。金额由后端配置决定，前端不传金额。
+ * 手机号在此处预检（是否已有账号）并钉在订单上，注册时必须一致。
+ */
+export function createOnlineOrder(
+  phone: string,
+  authorizationCode: string,
+  authorizationDocumentVersion: string,
+) {
   return request<OnlineOrder>({
     url: '/public/online-payments/orders',
     method: 'POST',
-    data: { authorizationCode, authorizationDocumentVersion },
+    data: { phone, authorizationCode, authorizationDocumentVersion },
   })
 }
 

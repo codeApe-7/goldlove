@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { usePaymentStore } from '@/stores/payment'
+import { usePaymentStore, pendingOrderStore, phoneDraftStore } from '@/stores/payment'
 import * as api from '@/api'
 import { readQueryParam, redirectTo } from '@/adapters/wechat'
 import AppIcon from '@/components/AppIcon.vue'
@@ -10,12 +10,16 @@ import type { AuthorizationDocumentView } from '@/types'
 const payment = usePaymentStore()
 const authorizationDocument = ref<AuthorizationDocumentView | null>(null)
 const agreed = ref(false)
+const phone = ref('')
 const loading = ref(false)
 const busyLabel = ref('')
 const error = ref('')
 const documentExpanded = ref(false)
 
-const canPay = computed(() => agreed.value && !loading.value && authorizationDocument.value !== null)
+const phoneValid = computed(() => /^\d{11}$/.test(phone.value.trim().replace(/[\s-]/g, '')))
+const canPay = computed(
+  () => agreed.value && phoneValid.value && !loading.value && authorizationDocument.value !== null,
+)
 const isXpay = computed(() => payment.settings?.channelType === 'XPAY_ALIPAY')
 
 function toast(message: string, icon: 'none' | 'success' = 'none'): void {
@@ -29,6 +33,8 @@ function describe(cause: unknown): string {
 onMounted(async () => {
   loading.value = true
   busyLabel.value = '加载中'
+  // 网页授权/收银台回跳后页面已重新加载，先取回用户此前填的手机号。
+  phone.value = phoneDraftStore.read()
   try {
     authorizationDocument.value = await api.currentAuthorizationDocument()
     await payment.loadSettings()
@@ -40,15 +46,16 @@ onMounted(async () => {
   }
 
   // 微信网页授权回跳带 code；易支付 return_url 回跳带 out_trade_no。
+  // 平台未回带 out_trade_no 时退回会话存储——它是这笔订单唯一的句柄。
   const code = readQueryParam('code')
   if (code && authorizationDocument.value && !isXpay.value) {
     agreed.value = true
     await orderAndPay(code)
   }
-  const outTradeNo = readQueryParam('out_trade_no')
-  if (outTradeNo && isXpay.value) {
+  const resumable = readQueryParam('out_trade_no') ?? pendingOrderStore.read()?.outTradeNo
+  if (resumable && isXpay.value) {
     agreed.value = true
-    await resumeUnfinishedPayment(outTradeNo)
+    await resumeUnfinishedPayment(resumable)
   }
 })
 
@@ -58,7 +65,19 @@ async function orderAndPay(authorizationCode: string): Promise<void> {
   busyLabel.value = '正在创建订单'
   error.value = ''
   try {
-    await payment.createOrder(authorizationCode, authorizationDocument.value.version)
+    const order = await payment.createOrder(
+      phone.value.trim(),
+      authorizationCode,
+      authorizationDocument.value.version,
+    )
+    if (order.paid) {
+      // 该手机号此前已付款但未注册，后端复用了那笔订单，不再收钱。
+      busyLabel.value = '正在恢复已支付订单'
+      await payment.pay()
+      toast('已找到您此前的付款', 'success')
+      uni.redirectTo({ url: '/pages/register/index' })
+      return
+    }
     if (isXpay.value) {
       // 易支付跳转支付宝收银台，支付结果通过 return_url 回跳后查单补偿。
       await payment.pay()
@@ -86,6 +105,10 @@ function startPayment(): void {
     toast('请先阅读并同意授权书')
     return
   }
+  if (!phoneValid.value) {
+    toast('请输入 11 位手机号')
+    return
+  }
   if (!payment.settings) {
     toast('支付渠道尚未就绪')
     return
@@ -98,6 +121,8 @@ function startPayment(): void {
     toast('支付渠道尚未就绪')
     return
   }
+  // 微信要先整页跳走做网页授权，手机号必须先落盘才能在回跳后拿回来。
+  phoneDraftStore.write(phone.value.trim())
   redirectTo(payment.settings.authorizeUrl)
 }
 
@@ -138,10 +163,21 @@ async function resumeUnfinishedPayment(outTradeNo?: string): Promise<void> {
 
     <view class="surface">
       <view class="steps">
-        <view class="step"><text class="index">1</text><text>阅读并同意授权书</text></view>
+        <view class="step"><text class="index">1</text><text>填写手机号并同意授权书</text></view>
         <view class="step"><text class="index">2</text><text>支付建档费用</text></view>
-        <view class="step"><text class="index">3</text><text>填写手机号完成注册</text></view>
+        <view class="step"><text class="index">3</text><text>设置密码完成注册</text></view>
       </view>
+
+      <label class="field-group">
+        <text>手机号</text>
+        <input
+          v-model="phone"
+          class="field"
+          type="number"
+          maxlength="11"
+          placeholder="登录账号，付款后用它完成注册"
+        />
+      </label>
 
       <view v-if="authorizationDocument" class="document">
         <view class="document-head" @tap="documentExpanded = !documentExpanded">
@@ -172,7 +208,7 @@ async function resumeUnfinishedPayment(outTradeNo?: string): Promise<void> {
         <AppIcon name="lock" :size="16" />
         <view>
           <strong>支付金额由服务端确定</strong>
-          <text>支付结果以微信支付通知为准；建档注册即成为 VIP 会员。</text>
+          <text>手机号将加密存储，仅用于登录与去重；建档注册即成为 VIP 会员。</text>
         </view>
       </view>
     </view>
@@ -289,6 +325,24 @@ async function resumeUnfinishedPayment(outTradeNo?: string): Promise<void> {
   color: #4a4b4f;
   font-size: 21rpx;
   line-height: 1.6;
+}
+.field-group {
+  display: block;
+  margin-bottom: 20rpx;
+}
+.field-group > text {
+  display: block;
+  margin-bottom: 10rpx;
+  font-size: 23rpx;
+  font-weight: 600;
+}
+.field {
+  width: 100%;
+  height: 76rpx;
+  padding: 0 22rpx;
+  border: 1rpx solid #dfddd9;
+  border-radius: 10rpx;
+  font-size: 25rpx;
 }
 .error {
   display: block;

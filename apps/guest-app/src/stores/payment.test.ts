@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { usePaymentStore, pendingRegistrationStore } from './payment'
+import { usePaymentStore, pendingRegistrationStore, pendingOrderStore } from './payment'
 import * as api from '@/api'
 import { requestPayment } from '@/adapters/payment'
 import type { OnlineOrder, OnlineOrderStatus, OnlinePaymentSettings } from '@/types'
@@ -17,6 +17,8 @@ vi.mock('@/adapters/payment', () => ({
   requestPayment: vi.fn(),
 }))
 
+const PHONE = '13800138000'
+
 const SETTINGS: OnlinePaymentSettings = {
   channelType: 'WECHAT_JSAPI',
   amountMinor: 100,
@@ -29,6 +31,7 @@ const ORDER: OnlineOrder = {
   outTradeNo: 'OTN-STORE-1',
   amountMinor: 100,
   authorizationDocumentVersion: 'v0.3',
+  paid: false,
   payParameters: {
     channelType: 'WECHAT_JSAPI',
     jumpUrl: null,
@@ -71,9 +74,9 @@ describe('guest online payment store', () => {
     vi.mocked(api.createOnlineOrder).mockResolvedValue(ORDER)
     const store = usePaymentStore()
 
-    await store.createOrder('code-1', 'v0.3')
+    await store.createOrder(PHONE, 'code-1', 'v0.3')
 
-    expect(api.createOnlineOrder).toHaveBeenCalledWith('code-1', 'v0.3')
+    expect(api.createOnlineOrder).toHaveBeenCalledWith(PHONE, 'code-1', 'v0.3')
     expect(store.order?.outTradeNo).toBe('OTN-STORE-1')
   })
 
@@ -86,7 +89,7 @@ describe('guest online payment store', () => {
     })
     vi.mocked(requestPayment).mockResolvedValue('success')
     const store = usePaymentStore()
-    await store.createOrder('code-1', 'v0.3')
+    await store.createOrder(PHONE, 'code-1', 'v0.3')
 
     const outcome = await store.pay()
 
@@ -102,7 +105,7 @@ describe('guest online payment store', () => {
   it('does not issue a token when the user cancels or the payment fails', async () => {
     vi.mocked(api.createOnlineOrder).mockResolvedValue(ORDER)
     const store = usePaymentStore()
-    await store.createOrder('code-1', 'v0.3')
+    await store.createOrder(PHONE, 'code-1', 'v0.3')
 
     vi.mocked(requestPayment).mockResolvedValue('cancel')
     expect(await store.pay()).toBe('cancel')
@@ -137,6 +140,7 @@ describe('guest online payment store', () => {
       outTradeNo: 'OTN-STORE-1',
       token: 'reg-token-3',
       expiresAt: '2026-08-19T00:30:00+08:00',
+      phone: PHONE,
     })
     vi.mocked(api.registerOnline).mockResolvedValue({
       accountId: 42,
@@ -170,5 +174,71 @@ describe('guest online payment store', () => {
     expect(pendingRegistrationStore.read()).toBeNull()
     sessionStorage.setItem('guest-pending-registration', '{"outTradeNo":"OTN-1"}')
     expect(pendingRegistrationStore.read()).toBeNull()
+  })
+
+  it('persists the order number and phone so a full-page redirect cannot lose them', async () => {
+    vi.mocked(api.createOnlineOrder).mockResolvedValue(ORDER)
+    const store = usePaymentStore()
+
+    await store.createOrder(PHONE, '', 'v0.3')
+
+    // 易支付整页跳转支付宝，回跳后内存状态没了，out_trade_no 只能靠会话存储。
+    expect(pendingOrderStore.read()).toEqual({ outTradeNo: 'OTN-STORE-1', phone: PHONE })
+    expect(store.orderedPhone).toBe(PHONE)
+  })
+
+  it('recovers the order number from session storage when the URL carries none', async () => {
+    pendingOrderStore.write({ outTradeNo: 'OTN-STORE-1', phone: PHONE })
+    vi.mocked(api.onlineOrderStatus).mockResolvedValue(PAID_STATUS)
+    vi.mocked(api.issueRegistrationToken).mockResolvedValue({
+      token: 'reg-token-4',
+      expiresAt: '2026-08-19T00:30:00+08:00',
+    })
+    const store = usePaymentStore()
+
+    await store.obtainRegistrationToken()
+
+    expect(api.issueRegistrationToken).toHaveBeenCalledWith('OTN-STORE-1')
+    expect(pendingRegistrationStore.read()).toMatchObject({ token: 'reg-token-4', phone: PHONE })
+  })
+
+  it('skips requesting payment when the backend reused an already paid order', async () => {
+    vi.mocked(api.createOnlineOrder).mockResolvedValue({ ...ORDER, paid: true, payParameters: null })
+    vi.mocked(api.onlineOrderStatus).mockResolvedValue(PAID_STATUS)
+    vi.mocked(api.issueRegistrationToken).mockResolvedValue({
+      token: 'reg-token-5',
+      expiresAt: '2026-08-19T00:30:00+08:00',
+    })
+    const store = usePaymentStore()
+    await store.createOrder(PHONE, '', 'v0.3')
+
+    expect(await store.pay()).toBe('success')
+
+    // 复用订单不再收钱，因此绝不能调起支付。
+    expect(requestPayment).not.toHaveBeenCalled()
+    expect(store.readyToRegister).toBe(true)
+  })
+
+  it('clears the order number and phone once registration succeeds', async () => {
+    pendingOrderStore.write({ outTradeNo: 'OTN-STORE-1', phone: PHONE })
+    pendingRegistrationStore.write({
+      outTradeNo: 'OTN-STORE-1',
+      token: 'reg-token-6',
+      expiresAt: '2026-08-19T00:30:00+08:00',
+      phone: PHONE,
+    })
+    vi.mocked(api.registerOnline).mockResolvedValue({
+      accountId: 7,
+      status: 'ACTIVE',
+      accessToken: 'tok-online',
+      expiresIn: 2592000,
+    })
+    const store = usePaymentStore()
+
+    await store.register(PHONE, 'online-pass-2026')
+
+    expect(pendingOrderStore.read()).toBeNull()
+    expect(sessionStorage.getItem('guest-order-phone')).toBeNull()
+    expect(store.orderedPhone).toBe('')
   })
 })
