@@ -86,6 +86,7 @@ app:
     svip-threshold-minor: ${MEMBERSHIP_SVIP_THRESHOLD_MINOR:59900}
   payment:
     online:
+      provider: ${ONLINE_PAYMENT_PROVIDER:}
       registration-amount-minor: ${ONLINE_REGISTRATION_AMOUNT_MINOR:100}
       order-description: ${ONLINE_REGISTRATION_DESCRIPTION:婚恋智能档案库建档服务}
       registration-token-ttl: ${REGISTRATION_TOKEN_TTL:30m}
@@ -109,6 +110,13 @@ app:
       oauth-redirect-uri: ${WECHAT_OAUTH_REDIRECT_URI:}
       api-base-url: ${WECHAT_PAY_API_BASE_URL:https://api.mch.weixin.qq.com}
       oauth-base-url: ${WECHAT_OAUTH_BASE_URL:https://api.weixin.qq.com}
+  xpay:
+    pid: ${XPAY_PID:}
+    merchant-private-key: ${XPAY_MERCHANT_PRIVATE_KEY:}
+    platform-public-key: ${XPAY_PLATFORM_PUBLIC_KEY:}
+    notify-url: ${XPAY_NOTIFY_URL:}
+    return-url: ${XPAY_RETURN_URL:}
+    base-url: ${XPAY_BASE_URL:https://xpay.unbb.cn/xpay/epayn}
 
 management:
   endpoints:

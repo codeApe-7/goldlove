@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { usePaymentStore } from '@/stores/payment'
 import * as api from '@/api'
-import { isWechatBrowser, readQueryParam, redirectTo } from '@/adapters/wechat'
+import { readQueryParam, redirectTo } from '@/adapters/wechat'
 import AppIcon from '@/components/AppIcon.vue'
 import BrandMark from '@/components/BrandMark.vue'
 import type { AuthorizationDocumentView } from '@/types'
@@ -13,10 +13,10 @@ const agreed = ref(false)
 const loading = ref(false)
 const busyLabel = ref('')
 const error = ref('')
-const insideWechat = ref(true)
 const documentExpanded = ref(false)
 
 const canPay = computed(() => agreed.value && !loading.value && authorizationDocument.value !== null)
+const isXpay = computed(() => payment.settings?.channelType === 'XPAY_ALIPAY')
 
 function toast(message: string, icon: 'none' | 'success' = 'none'): void {
   uni.showToast({ title: message, icon })
@@ -27,7 +27,6 @@ function describe(cause: unknown): string {
 }
 
 onMounted(async () => {
-  insideWechat.value = isWechatBrowser()
   loading.value = true
   busyLabel.value = '加载中'
   try {
@@ -40,11 +39,16 @@ onMounted(async () => {
     busyLabel.value = ''
   }
 
-  // 网页授权回跳把 code 带在地址上；uni-app H5 走 hash 路由，因此直接读 location。
+  // 微信网页授权回跳带 code；易支付 return_url 回跳带 out_trade_no。
   const code = readQueryParam('code')
-  if (code && authorizationDocument.value) {
+  if (code && authorizationDocument.value && !isXpay.value) {
     agreed.value = true
     await orderAndPay(code)
+  }
+  const outTradeNo = readQueryParam('out_trade_no')
+  if (outTradeNo && isXpay.value) {
+    agreed.value = true
+    await resumeUnfinishedPayment(outTradeNo)
   }
 })
 
@@ -55,6 +59,11 @@ async function orderAndPay(authorizationCode: string): Promise<void> {
   error.value = ''
   try {
     await payment.createOrder(authorizationCode, authorizationDocument.value.version)
+    if (isXpay.value) {
+      // 易支付跳转支付宝收银台，支付结果通过 return_url 回跳后查单补偿。
+      await payment.pay()
+      return
+    }
     busyLabel.value = '正在调起支付'
     const outcome = await payment.pay()
     if (outcome === 'success') {
@@ -71,7 +80,7 @@ async function orderAndPay(authorizationCode: string): Promise<void> {
   }
 }
 
-/** 未授权时先跳公众号网页授权，回跳地址由服务端固定。 */
+/** 未授权渠道（微信）先跳网页授权；无授权前置渠道（易支付）直接下单。 */
 function startPayment(): void {
   if (!agreed.value) {
     toast('请先阅读并同意授权书')
@@ -81,25 +90,33 @@ function startPayment(): void {
     toast('支付渠道尚未就绪')
     return
   }
+  if (isXpay.value) {
+    void orderAndPay('')
+    return
+  }
+  if (!payment.settings.authorizeUrl) {
+    toast('支付渠道尚未就绪')
+    return
+  }
   redirectTo(payment.settings.authorizeUrl)
 }
 
 /** 支付已完成但页面中断时，用订单号补偿领取注册令牌。 */
-async function resumeUnfinishedPayment(): Promise<void> {
-  const outTradeNo = payment.order?.outTradeNo
-  if (!outTradeNo) {
+async function resumeUnfinishedPayment(outTradeNo?: string): Promise<void> {
+  const target = outTradeNo ?? payment.order?.outTradeNo
+  if (!target) {
     toast('没有待恢复的订单')
     return
   }
   loading.value = true
   busyLabel.value = '正在查询支付结果'
   try {
-    const status = await payment.refreshStatus(outTradeNo)
+    const status = await payment.refreshStatus(target)
     if (status.status !== 'PAID') {
       error.value = '尚未收到支付成功结果，请稍后再试'
       return
     }
-    await payment.obtainRegistrationToken(outTradeNo)
+    await payment.obtainRegistrationToken(target)
     uni.redirectTo({ url: '/pages/register/index' })
   } catch (cause) {
     error.value = describe(cause)
@@ -120,17 +137,9 @@ async function resumeUnfinishedPayment(): Promise<void> {
     </view>
 
     <view class="surface">
-      <view v-if="!insideWechat" class="notice warn">
-        <AppIcon name="lock" :size="16" />
-        <view>
-          <strong>请在微信中打开本页面</strong>
-          <text>线上建档使用微信支付，需要在微信内完成；也可联系客服走人工登记。</text>
-        </view>
-      </view>
-
       <view class="steps">
         <view class="step"><text class="index">1</text><text>阅读并同意授权书</text></view>
-        <view class="step"><text class="index">2</text><text>微信支付建档费用</text></view>
+        <view class="step"><text class="index">2</text><text>支付建档费用</text></view>
         <view class="step"><text class="index">3</text><text>填写手机号完成注册</text></view>
       </view>
 
@@ -155,7 +164,7 @@ async function resumeUnfinishedPayment(): Promise<void> {
       <text v-if="error" class="error">{{ error }}</text>
 
       <button class="archive-button-primary submit" :disabled="!canPay" @tap="startPayment">
-        {{ loading ? busyLabel || '处理中' : `微信支付 ${payment.amountLabel}` }}
+        {{ loading ? busyLabel || '处理中' : `${isXpay ? '支付宝支付' : '微信支付'} ${payment.amountLabel}` }}
       </button>
       <text v-if="payment.order" class="resume" @tap="resumeUnfinishedPayment">已完成支付？点此恢复</text>
 

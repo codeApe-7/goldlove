@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import * as api from '@/api'
-import { wechatPayAdapter, type PaymentOutcome } from '@/adapters/wechat'
+import { requestPayment, type ChannelPaymentOutcome } from '@/adapters/payment'
 import { h5SessionAdapter } from '@/adapters/session'
 import type {
   GuestSession,
@@ -45,7 +45,7 @@ export const usePaymentStore = defineStore('guest-online-payment', {
     order: null as OnlineOrder | null,
     status: null as OnlineOrderStatus | null,
     pending: pendingRegistrationStore.read(),
-    lastOutcome: null as PaymentOutcome | null,
+    lastOutcome: null as ChannelPaymentOutcome | null,
   }),
   getters: {
     amountLabel: (state) =>
@@ -66,10 +66,10 @@ export const usePaymentStore = defineStore('guest-online-payment', {
       return this.order
     },
 
-    /** 调起微信支付；成功后立即换取一次性注册令牌。 */
-    async pay(): Promise<PaymentOutcome> {
+    /** 按渠道调起支付；微信成功或易支付回跳后立即换取一次性注册令牌。 */
+    async pay(): Promise<ChannelPaymentOutcome> {
       if (!this.order) throw new Error('请先创建支付订单')
-      const outcome = await wechatPayAdapter.requestPayment(this.order.payParameters)
+      const outcome = await requestPayment(this.order.payParameters)
       this.lastOutcome = outcome
       if (outcome === 'success') {
         await this.obtainRegistrationToken()

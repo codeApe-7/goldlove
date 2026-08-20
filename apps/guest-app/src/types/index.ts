@@ -74,12 +74,15 @@ export interface MembershipView {
   creditToNextTierMinor: number
 }
 
+/** 线上支付渠道类型。 */
+export type PaymentChannelType = 'WECHAT_JSAPI' | 'XPAY_ALIPAY'
+
 /** 可以下发前端的渠道设置，不含任何密钥。 */
 export interface OnlinePaymentSettings {
-  appId: string
+  channelType: PaymentChannelType
   amountMinor: number
   orderDescription: string
-  authorizeUrl: string
+  authorizeUrl: string | null
   state: string
 }
 
@@ -93,11 +96,18 @@ export interface JsapiPayParameters {
   paySign: string
 }
 
+/** 前端调起支付所需的参数，按 channelType 取用 jumpUrl 或 wechatJsapi。 */
+export interface PayParameters {
+  channelType: PaymentChannelType
+  jumpUrl: string | null
+  wechatJsapi: JsapiPayParameters | null
+}
+
 export interface OnlineOrder {
   outTradeNo: string
   amountMinor: number
   authorizationDocumentVersion: string
-  payParameters: JsapiPayParameters
+  payParameters: PayParameters
 }
 
 export interface OnlineOrderStatus {

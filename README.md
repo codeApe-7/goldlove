@@ -123,32 +123,33 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 - 提交建档时头像必填；照片随草稿保存、随提交固化进不可变版本快照；审核详情与嘉宾版本详情返回照片元数据与 15 分钟短时签名 URL（URL 不落库）。
 - 草稿删除立即删除 COS 对象；进入版本快照后对象保留用于历史追溯；账号注销/授权到期后的批量清理待后续接入。
 
-## 微信支付与线上注册（双路径）
+## 线上支付与注册（多渠道 + 双路径）
 
-建档账号有两条并存的入口，互不影响：
+建档账号有两条并存的入口，互不影响；线上入口支持微信与易支付两个渠道，按配置启用：
 
 | 路径 | 流程 | 账号状态 |
 |---|---|---|
 | 手动（原有） | 管理员登记已付费访客 → 一次性初始凭证 → 访客激活设密码 | `PAID_PENDING_ACTIVATION` → `ACTIVE` |
-| 线上（新增） | 微信内打开链接 → 网页授权取 openid → 微信支付 → 领取一次性注册令牌 → 填手机号与密码 | 直接 `ACTIVE` |
+| 线上·微信 | 微信内打开链接 → 网页授权取 openid → 微信支付 → 领取注册令牌 → 填手机号与密码 | 直接 `ACTIVE` |
+| 线上·易支付 | 打开 H5 链接 → 下单指定支付宝 → 跳转支付宝 → 回跳查单 → 领取注册令牌 → 填手机号与密码 | 直接 `ACTIVE` |
 
 线上路径的状态流转：
 
 ```text
-下单(CREATED) → 微信回调验签 → 订单 PAID + 写 payment_record → 签发注册令牌(UNUSED)
-  → 提交注册 → 建账号(ACTIVE + VIP) + 绑 openid + 订单置 registered + 令牌 USED
+下单(CREATED) → 渠道回调验签 → 订单 PAID + 写 payment_record → 签发注册令牌(UNUSED)
+  → 提交注册 → 建账号(ACTIVE + VIP) + 订单置 registered + 令牌 USED
   → 累加会员额度 → 达阈值升 SVIP
 ```
 
 后端约束：
 
 - 金额只取服务端配置 `ONLINE_REGISTRATION_AMOUNT_MINOR`，回调金额与订单金额不一致时拒绝结算（`PAYMENT_AMOUNT_MISMATCH`）。
-- 回调必须用微信支付平台公钥验签，并校验 `Wechatpay-Serial` 与 5 分钟时间戳窗口；重复回调幂等，不会重复写付款记录。
+- 微信回调必须用平台公钥验签并校验 `Wechatpay-Serial` 与 5 分钟时间戳窗口；易支付回调用平台公钥做 RSA2 验签。重复回调幂等，不会重复写付款记录。
 - `out_trade_no` 由服务端用 24 字节随机数生成（Base64URL，32 字符），全局唯一并作为幂等锚点。
 - 注册令牌一次性且默认 30 分钟有效，库内只存 HMAC；重新签发会作废该订单此前的待用令牌。一个支付订单只能完成一次注册。
-- openid 与微信交易号加密存储（AES-256-GCM）并另存 HMAC 供等值查询，不落明文、不打日志。
+- 微信 openid / 易支付平台订单号等敏感标识加密存储（AES-256-GCM）并另存 HMAC 供等值查询，不落明文、不打日志。
 - 网页授权回跳地址由服务端配置固定，不接受调用方传入，避免开放重定向。
-- 注册成功后账号即 `ACTIVE`，随后仍需按现有流程主动同意授权书再填写档案；付款前展示的授权书版本会钉在订单与付款记录上。
+- 线上注册不再绑定支付者外部身份（易支付无稳定 openid）；注册成功后账号即 `ACTIVE`，随后按现有流程主动同意授权书再填写档案；付款前展示的授权书版本会钉在订单与付款记录上。
 
 | 环境变量 | 说明 |
 |---|---|
@@ -157,12 +158,17 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | `WECHAT_MERCHANT_PRIVATE_KEY` | 商户 API 私钥（PKCS#8 PEM） |
 | `WECHAT_API_V3_KEY` | API v3 密钥（32 字节），用于回调资源解密 |
 | `WECHAT_PLATFORM_PUBLIC_KEY_ID` / `WECHAT_PLATFORM_PUBLIC_KEY` | 微信支付平台公钥 ID 与公钥（X.509 PEM），用于回调验签 |
-| `WECHAT_PAY_NOTIFY_URL` | 公网 HTTPS 回调地址，指向 `POST /api/v1/public/online-payments/notifications` |
+| `WECHAT_PAY_NOTIFY_URL` | 公网 HTTPS 回调地址，指向 `POST /api/v1/public/online-payments/notifications/wechat` |
 | `WECHAT_OAUTH_REDIRECT_URI` | 网页授权回跳地址，需与公众号后台「网页授权域名」一致 |
+| `XPAY_PID` | 易支付商户 ID |
+| `XPAY_MERCHANT_PRIVATE_KEY` / `XPAY_PLATFORM_PUBLIC_KEY` | 易支付商户私钥 / 平台公钥（PEM），RSA2 双向签名 |
+| `XPAY_NOTIFY_URL` | 易支付异步回调地址，指向 `POST /api/v1/public/online-payments/notifications/xpay` |
+| `XPAY_RETURN_URL` | 易支付支付完成后同步跳转地址（回 guest-app 支付页） |
+| `ONLINE_PAYMENT_PROVIDER` | 启用的线上支付渠道：`XPAY_ALIPAY` / `WECHAT_JSAPI`；留空则取唯一已配置渠道 |
 | `ONLINE_REGISTRATION_AMOUNT_MINOR` | 线上建档下单金额（分），默认 `100`（¥1，便于联调） |
 | `REGISTRATION_TOKEN_TTL` | 注册令牌有效期，默认 `30m` |
 
-九项 `WECHAT_*` 凭据（除 `WECHAT_OAUTH_REDIRECT_URI`）齐全时才装配渠道客户端；缺任何一项，线上支付相关接口返回 `PAYMENT_CHANNEL_NOT_CONFIGURED`（503），手动路径与其余功能不受影响。
+两个渠道的凭据各自齐全时才装配对应客户端；缺任何一项，对应渠道接口返回 `PAYMENT_CHANNEL_NOT_CONFIGURED`（503）。`ONLINE_PAYMENT_PROVIDER` 指定启用的渠道（默认取唯一已配置渠道），手动路径与其余功能不受影响。
 
 新增错误码（沿用 `ApiResponse` 包装与 `requestId`）：
 
@@ -178,13 +184,13 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | `PAYMENT_AMOUNT_MISMATCH` | 409 | 支付金额与服务端订单金额不一致 |
 | `PAYMENT_ORDER_PAYER_MISMATCH` | 409 | 支付者与下单人不一致 |
 | `PAYMENT_NOTIFY_SIGNATURE_INVALID` | 400 | 回调验签失败（回调端点对外返回 401） |
+| `PAYMENT_CHANNEL_AMBIGUOUS` | 500 | 已配置多个渠道但未指定 provider |
 | `WECHAT_AUTHORIZATION_CODE_INVALID` | 400 | 网页授权 code 无效或已过期 |
 | `REGISTRATION_TOKEN_INVALID` | 400 | 注册令牌不存在 |
 | `REGISTRATION_TOKEN_EXPIRED` | 410 | 注册令牌已过期或被重新签发顶替 |
 | `REGISTRATION_TOKEN_USED` | 409 | 注册令牌已被使用 |
 | `REGISTRATION_ORDER_NOT_PAID` | 409 | 订单尚未支付成功 |
 | `REGISTRATION_ALREADY_COMPLETED` | 409 | 该订单已完成注册 |
-| `WECHAT_ACCOUNT_ALREADY_BOUND` | 409 | 该微信已绑定其他账号 |
 
 ## 会员等级
 

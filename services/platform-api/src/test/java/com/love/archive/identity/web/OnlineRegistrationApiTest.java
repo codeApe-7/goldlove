@@ -10,7 +10,6 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.love.archive.PlatformApiApplication;
 import com.love.archive.common.security.SensitiveValueProtector;
 import com.love.archive.identity.domain.AccountStatus;
-import com.love.archive.identity.domain.IdentityProvider;
 import com.love.archive.identity.domain.MembershipTier;
 import com.love.archive.identity.domain.RegistrationChannel;
 import com.love.archive.identity.persistence.ExternalIdentityEntity;
@@ -89,7 +88,7 @@ class OnlineRegistrationApiTest extends ApiIntegrationTest {
     }
 
     @Test
-    void registersActiveVipAccountBindsOpenIdAndConsumesTheOrder() throws Exception {
+    void registersActiveVipAccountAndConsumesTheOrder() throws Exception {
         String token = paidRegistrationToken("4300000001");
 
         MvcResult result = register(token, PHONE, PASSWORD)
@@ -102,7 +101,7 @@ class OnlineRegistrationApiTest extends ApiIntegrationTest {
         long accountId = Long.parseLong(readData(result, "accountId"));
         UserAccountEntity account = userAccountMapper.selectById(accountId);
         assertThat(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
-        assertThat(account.getRegistrationChannel()).isEqualTo(RegistrationChannel.WECHAT_ONLINE);
+        assertThat(account.getRegistrationChannel()).isEqualTo(RegistrationChannel.ONLINE);
         assertThat(account.getCreatedByAdminId()).isNull();
         assertThat(account.getPasswordHash()).isNotBlank().doesNotContain(PASSWORD);
         assertThat(account.getActivatedAt()).isNotNull();
@@ -112,12 +111,10 @@ class OnlineRegistrationApiTest extends ApiIntegrationTest {
         assertThat(account.getMembershipCreditMinor()).isEqualTo(59_900L);
         assertThat(account.getMembershipTier()).isEqualTo(MembershipTier.SVIP);
 
-        ExternalIdentityEntity identity = externalIdentityMapper.selectOne(
+        // 线上注册不再绑定支付者外部身份（易支付无稳定 openid）。
+        assertThat(externalIdentityMapper.selectCount(
                 Wrappers.<ExternalIdentityEntity>lambdaQuery()
-                        .eq(ExternalIdentityEntity::getUserAccountId, accountId));
-        assertThat(identity.getProvider()).isEqualTo(IdentityProvider.WECHAT);
-        assertThat(identity.getSubjectHmac()).isEqualTo(protector.hmac("wechat:openid", OPENID));
-        assertThat(protector.decrypt("wechat:openid", identity.getSubjectCiphertext())).isEqualTo(OPENID);
+                        .eq(ExternalIdentityEntity::getUserAccountId, accountId))).isZero();
 
         PaymentRecordEntity payment = paymentRecordMapper.selectOne(
                 Wrappers.<PaymentRecordEntity>lambdaQuery()
@@ -228,23 +225,9 @@ class OnlineRegistrationApiTest extends ApiIntegrationTest {
                 .andExpect(jsonPath("$.code").value("ACCOUNT_ALREADY_EXISTS"));
 
         assertThat(userAccountMapper.selectCount(null)).isOne();
-        assertThat(externalIdentityMapper.selectCount(null)).isOne();
+        assertThat(externalIdentityMapper.selectCount(null)).isZero();
         assertThat(statusOfHmac(unusedTokenHmacFor(secondOrder)))
                 .isEqualTo(RegistrationTokenStatus.UNUSED);
-    }
-
-    @Test
-    void rejectsRebindingAWechatAccountAlreadyLinkedToAnotherAccount() throws Exception {
-        register(paidRegistrationToken("4300000009"), PHONE, PASSWORD).andExpect(status().isCreated());
-
-        // 同一 openid 的第二个订单：账号可以建，但 openid 已被占用，整笔注册回滚。
-        String secondOrder = paidOrder("4300000010", OPENID);
-        register(issueToken(secondOrder), "13900139000", PASSWORD)
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("WECHAT_ACCOUNT_ALREADY_BOUND"));
-
-        assertThat(userAccountMapper.selectCount(null)).isOne();
-        assertThat(externalIdentityMapper.selectCount(null)).isOne();
     }
 
     @Test
@@ -300,7 +283,7 @@ class OnlineRegistrationApiTest extends ApiIntegrationTest {
                 outTradeNo, transactionId, openid, 59_900L, 59_900L);
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
         String nonce = "nonce-" + transactionId;
-        mockMvc.perform(post("/api/v1/public/online-payments/notifications")
+        mockMvc.perform(post("/api/v1/public/online-payments/notifications/wechat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Wechatpay-Serial", WechatPayTestSupport.PLATFORM_KEY_ID)
                         .header("Wechatpay-Timestamp", timestamp)

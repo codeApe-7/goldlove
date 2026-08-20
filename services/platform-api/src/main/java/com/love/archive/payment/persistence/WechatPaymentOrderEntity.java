@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
+import com.love.archive.payment.domain.PaymentChannelType;
 import com.love.archive.payment.domain.WechatOrderStatus;
 import java.time.OffsetDateTime;
 import lombok.Getter;
@@ -17,6 +18,7 @@ public class WechatPaymentOrderEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String outTradeNo;
+    private PaymentChannelType channel;
     private byte[] openidCiphertext;
     private String openidHmac;
     private String description;

@@ -5,6 +5,14 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import com.love.archive.common.web.ApiException;
+import com.love.archive.payment.application.CreateOrderCommand;
+import com.love.archive.payment.application.CreateOrderResult;
+import com.love.archive.payment.application.NotifyPayload;
+import com.love.archive.payment.application.PayParameters;
+import com.love.archive.payment.application.PaymentChannel;
+import com.love.archive.payment.application.PaymentResult;
+import com.love.archive.payment.application.WechatJsapiPayParameters;
+import com.love.archive.payment.domain.PaymentChannelType;
 import com.love.archive.wechatpay.config.WechatPayProperties;
 import com.love.archive.wechatpay.support.WechatHttpClient;
 import com.love.archive.wechatpay.support.WechatPayCryptography;
@@ -27,7 +35,7 @@ import org.springframework.stereotype.Service;
  * {@code PAYMENT_CHANNEL_NOT_CONFIGURED}，不影响应用启动。
  */
 @Service
-public class WechatPaymentChannel implements PaymentChannel, WechatOAuthGateway {
+public class WechatPaymentChannel implements PaymentChannel {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(WechatPaymentChannel.class);
     private static final String JSAPI_ORDER_PATH = "/v3/pay/transactions/jsapi";
@@ -53,15 +61,65 @@ public class WechatPaymentChannel implements PaymentChannel, WechatOAuthGateway 
     }
 
     @Override
+    public PaymentChannelType kind() {
+        return PaymentChannelType.WECHAT_JSAPI;
+    }
+
+    @Override
     public boolean configured() {
         return cryptographyProvider.getIfAvailable() != null;
+    }
+
+    @Override
+    public boolean requiresPayerAuthorization() {
+        return true;
+    }
+
+    @Override
+    public String payerAuthorizationUrl(String state) {
+        requireCryptography();
+        String redirectUri = properties.oauthRedirectUri();
+        if (redirectUri == null || redirectUri.isBlank()) {
+            throw notConfigured();
+        }
+        return "https://open.weixin.qq.com/connect/oauth2/authorize"
+                + "?appid=" + encodeQuery(properties.appId())
+                + "&redirect_uri=" + encodeQuery(redirectUri)
+                + "&response_type=code"
+                + "&scope=snsapi_base"
+                + "&state=" + encodeQuery(state == null ? "" : state)
+                + "#wechat_redirect";
+    }
+
+    @Override
+    public String resolvePayer(String authorizationCode) {
+        requireCryptography();
+        requireText(authorizationCode, "网页授权码");
+        String url = properties.resolvedOauthBaseUrl() + "/sns/oauth2/access_token"
+                + "?appid=" + encodeQuery(properties.appId())
+                + "&secret=" + encodeQuery(properties.appSecret())
+                + "&code=" + encodeQuery(authorizationCode)
+                + "&grant_type=authorization_code";
+
+        WechatHttpClient.HttpTextResponse response = httpClient.send(
+                "GET", url, Map.of("Accept", "application/json"), null);
+        if (response.statusCode() != 200) {
+            throw authorizationCodeInvalid();
+        }
+        JsonNode payload = readJson(response.body());
+        String subject = text(payload, "openid");
+        if (subject == null || subject.isBlank()) {
+            LOGGER.warn("网页授权换取用户标识失败, channelCode={}", text(payload, "errcode"));
+            throw authorizationCodeInvalid();
+        }
+        return subject;
     }
 
     @Override
     public CreateOrderResult createOrder(CreateOrderCommand command) {
         WechatPayCryptography cryptography = requireCryptography();
         requireText(command.outTradeNo(), "商户订单号");
-        requireText(command.openid(), "支付者标识");
+        requireText(command.payer(), "支付者标识");
         if (command.amountMinor() <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_AMOUNT_INVALID", "下单金额必须大于零");
         }
@@ -73,7 +131,7 @@ public class WechatPaymentChannel implements PaymentChannel, WechatOAuthGateway 
         request.put("out_trade_no", command.outTradeNo());
         request.put("notify_url", properties.notifyUrl());
         request.putObject("amount").put("total", command.amountMinor()).put("currency", "CNY");
-        request.putObject("payer").put("openid", command.openid());
+        request.putObject("payer").put("openid", command.payer());
 
         String body = writeJson(request);
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
@@ -106,13 +164,16 @@ public class WechatPaymentChannel implements PaymentChannel, WechatOAuthGateway 
                 properties.appId(), paymentTimestamp, paymentNonce, prepayId);
         return new CreateOrderResult(
                 prepayId,
-                new JsapiPayParameters(
-                        properties.appId(),
-                        paymentTimestamp,
-                        paymentNonce,
-                        "prepay_id=" + prepayId,
-                        SIGN_TYPE,
-                        paySign));
+                new PayParameters(
+                        PaymentChannelType.WECHAT_JSAPI,
+                        null,
+                        new WechatJsapiPayParameters(
+                                properties.appId(),
+                                paymentTimestamp,
+                                paymentNonce,
+                                "prepay_id=" + prepayId,
+                                SIGN_TYPE,
+                                paySign)));
     }
 
     @Override
@@ -149,10 +210,14 @@ public class WechatPaymentChannel implements PaymentChannel, WechatOAuthGateway 
     @Override
     public PaymentResult verifyAndDecodeNotify(NotifyPayload payload) {
         WechatPayCryptography cryptography = requireCryptography();
-        if (!matchesPlatformKey(cryptography, payload.serial())
-                || !freshTimestamp(payload.timestamp())
+        String serial = payload.headers().get("Wechatpay-Serial");
+        String timestamp = payload.headers().get("Wechatpay-Timestamp");
+        String nonce = payload.headers().get("Wechatpay-Nonce");
+        String signature = payload.headers().get("Wechatpay-Signature");
+        if (!matchesPlatformKey(cryptography, serial)
+                || !freshTimestamp(timestamp)
                 || !cryptography.verifyNotifySignature(
-                        payload.timestamp(), payload.nonce(), payload.body(), payload.signature())) {
+                        timestamp, nonce, payload.body(), signature)) {
             throw signatureInvalid();
         }
 
@@ -173,60 +238,15 @@ public class WechatPaymentChannel implements PaymentChannel, WechatOAuthGateway 
         return toPaymentResult(readJson(decrypted));
     }
 
-    @Override
-    public String appId() {
-        requireCryptography();
-        return properties.appId();
-    }
-
-    @Override
-    public String authorizeUrl(String state) {
-        requireCryptography();
-        String redirectUri = properties.oauthRedirectUri();
-        if (redirectUri == null || redirectUri.isBlank()) {
-            throw notConfigured();
-        }
-        return "https://open.weixin.qq.com/connect/oauth2/authorize"
-                + "?appid=" + encodeQuery(properties.appId())
-                + "&redirect_uri=" + encodeQuery(redirectUri)
-                + "&response_type=code"
-                + "&scope=snsapi_base"
-                + "&state=" + encodeQuery(state == null ? "" : state)
-                + "#wechat_redirect";
-    }
-
-    @Override
-    public String resolveOpenId(String authorizationCode) {
-        requireCryptography();
-        requireText(authorizationCode, "网页授权码");
-        String url = properties.resolvedOauthBaseUrl() + "/sns/oauth2/access_token"
-                + "?appid=" + encodeQuery(properties.appId())
-                + "&secret=" + encodeQuery(properties.appSecret())
-                + "&code=" + encodeQuery(authorizationCode)
-                + "&grant_type=authorization_code";
-
-        WechatHttpClient.HttpTextResponse response = httpClient.send(
-                "GET", url, Map.of("Accept", "application/json"), null);
-        if (response.statusCode() != 200) {
-            throw authorizationCodeInvalid();
-        }
-        JsonNode payload = readJson(response.body());
-        String subject = text(payload, "openid");
-        if (subject == null || subject.isBlank()) {
-            LOGGER.warn("网页授权换取用户标识失败, channelCode={}", text(payload, "errcode"));
-            throw authorizationCodeInvalid();
-        }
-        return subject;
-    }
-
     private PaymentResult toPaymentResult(JsonNode transaction) {
         JsonNode amount = transaction.path("amount");
         long total = amount.path("total").asLong(0L);
         long payerTotal = amount.path("payer_total").asLong(total);
+        TradeState tradeState = TradeState.from(text(transaction, "trade_state"));
         return new PaymentResult(
                 text(transaction, "out_trade_no"),
                 text(transaction, "transaction_id"),
-                TradeState.from(text(transaction, "trade_state")),
+                tradeState == TradeState.SUCCESS,
                 total,
                 payerTotal,
                 text(transaction.path("payer"), "openid"),

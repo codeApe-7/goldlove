@@ -12,7 +12,7 @@ import com.love.archive.payment.persistence.PaymentRecordEntity;
 import com.love.archive.payment.persistence.PaymentRecordMapper;
 import com.love.archive.payment.persistence.WechatPaymentOrderEntity;
 import com.love.archive.payment.persistence.WechatPaymentOrderMapper;
-import com.love.archive.wechatpay.application.PaymentResult;
+import com.love.archive.payment.application.PaymentResult;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -42,15 +42,19 @@ class WechatPaymentOrderStore {
     @Transactional
     void insertCreated(
             String outTradeNo,
-            String openid,
+            String payer,
+            PaymentChannelType channel,
             long presentedAuthorizationDocumentId,
             long amountMinor,
             String description) {
         OffsetDateTime now = OffsetDateTime.now();
         WechatPaymentOrderEntity order = new WechatPaymentOrderEntity();
         order.setOutTradeNo(outTradeNo);
-        order.setOpenidCiphertext(protector.encrypt(OPENID_DOMAIN, openid));
-        order.setOpenidHmac(protector.hmac(OPENID_DOMAIN, openid));
+        order.setChannel(channel);
+        if (payer != null) {
+            order.setOpenidCiphertext(protector.encrypt(OPENID_DOMAIN, payer));
+            order.setOpenidHmac(protector.hmac(OPENID_DOMAIN, payer));
+        }
         order.setDescription(description);
         order.setAmountMinor(amountMinor);
         order.setCurrency("CNY");
@@ -87,8 +91,8 @@ class WechatPaymentOrderStore {
             throw new ApiException(
                     HttpStatus.CONFLICT, "PAYMENT_AMOUNT_MISMATCH", "支付金额与订单金额不一致");
         }
-        if (result.openid() != null
-                && !protector.hmac(OPENID_DOMAIN, result.openid()).equals(order.getOpenidHmac())) {
+        if (result.payer() != null
+                && !protector.hmac(OPENID_DOMAIN, result.payer()).equals(order.getOpenidHmac())) {
             throw new ApiException(
                     HttpStatus.CONFLICT, "PAYMENT_ORDER_PAYER_MISMATCH", "支付者与下单人不一致");
         }
@@ -108,7 +112,7 @@ class WechatPaymentOrderStore {
         payment.setAmountMinor(order.getAmountMinor());
         payment.setCurrency("CNY");
         payment.setStatus(PaymentStatus.PAID);
-        payment.setPaymentChannel(PaymentChannelType.WECHAT_JSAPI);
+        payment.setPaymentChannel(order.getChannel());
         payment.setOutTradeNo(order.getOutTradeNo());
         payment.setTransactionIdCiphertext(transactionCiphertext);
         payment.setTransactionIdHmac(transactionHmac);

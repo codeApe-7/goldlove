@@ -2,7 +2,6 @@
         allowedDependencies = {
                 "common::web",
                 "common::security",
-                "audit::application",
-                "wechatpay::application"
+                "audit::application"
         })
 package com.love.archive.payment;

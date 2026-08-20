@@ -18,4 +18,7 @@ public class OnlinePaymentProperties {
 
     /** 一次性注册令牌有效期。 */
     private Duration registrationTokenTtl = Duration.ofMinutes(30);
+
+    /** 启用的线上支付渠道（WECHAT_JSAPI / XPAY_ALIPAY）。为空时取唯一已配置渠道。 */
+    private String provider;
 }

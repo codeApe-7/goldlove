@@ -108,11 +108,14 @@ public class RegistrationTokenService {
         long creditMinor = payment.getPaidAmountMinor() == null
                 ? payment.getAmountMinor()
                 : payment.getPaidAmountMinor();
+        String payer = token.getOpenidCiphertext() == null
+                ? null
+                : orderStore.decryptOpenid(token.getOpenidCiphertext());
         return new PaidRegistrationOrder(
                 token.getId(),
                 payment.getId(),
                 order.getOutTradeNo(),
-                orderStore.decryptOpenid(token.getOpenidCiphertext()),
+                payer,
                 creditMinor,
                 order.getPresentedAuthorizationDocumentId());
     }

@@ -3,16 +3,12 @@ package com.love.archive.identity.application;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.love.archive.audit.application.AuditEvent;
 import com.love.archive.audit.application.AuditTrail;
-import com.love.archive.common.security.SensitiveValueProtector;
 import com.love.archive.common.web.ApiException;
 import com.love.archive.identity.domain.AccountStatus;
-import com.love.archive.identity.domain.IdentityProvider;
 import com.love.archive.identity.domain.MembershipTier;
 import com.love.archive.identity.domain.PasswordPolicy;
 import com.love.archive.identity.domain.PhoneNormalizer;
 import com.love.archive.identity.domain.RegistrationChannel;
-import com.love.archive.identity.persistence.ExternalIdentityEntity;
-import com.love.archive.identity.persistence.ExternalIdentityMapper;
 import com.love.archive.identity.persistence.UserAccountEntity;
 import com.love.archive.identity.persistence.UserAccountMapper;
 import com.love.archive.identity.security.PasswordHasher;
@@ -30,25 +26,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 线上注册：把「激活 + 建档账号」合并成一步。校验注册令牌与已支付订单后，
- * 在单个事务内建账号（ACTIVE + VIP）、绑定 openid、标记订单已注册并累计会员额度。
- * 手动路径（登记 → 邀请码 → 激活）保持原样，不受影响。
+ * 在单个事务内建账号（ACTIVE + VIP）、标记订单已注册并累计会员额度。
+ * 不绑定支付者外部身份（易支付无稳定 openid）；手动路径（登记 → 邀请码 → 激活）保持原样。
  */
 @Service
 @RequiredArgsConstructor
 public class OnlineRegistrationService {
 
-    /** 与 payment 侧保持一致，同一 openid 在两处产生相同 HMAC，便于对账。 */
-    private static final String OPENID_DOMAIN = "wechat:openid";
-
     private final RegistrationTokenService registrationTokenService;
     private final MembershipService membershipService;
     private final UserAccountMapper userAccountMapper;
-    private final ExternalIdentityMapper externalIdentityMapper;
     private final AuditTrail auditTrail;
     private final PhoneNormalizer phoneNormalizer;
     private final PhoneProtector phoneProtector;
     private final PasswordHasher passwordHasher;
-    private final SensitiveValueProtector sensitiveValueProtector;
 
     @Transactional
     public GuestSessionView register(OnlineRegistrationCommand command) {
@@ -68,7 +59,7 @@ public class OnlineRegistrationService {
         account.setPhoneHmac(phoneHmac);
         account.setPasswordHash(hash(command.password()));
         account.setStatus(AccountStatus.ACTIVE);
-        account.setRegistrationChannel(RegistrationChannel.WECHAT_ONLINE);
+        account.setRegistrationChannel(RegistrationChannel.ONLINE);
         account.setMembershipTier(MembershipTier.VIP);
         account.setMembershipCreditMinor(0L);
         account.setActivatedAt(now);
@@ -83,7 +74,6 @@ public class OnlineRegistrationService {
             throw exception;
         }
 
-        bindWechatIdentity(account.getId(), order.openid(), now);
         registrationTokenService.completeRegistration(
                 order.tokenId(), order.paymentRecordId(), account.getId());
         membershipService.creditPayment(account.getId(), order.paymentRecordId(), order.creditMinor());
@@ -98,25 +88,6 @@ public class OnlineRegistrationService {
                 "{\"outTradeNo\":\"" + order.outTradeNo() + "\"}",
                 now));
         return new GuestSessionView(account.getId(), AccountStatus.ACTIVE, null, 0L);
-    }
-
-    private void bindWechatIdentity(long accountId, String openid, OffsetDateTime now) {
-        ExternalIdentityEntity identity = new ExternalIdentityEntity();
-        identity.setUserAccountId(accountId);
-        identity.setProvider(IdentityProvider.WECHAT);
-        identity.setSubjectCiphertext(sensitiveValueProtector.encrypt(OPENID_DOMAIN, openid));
-        identity.setSubjectHmac(sensitiveValueProtector.hmac(OPENID_DOMAIN, openid));
-        identity.setCreatedAt(now);
-        identity.setUpdatedAt(now);
-        try {
-            externalIdentityMapper.insert(identity);
-        } catch (DataIntegrityViolationException exception) {
-            if (containsConstraint(exception, "uq_external_identity_subject")) {
-                throw new ApiException(
-                        HttpStatus.CONFLICT, "WECHAT_ACCOUNT_ALREADY_BOUND", "该微信已绑定其他账号");
-            }
-            throw exception;
-        }
     }
 
     private String normalizePhone(String rawPhone) {
