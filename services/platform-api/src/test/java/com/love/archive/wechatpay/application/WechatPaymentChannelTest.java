@@ -5,6 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import tools.jackson.databind.ObjectMapper;
 import com.love.archive.common.web.ApiException;
+import com.love.archive.payment.application.CreateOrderCommand;
+import com.love.archive.payment.application.CreateOrderResult;
+import com.love.archive.payment.application.NotifyPayload;
+import com.love.archive.payment.application.PaymentResult;
 import com.love.archive.wechatpay.config.WechatPayProperties;
 import com.love.archive.wechatpay.support.WechatHttpClient;
 import com.love.archive.wechatpay.support.WechatPayCryptography;
@@ -17,6 +21,7 @@ import java.security.Signature;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -54,10 +59,9 @@ class WechatPaymentChannelTest {
                 new CreateOrderCommand("OTN-1", "建档服务", 100L, "openid-1")));
         assertNotConfigured(() -> channel.queryByOutTradeNo("OTN-1"));
         assertNotConfigured(() -> channel.verifyAndDecodeNotify(
-                new NotifyPayload(PLATFORM_KEY_ID, "1", "n", "s", "{}")));
-        assertNotConfigured(channel::appId);
-        assertNotConfigured(() -> channel.authorizeUrl("state"));
-        assertNotConfigured(() -> channel.resolveOpenId("code-1"));
+                wechatNotify(PLATFORM_KEY_ID, "1", "n", "s", "{}")));
+        assertNotConfigured(() -> channel.payerAuthorizationUrl("state"));
+        assertNotConfigured(() -> channel.resolvePayer("code-1"));
     }
 
     @Test
@@ -82,19 +86,22 @@ class WechatPaymentChannelTest {
                 .contains("\"total\":100")
                 .contains("\"currency\":\"CNY\"")
                 .contains("\"openid\":\"openid-payer-1\"")
-                .contains("\"notify_url\":\"https://api.example.test/api/v1/public/online-payments/notifications\"");
+                .contains("\"notify_url\":\"https://api.example.test/api/v1/public/online-payments/notifications/wechat\"");
 
-        assertThat(result.prepayId()).isEqualTo("wx-prepay-1");
-        assertThat(result.payParameters().appId()).isEqualTo("wx-app-1");
-        assertThat(result.payParameters().packageValue()).isEqualTo("prepay_id=wx-prepay-1");
-        assertThat(result.payParameters().signType()).isEqualTo("RSA");
-        assertThat(result.payParameters().nonceStr()).hasSize(32);
+        assertThat(result.channelReference()).isEqualTo("wx-prepay-1");
+        assertThat(result.payParameters().channelType()).isEqualTo(
+                com.love.archive.payment.domain.PaymentChannelType.WECHAT_JSAPI);
+        assertThat(result.payParameters().jumpUrl()).isNull();
+        assertThat(result.payParameters().wechatJsapi().appId()).isEqualTo("wx-app-1");
+        assertThat(result.payParameters().wechatJsapi().packageValue()).isEqualTo("prepay_id=wx-prepay-1");
+        assertThat(result.payParameters().wechatJsapi().signType()).isEqualTo("RSA");
+        assertThat(result.payParameters().wechatJsapi().nonceStr()).hasSize(32);
         assertThat(verifyMerchantSignature(
-                result.payParameters().appId() + "\n"
-                        + result.payParameters().timeStamp() + "\n"
-                        + result.payParameters().nonceStr() + "\n"
+                result.payParameters().wechatJsapi().appId() + "\n"
+                        + result.payParameters().wechatJsapi().timeStamp() + "\n"
+                        + result.payParameters().wechatJsapi().nonceStr() + "\n"
                         + "wx-prepay-1" + "\n",
-                result.payParameters().paySign())).isTrue();
+                result.payParameters().wechatJsapi().paySign())).isTrue();
     }
 
     @Test
@@ -139,7 +146,7 @@ class WechatPaymentChannelTest {
         assertThat(found.get().paid()).isTrue();
         assertThat(found.get().transactionId()).isEqualTo("4200001");
         assertThat(found.get().paidAmountMinor()).isEqualTo(100L);
-        assertThat(found.get().openid()).isEqualTo("openid-payer-1");
+        assertThat(found.get().payer()).isEqualTo("openid-payer-1");
         assertThat(found.get().successTime()).isNotNull();
         assertThat(missing).isEmpty();
         assertThat(httpClient.exchanges().getFirst().url())
@@ -159,15 +166,15 @@ class WechatPaymentChannelTest {
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
         String nonce = "notify-nonce-1";
 
-        PaymentResult result = channel.verifyAndDecodeNotify(new NotifyPayload(
+        PaymentResult result = channel.verifyAndDecodeNotify(wechatNotify(
                 PLATFORM_KEY_ID, timestamp, nonce, platformSignature(timestamp, nonce, body), body));
 
         assertThat(result.outTradeNo()).isEqualTo("OTN-NOTIFY-1");
         assertThat(result.transactionId()).isEqualTo("4200002");
-        assertThat(result.tradeState()).isEqualTo(TradeState.SUCCESS);
+        assertThat(result.paid()).isTrue();
         assertThat(result.totalAmountMinor()).isEqualTo(100L);
         assertThat(result.paidAmountMinor()).isEqualTo(100L);
-        assertThat(result.openid()).isEqualTo("openid-payer-2");
+        assertThat(result.payer()).isEqualTo("openid-payer-2");
     }
 
     @Test
@@ -184,43 +191,44 @@ class WechatPaymentChannelTest {
         // 请求体被改动
         String tamperedBody = body.replace("\"id\":\"notify-1\"", "\"id\":\"notify-9\"");
         assertThat(tamperedBody).isNotEqualTo(body);
-        assertSignatureInvalid(channel, new NotifyPayload(
+        assertSignatureInvalid(channel, wechatNotify(
                 PLATFORM_KEY_ID, timestamp, nonce, signature, tamperedBody));
         // 签名不是平台密钥所签
-        assertSignatureInvalid(channel, new NotifyPayload(
+        assertSignatureInvalid(channel, wechatNotify(
                 PLATFORM_KEY_ID, timestamp, nonce, merchantSignature(timestamp, nonce, body), body));
         // 时间戳超出容忍窗口
         String staleTimestamp = String.valueOf(Instant.now().getEpochSecond() - 3_600);
-        assertSignatureInvalid(channel, new NotifyPayload(
+        assertSignatureInvalid(channel, wechatNotify(
                 PLATFORM_KEY_ID, staleTimestamp, nonce,
                 platformSignature(staleTimestamp, nonce, body), body));
         // 平台公钥 ID 不匹配
-        assertSignatureInvalid(channel, new NotifyPayload(
+        assertSignatureInvalid(channel, wechatNotify(
                 "PUB_KEY_ID_OTHER", timestamp, nonce, signature, body));
         // 签名字段缺失
-        assertSignatureInvalid(channel, new NotifyPayload(PLATFORM_KEY_ID, timestamp, nonce, "", body));
+        assertSignatureInvalid(channel, wechatNotify(
+                PLATFORM_KEY_ID, timestamp, nonce, "", body));
         // 资源密文与 API v3 密钥不匹配
         String wrongKeyBody = notificationBody(
                 "{\"out_trade_no\":\"OTN-NOTIFY-3\"}", "fedcba9876543210fedcba9876543210");
-        assertSignatureInvalid(channel, new NotifyPayload(
+        assertSignatureInvalid(channel, wechatNotify(
                 PLATFORM_KEY_ID, timestamp, nonce,
                 platformSignature(timestamp, nonce, wrongKeyBody), wrongKeyBody));
     }
 
     @Test
-    void resolvesOpenIdFromAuthorizationCodeAndRejectsChannelErrors() {
+    void resolvesPayerFromAuthorizationCodeAndRejectsChannelErrors() {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         httpClient.enqueue(200, "{\"openid\":\"openid-oauth-1\",\"access_token\":\"tok\"}");
         httpClient.enqueue(200, "{\"errcode\":40029,\"errmsg\":\"invalid code\"}");
         WechatPaymentChannel channel = configuredChannel(httpClient);
 
-        assertThat(channel.resolveOpenId("code-1")).isEqualTo("openid-oauth-1");
+        assertThat(channel.resolvePayer("code-1")).isEqualTo("openid-oauth-1");
         assertThat(httpClient.exchanges().getFirst().url())
                 .startsWith("https://oauth.example.test/sns/oauth2/access_token")
                 .contains("code=code-1")
                 .contains("grant_type=authorization_code");
 
-        assertThatThrownBy(() -> channel.resolveOpenId("code-2"))
+        assertThatThrownBy(() -> channel.resolvePayer("code-2"))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
                         assertThat(exception.code()).isEqualTo("WECHAT_AUTHORIZATION_CODE_INVALID"));
     }
@@ -229,7 +237,7 @@ class WechatPaymentChannelTest {
     void buildsAuthorizeUrlFromServerSideRedirectUri() {
         WechatPaymentChannel channel = configuredChannel(new RecordingHttpClient());
 
-        String url = channel.authorizeUrl("order-state-1");
+        String url = channel.payerAuthorizationUrl("order-state-1");
 
         assertThat(url)
                 .startsWith("https://open.weixin.qq.com/connect/oauth2/authorize")
@@ -238,6 +246,22 @@ class WechatPaymentChannelTest {
                 .contains("scope=snsapi_base")
                 .contains("state=order-state-1")
                 .endsWith("#wechat_redirect");
+    }
+
+    private static NotifyPayload wechatNotify(
+            String serial, String timestamp, String nonce, String signature, String body) {
+        Map<String, String> headers = new HashMap<>();
+        putIfPresent(headers, "Wechatpay-Serial", serial);
+        putIfPresent(headers, "Wechatpay-Timestamp", timestamp);
+        putIfPresent(headers, "Wechatpay-Nonce", nonce);
+        putIfPresent(headers, "Wechatpay-Signature", signature);
+        return new NotifyPayload(headers, Map.of(), body);
+    }
+
+    private static void putIfPresent(Map<String, String> target, String key, String value) {
+        if (value != null && !value.isEmpty()) {
+            target.put(key, value);
+        }
     }
 
     private static void assertSignatureInvalid(WechatPaymentChannel channel, NotifyPayload payload) {
@@ -276,7 +300,7 @@ class WechatPaymentChannelTest {
                 API_V3_KEY,
                 PLATFORM_KEY_ID,
                 pem("PUBLIC KEY", platformKeyPair.getPublic().getEncoded()),
-                "https://api.example.test/api/v1/public/online-payments/notifications",
+                "https://api.example.test/api/v1/public/online-payments/notifications/wechat",
                 "https://h5.example.test/pay",
                 "https://pay.example.test",
                 "https://oauth.example.test");

@@ -205,7 +205,7 @@ class WechatPaymentMembershipMigrationTest extends PostgresIntegrationTest {
                         """.formatted(accountId, adminId, accountId, adminId));
             }
 
-            assertThat(flyway(databaseUrl).migrate().migrationsExecuted).isEqualTo(1);
+            assertThat(flyway(databaseUrl).migrate().migrationsExecuted).isEqualTo(2);
 
             try (Connection owner = ownerConnection(databaseUrl)) {
                 assertThat(queryLong(owner,

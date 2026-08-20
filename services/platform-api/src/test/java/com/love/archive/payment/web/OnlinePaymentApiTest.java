@@ -81,7 +81,7 @@ class OnlinePaymentApiTest extends ApiIntegrationTest {
     void exposesChannelSettingsWithoutLeakingSecrets() throws Exception {
         MvcResult result = mockMvc.perform(get("/api/v1/public/online-payments/settings"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.appId").value("wx-app-it"))
+                .andExpect(jsonPath("$.data.channelType").value("WECHAT_JSAPI"))
                 .andExpect(jsonPath("$.data.amountMinor").value(100))
                 .andExpect(jsonPath("$.data.authorizeUrl").isNotEmpty())
                 .andExpect(jsonPath("$.data.state").isNotEmpty())
@@ -226,7 +226,7 @@ class OnlinePaymentApiTest extends ApiIntegrationTest {
                 outTradeNo, "4200000005", OPENID, 100L, 100L);
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
 
-        mockMvc.perform(post("/api/v1/public/online-payments/notifications")
+        mockMvc.perform(post("/api/v1/public/online-payments/notifications/wechat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Wechatpay-Serial", WechatPayTestSupport.PLATFORM_KEY_ID)
                         .header("Wechatpay-Timestamp", timestamp)
@@ -341,8 +341,8 @@ class OnlinePaymentApiTest extends ApiIntegrationTest {
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.amountMinor").value(100))
-                .andExpect(jsonPath("$.data.payParameters.appId").value("wx-app-it"))
-                .andExpect(jsonPath("$.data.payParameters.paySign").isNotEmpty())
+                .andExpect(jsonPath("$.data.payParameters.wechatJsapi.appId").value("wx-app-it"))
+                .andExpect(jsonPath("$.data.payParameters.wechatJsapi.paySign").isNotEmpty())
                 .andReturn();
         return readData(result, "outTradeNo");
     }
@@ -360,7 +360,7 @@ class OnlinePaymentApiTest extends ApiIntegrationTest {
     private org.springframework.test.web.servlet.ResultActions postNotification(String body) throws Exception {
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
         String nonce = "nonce-" + Math.abs(body.hashCode());
-        return mockMvc.perform(post("/api/v1/public/online-payments/notifications")
+        return mockMvc.perform(post("/api/v1/public/online-payments/notifications/wechat")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Wechatpay-Serial", WechatPayTestSupport.PLATFORM_KEY_ID)
                 .header("Wechatpay-Timestamp", timestamp)

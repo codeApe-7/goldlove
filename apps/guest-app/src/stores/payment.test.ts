@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { usePaymentStore, pendingRegistrationStore } from './payment'
 import * as api from '@/api'
-import { wechatPayAdapter } from '@/adapters/wechat'
+import { requestPayment } from '@/adapters/payment'
 import type { OnlineOrder, OnlineOrderStatus, OnlinePaymentSettings } from '@/types'
 
 vi.mock('@/api', () => ({
@@ -13,12 +13,12 @@ vi.mock('@/api', () => ({
   registerOnline: vi.fn(),
 }))
 
-vi.mock('@/adapters/wechat', () => ({
-  wechatPayAdapter: { requestPayment: vi.fn() },
+vi.mock('@/adapters/payment', () => ({
+  requestPayment: vi.fn(),
 }))
 
 const SETTINGS: OnlinePaymentSettings = {
-  appId: 'wx-app-1',
+  channelType: 'WECHAT_JSAPI',
   amountMinor: 100,
   orderDescription: '婚恋智能档案库建档服务',
   authorizeUrl: 'https://open.weixin.qq.com/connect/oauth2/authorize?appid=wx-app-1',
@@ -30,12 +30,16 @@ const ORDER: OnlineOrder = {
   amountMinor: 100,
   authorizationDocumentVersion: 'v0.3',
   payParameters: {
-    appId: 'wx-app-1',
-    timeStamp: '1755500000',
-    nonceStr: 'nonce-1',
-    packageValue: 'prepay_id=wx-prepay-1',
-    signType: 'RSA',
-    paySign: 'sign-1',
+    channelType: 'WECHAT_JSAPI',
+    jumpUrl: null,
+    wechatJsapi: {
+      appId: 'wx-app-1',
+      timeStamp: '1755500000',
+      nonceStr: 'nonce-1',
+      packageValue: 'prepay_id=wx-prepay-1',
+      signType: 'RSA',
+      paySign: 'sign-1',
+    },
   },
 }
 
@@ -80,14 +84,14 @@ describe('guest online payment store', () => {
       token: 'reg-token-1',
       expiresAt: '2026-08-19T00:30:00+08:00',
     })
-    vi.mocked(wechatPayAdapter.requestPayment).mockResolvedValue('success')
+    vi.mocked(requestPayment).mockResolvedValue('success')
     const store = usePaymentStore()
     await store.createOrder('code-1', 'v0.3')
 
     const outcome = await store.pay()
 
     expect(outcome).toBe('success')
-    expect(wechatPayAdapter.requestPayment).toHaveBeenCalledWith(ORDER.payParameters)
+    expect(requestPayment).toHaveBeenCalledWith(ORDER.payParameters)
     expect(store.readyToRegister).toBe(true)
     expect(pendingRegistrationStore.read()).toMatchObject({
       outTradeNo: 'OTN-STORE-1',
@@ -100,9 +104,9 @@ describe('guest online payment store', () => {
     const store = usePaymentStore()
     await store.createOrder('code-1', 'v0.3')
 
-    vi.mocked(wechatPayAdapter.requestPayment).mockResolvedValue('cancel')
+    vi.mocked(requestPayment).mockResolvedValue('cancel')
     expect(await store.pay()).toBe('cancel')
-    vi.mocked(wechatPayAdapter.requestPayment).mockResolvedValue('fail')
+    vi.mocked(requestPayment).mockResolvedValue('fail')
     expect(await store.pay()).toBe('fail')
 
     expect(api.issueRegistrationToken).not.toHaveBeenCalled()

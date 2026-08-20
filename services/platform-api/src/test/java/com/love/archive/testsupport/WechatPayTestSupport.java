@@ -30,7 +30,7 @@ public final class WechatPayTestSupport {
     public static final String APP_ID = "wx-app-it";
     public static final String MERCHANT_ID = "1900000109";
     public static final String NOTIFY_URL =
-            "https://api.example.test/api/v1/public/online-payments/notifications";
+            "https://api.example.test/api/v1/public/online-payments/notifications/wechat";
     public static final String OAUTH_REDIRECT_URI = "https://h5.example.test/pages/payment/index";
 
     private static final KeyPair MERCHANT_KEY_PAIR = generateKeyPair();
