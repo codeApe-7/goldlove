@@ -42,7 +42,7 @@ class ProfileFieldDefinitionMigrationTest extends PostgresIntegrationTest {
             }
 
             Flyway latestFlyway = flyway(databaseUrl, null);
-            assertThat(latestFlyway.migrate().migrationsExecuted).isEqualTo(7);
+            assertThat(latestFlyway.migrate().migrationsExecuted).isEqualTo(8);
 
             try (Connection owner = ownerConnection(databaseUrl)) {
                 assertThat(queryInteger(owner, """

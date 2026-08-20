@@ -21,6 +21,8 @@ public class WechatPaymentOrderEntity {
     private PaymentChannelType channel;
     private byte[] openidCiphertext;
     private String openidHmac;
+    /** 规范化手机号的 HMAC；本模块不持有手机号明文或密文。 */
+    private String phoneToken;
     private String description;
     private Long amountMinor;
     private String currency;

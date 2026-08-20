@@ -44,6 +44,7 @@ import org.springframework.test.web.servlet.MvcResult;
 class OnlinePaymentApiTest extends ApiIntegrationTest {
 
     private static final String OPENID = "oPayer_online_1";
+    private static final String PHONE = "13700137000";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private FakeChannelHttpClient channelHttpClient;
@@ -52,6 +53,11 @@ class OnlinePaymentApiTest extends ApiIntegrationTest {
     @Autowired private RegistrationTokenMapper registrationTokenMapper;
     @Autowired private SensitiveValueProtector protector;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private org.springframework.data.redis.core.StringRedisTemplate redis;
+
+    @org.springframework.beans.factory.annotation.Value(
+            "${app.identity.authentication-rate-limit.account-max-attempts}")
+    private int accountMaxAttempts;
 
     @DynamicPropertySource
     static void registerChannel(DynamicPropertyRegistry registry) {
@@ -74,7 +80,87 @@ class OnlinePaymentApiTest extends ApiIntegrationTest {
     @BeforeEach
     void cleanState() {
         resetDatabase();
+        resetRateLimits(redis);
         channelHttpClient.reset();
+    }
+
+    @Test
+    void rejectsOrderCreationWithoutAPhone() throws Exception {
+        mockMvc.perform(post("/api/v1/public/online-payments/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"authorizationCode":"code-1","authorizationDocumentVersion":"v0.3"}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        assertThat(orderMapper.selectCount(null)).isZero();
+    }
+
+    @Test
+    void rejectsOrderCreationForAMalformedPhone() throws Exception {
+        postOrder("12345")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PHONE_INVALID"));
+
+        assertThat(orderMapper.selectCount(null)).isZero();
+    }
+
+    @Test
+    void refusesToTakeMoneyFromAPhoneThatAlreadyHasAnAccount() throws Exception {
+        registerOnline(PHONE, "wx-tx-existing");
+        long ordersAfterRegistration = orderMapper.selectCount(null);
+
+        postOrder(PHONE)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_ALREADY_EXISTS"));
+
+        // 关键点：冲突挡在付款之前，不留下任何新订单。
+        assertThat(orderMapper.selectCount(null)).isEqualTo(ordersAfterRegistration);
+    }
+
+    @Test
+    void reusesAPaidButUnregisteredOrderInsteadOfChargingAgain() throws Exception {
+        String paidOutTradeNo = createPaidOrder("wx-tx-reuse-1");
+        long ordersBefore = orderMapper.selectCount(null);
+        channelHttpClient.reset();
+
+        MvcResult result = postOrder(PHONE)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.paid").value(true))
+                .andExpect(jsonPath("$.data.payParameters").doesNotExist())
+                .andReturn();
+
+        assertThat(readData(result, "outTradeNo")).isEqualTo(paidOutTradeNo);
+        // 既没有新订单，也没有再向渠道下过单。
+        assertThat(orderMapper.selectCount(null)).isEqualTo(ordersBefore);
+        assertThat(channelOrderCalls()).isZero();
+    }
+
+    @Test
+    void doesNotReuseAnOrderThatAlreadyCompletedRegistration() throws Exception {
+        registerOnline(PHONE, "wx-tx-used-1");
+        long ordersBefore = orderMapper.selectCount(null);
+
+        // 该手机号已建号，因此连下单都进不去；已注册订单不会被误判为可复用。
+        postOrder(PHONE)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_ALREADY_EXISTS"));
+        assertThat(orderMapper.selectCount(null)).isEqualTo(ordersBefore);
+    }
+
+    @Test
+    void rateLimitsRepeatedPhoneProbesOnOrderCreation() throws Exception {
+        // 下单预检会暴露「该手机号是否已注册」，必须限流。阈值从配置读取，
+        // 测试 profile 设的是 account-max-attempts: 3。
+        for (int attempt = 1; attempt <= accountMaxAttempts; attempt++) {
+            channelHttpClient.nextOpenId(OPENID);
+            channelHttpClient.nextPrepayId("wx-prepay-rl-" + attempt);
+            postOrder(PHONE).andExpect(status().isCreated());
+        }
+
+        postOrder(PHONE)
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("AUTH_RATE_LIMITED"));
     }
 
     @Test
@@ -122,7 +208,8 @@ class OnlinePaymentApiTest extends ApiIntegrationTest {
         mockMvc.perform(post("/api/v1/public/online-payments/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"authorizationCode":"bad-code","authorizationDocumentVersion":"v0.3"}
+                                {"authorizationCode":"bad-code","authorizationDocumentVersion":"v0.3",
+                                 "phone":"13700137000"}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("WECHAT_AUTHORIZATION_CODE_INVALID"));
@@ -137,7 +224,8 @@ class OnlinePaymentApiTest extends ApiIntegrationTest {
         mockMvc.perform(post("/api/v1/public/online-payments/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"authorizationCode":"code-1","authorizationDocumentVersion":"v9.9"}
+                                {"authorizationCode":"code-1","authorizationDocumentVersion":"v9.9",
+                                 "phone":"13700137000"}
                                 """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("AUTHORIZATION_DOCUMENT_NOT_FOUND"));
@@ -334,17 +422,30 @@ class OnlinePaymentApiTest extends ApiIntegrationTest {
     }
 
     private String createOrder() throws Exception {
+        return createOrder(PHONE);
+    }
+
+    private String createOrder(String phone) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/public/online-payments/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"authorizationCode":"code-1","authorizationDocumentVersion":"v0.3"}
-                                """))
+                                {"authorizationCode":"code-1","authorizationDocumentVersion":"v0.3","phone":"%s"}
+                                """.formatted(phone)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.amountMinor").value(100))
+                .andExpect(jsonPath("$.data.paid").value(false))
                 .andExpect(jsonPath("$.data.payParameters.wechatJsapi.appId").value("wx-app-it"))
                 .andExpect(jsonPath("$.data.payParameters.wechatJsapi.paySign").isNotEmpty())
                 .andReturn();
         return readData(result, "outTradeNo");
+    }
+
+    private org.springframework.test.web.servlet.ResultActions postOrder(String phone) throws Exception {
+        return mockMvc.perform(post("/api/v1/public/online-payments/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"authorizationCode":"code-1","authorizationDocumentVersion":"v0.3","phone":"%s"}
+                        """.formatted(phone)));
     }
 
     private String createPaidOrder(String transactionId) throws Exception {
@@ -389,5 +490,32 @@ class OnlinePaymentApiTest extends ApiIntegrationTest {
     private String readData(MvcResult result, String field) throws Exception {
         JsonNode payload = objectMapper.readTree(result.getResponse().getContentAsString());
         return payload.path("data").path(field).asString();
+    }
+
+    /** 渠道下单调用次数，用来证明复用订单时没有再向渠道要一次 prepay_id。 */
+    private long channelOrderCalls() {
+        return channelHttpClient.exchanges().stream()
+                .filter(exchange -> exchange.url().contains("/v3/pay/transactions/jsapi"))
+                .count();
+    }
+
+    /** 走完整的「下单 → 支付 → 领令牌 → 建号」，用于构造「该手机号已有账号」的前置状态。 */
+    private void registerOnline(String phone, String transactionId) throws Exception {
+        channelHttpClient.nextOpenId(OPENID);
+        channelHttpClient.nextPrepayId("wx-prepay-" + transactionId);
+        String outTradeNo = createOrder(phone);
+        postNotification(WechatPayTestSupport.successNotificationBody(
+                outTradeNo, transactionId, OPENID, 100L, 100L))
+                .andExpect(status().isOk());
+        MvcResult issued = mockMvc.perform(post(
+                        "/api/v1/public/online-payments/orders/{outTradeNo}/registration-tokens", outTradeNo))
+                .andExpect(status().isCreated())
+                .andReturn();
+        mockMvc.perform(post("/api/v1/public/registrations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"registrationToken":"%s","phone":"%s","password":"online-pass-2026"}
+                                """.formatted(readData(issued, "token"), phone)))
+                .andExpect(status().isCreated());
     }
 }

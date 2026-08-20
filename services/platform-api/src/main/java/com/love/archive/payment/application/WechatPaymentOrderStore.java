@@ -34,35 +34,53 @@ class WechatPaymentOrderStore {
     private static final java.util.regex.Pattern OUT_TRADE_NO =
             java.util.regex.Pattern.compile("[A-Za-z0-9_-]{6,64}");
 
+    private static final int REUSABLE_ORDER_SCAN_LIMIT = 10;
+
     private final WechatPaymentOrderMapper orderMapper;
     private final PaymentRecordMapper paymentRecordMapper;
     private final SensitiveValueProtector protector;
     private final AuditTrail auditTrail;
 
     @Transactional
-    void insertCreated(
-            String outTradeNo,
-            String payer,
-            PaymentChannelType channel,
-            long presentedAuthorizationDocumentId,
-            long amountMinor,
-            String description) {
+    void insertCreated(NewOnlineOrder command) {
         OffsetDateTime now = OffsetDateTime.now();
         WechatPaymentOrderEntity order = new WechatPaymentOrderEntity();
-        order.setOutTradeNo(outTradeNo);
-        order.setChannel(channel);
-        if (payer != null) {
-            order.setOpenidCiphertext(protector.encrypt(OPENID_DOMAIN, payer));
-            order.setOpenidHmac(protector.hmac(OPENID_DOMAIN, payer));
+        order.setOutTradeNo(command.outTradeNo());
+        order.setChannel(command.channel());
+        if (command.payer() != null) {
+            order.setOpenidCiphertext(protector.encrypt(OPENID_DOMAIN, command.payer()));
+            order.setOpenidHmac(protector.hmac(OPENID_DOMAIN, command.payer()));
         }
-        order.setDescription(description);
-        order.setAmountMinor(amountMinor);
+        order.setPhoneToken(command.phoneToken());
+        order.setDescription(command.description());
+        order.setAmountMinor(command.amountMinor());
         order.setCurrency("CNY");
         order.setStatus(WechatOrderStatus.CREATED);
-        order.setPresentedAuthorizationDocumentId(presentedAuthorizationDocumentId);
+        order.setPresentedAuthorizationDocumentId(command.presentedAuthorizationDocumentId());
         order.setCreatedAt(now);
         order.setUpdatedAt(now);
         orderMapper.insert(order);
+    }
+
+    /**
+     * 找出该手机号已支付但尚未用于注册的订单，供下单时复用而不是重复收款。
+     * 只看最近若干笔，避免 phone_token 命中过多时全表扫。
+     */
+    @Transactional(readOnly = true)
+    Optional<WechatPaymentOrderEntity> findReusablePaidOrder(String phoneToken) {
+        if (phoneToken == null || phoneToken.isBlank()) {
+            return Optional.empty();
+        }
+        return orderMapper.selectList(Wrappers.<WechatPaymentOrderEntity>lambdaQuery()
+                        .eq(WechatPaymentOrderEntity::getPhoneToken, phoneToken)
+                        .eq(WechatPaymentOrderEntity::getStatus, WechatOrderStatus.PAID)
+                        .orderByDesc(WechatPaymentOrderEntity::getCreatedAt)
+                        .last("LIMIT " + REUSABLE_ORDER_SCAN_LIMIT))
+                .stream()
+                .filter(order -> order.getPaymentRecordId() != null)
+                .filter(order -> !Boolean.TRUE.equals(
+                        requirePaymentRecord(order.getPaymentRecordId()).getRegistered()))
+                .findFirst();
     }
 
     @Transactional

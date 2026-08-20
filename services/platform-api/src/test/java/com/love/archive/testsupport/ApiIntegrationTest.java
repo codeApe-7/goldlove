@@ -70,6 +70,20 @@ public abstract class ApiIntegrationTest {
                 () -> "//////////////////////////////////////////8=");
     }
 
+    /**
+     * 清空 Redis。限流计数与会话都在 Redis 里，且不随数据库 TRUNCATE 一起消失，
+     * 复用同一手机号的用例必须显式重置，否则会互相撞上限流阈值。
+     */
+    protected final void resetRateLimits(org.springframework.data.redis.core.StringRedisTemplate redis) {
+        var connectionFactory = redis.getConnectionFactory();
+        if (connectionFactory == null) {
+            throw new IllegalStateException("Redis 连接工厂不可用");
+        }
+        try (var connection = connectionFactory.getConnection()) {
+            connection.serverCommands().flushAll();
+        }
+    }
+
     protected final void resetDatabase() {
         try (var connection = DriverManager.getConnection(
                         POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());

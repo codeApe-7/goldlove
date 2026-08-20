@@ -26,6 +26,7 @@ public class OnlinePaymentService {
 
     private final List<PaymentChannel> channels;
     private final CurrentAuthorizationDocumentPort authorizationDocumentPort;
+    private final RegistrationEligibilityPort eligibilityPort;
     private final WechatPaymentOrderStore orderStore;
     private final OnlinePaymentProperties properties;
     private final SecureRandom secureRandom;
@@ -48,11 +49,26 @@ public class OnlinePaymentService {
     }
 
     /**
-     * 下单：需要前置授权的渠道先换 payer，否则 payer 为空。
+     * 下单：先预检手机号（格式、是否已有账号、探测限流），再按渠道下单。
+     * 若该手机号已有一笔已支付未注册的订单，直接复用那笔而不重复收款。
      *
      * @param authorizationDocumentVersion 用户付款前看到的授权书版本
+     * @param rawPhone                     用户提交的手机号，仅用于预检，本模块不落明文
+     * @param clientAddress                调用方地址，用于探测限流
      */
-    public OnlineOrderView createOrder(String authorizationCode, String authorizationDocumentVersion) {
+    public OnlineOrderView createOrder(
+            String authorizationCode,
+            String authorizationDocumentVersion,
+            String rawPhone,
+            String clientAddress) {
+        String phoneToken = eligibilityPort.requireRegistrablePhone(rawPhone, clientAddress);
+        Optional<WechatPaymentOrderEntity> reusable = orderStore.findReusablePaidOrder(phoneToken);
+        if (reusable.isPresent()) {
+            WechatPaymentOrderEntity paid = reusable.get();
+            return new OnlineOrderView(
+                    paid.getOutTradeNo(), paid.getAmountMinor(), authorizationDocumentVersion, null, true);
+        }
+
         PaymentChannel channel = activeChannel();
         String payer = channel.requiresPayerAuthorization()
                 ? channel.resolvePayer(authorizationCode)
@@ -62,12 +78,13 @@ public class OnlinePaymentService {
         String description = properties.getOrderDescription();
         String outTradeNo = generateOutTradeNo();
 
-        orderStore.insertCreated(outTradeNo, payer, channel.kind(), documentId, amountMinor, description);
+        orderStore.insertCreated(new NewOnlineOrder(
+                outTradeNo, payer, phoneToken, channel.kind(), documentId, amountMinor, description));
         CreateOrderResult channelResult = channel.createOrder(
                 new CreateOrderCommand(outTradeNo, description, amountMinor, payer));
         orderStore.attachPrepayId(outTradeNo, channelResult.channelReference());
         return new OnlineOrderView(
-                outTradeNo, amountMinor, authorizationDocumentVersion, channelResult.payParameters());
+                outTradeNo, amountMinor, authorizationDocumentVersion, channelResult.payParameters(), false);
     }
 
     /**

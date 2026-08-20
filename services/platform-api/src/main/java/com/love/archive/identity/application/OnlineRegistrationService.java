@@ -35,6 +35,7 @@ public class OnlineRegistrationService {
 
     private final RegistrationTokenService registrationTokenService;
     private final MembershipService membershipService;
+    private final RegistrationPhoneToken registrationPhoneToken;
     private final UserAccountMapper userAccountMapper;
     private final AuditTrail auditTrail;
     private final PhoneNormalizer phoneNormalizer;
@@ -46,6 +47,7 @@ public class OnlineRegistrationService {
         PasswordPolicy.validate(command.password());
         String phone = normalizePhone(command.phone());
         PaidRegistrationOrder order = registrationTokenService.lockPaidOrder(command.registrationToken());
+        requireSamePhoneAsOrder(order, phone);
 
         String phoneHmac = phoneProtector.searchHash(phone);
         if (userAccountMapper.selectCount(Wrappers.<UserAccountEntity>lambdaQuery()
@@ -95,6 +97,18 @@ public class OnlineRegistrationService {
             return phoneNormalizer.normalize(rawPhone);
         } catch (IllegalArgumentException exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PHONE_INVALID", "手机号格式不正确");
+        }
+    }
+
+    /**
+     * 手机号在下单时已经预检并钉在订单上，注册时必须一致，否则一笔付款会被挪给别的号码。
+     * phoneToken 为 null 表示订单建立于 V11 之前，此时无从比对，沿用原有的唯一性校验。
+     */
+    private void requireSamePhoneAsOrder(PaidRegistrationOrder order, String normalizedPhone) {
+        if (order.phoneToken() != null
+                && !order.phoneToken().equals(registrationPhoneToken.of(normalizedPhone))) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT, "REGISTRATION_PHONE_MISMATCH", "手机号与下单时不一致");
         }
     }
 

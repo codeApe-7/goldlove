@@ -84,7 +84,7 @@ class OnlineRegistrationApiTest extends ApiIntegrationTest {
     void cleanState() {
         resetDatabase();
         channelHttpClient.reset();
-        redis.getConnectionFactory().getConnection().serverCommands().flushDb();
+        resetRateLimits(redis);
     }
 
     @Test
@@ -215,19 +215,50 @@ class OnlineRegistrationApiTest extends ApiIntegrationTest {
     }
 
     @Test
-    void rejectsDuplicatePhoneAndRollsBackTheWholeRegistration() throws Exception {
-        String firstToken = paidRegistrationToken("4300000007");
-        register(firstToken, PHONE, PASSWORD).andExpect(status().isCreated());
+    void rejectsAPhoneThatDiffersFromTheOneUsedToOrder() throws Exception {
+        String token = paidRegistrationToken("4300000007");
 
-        String secondOrder = paidOrder("4300000008", "oPayer_register_2");
-        register(issueToken(secondOrder), "138 0013 8000", PASSWORD)
+        register(token, "13900139000", PASSWORD)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("REGISTRATION_PHONE_MISMATCH"));
+
+        // 一笔付款不能被挪给另一个号码；令牌未被消耗，用户仍可用正确号码完成注册。
+        assertThat(userAccountMapper.selectCount(null)).isZero();
+        assertThat(statusOf(token)).isEqualTo(RegistrationTokenStatus.UNUSED);
+        register(token, PHONE, PASSWORD).andExpect(status().isCreated());
+    }
+
+    @Test
+    void rejectsDuplicatePhoneAndRollsBackTheWholeRegistration() throws Exception {
+        // 下单预检挡不住「付款后账号才由别的途径出现」（例如管理员手动登记同一手机号），
+        // 因此注册事务里的唯一性校验仍是权威校验，必须兜住。
+        String token = paidRegistrationToken("4300000009");
+        insertConflictingAccount(PHONE);
+
+        register(token, "138 0013 8000", PASSWORD)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("ACCOUNT_ALREADY_EXISTS"));
 
         assertThat(userAccountMapper.selectCount(null)).isOne();
         assertThat(externalIdentityMapper.selectCount(null)).isZero();
-        assertThat(statusOfHmac(unusedTokenHmacFor(secondOrder)))
-                .isEqualTo(RegistrationTokenStatus.UNUSED);
+        assertThat(statusOf(token)).isEqualTo(RegistrationTokenStatus.UNUSED);
+    }
+
+    /** 模拟「订单已付款之后，该手机号才由其它途径建了账号」。 */
+    private void insertConflictingAccount(String phone) {
+        UserAccountEntity account = new UserAccountEntity();
+        account.setPhoneCiphertext(phoneProtector.encrypt(phone));
+        account.setPhoneHmac(phoneProtector.searchHash(phone));
+        account.setPasswordHash("$argon2id$v=19$m=1024,t=1,p=1$c2FsdHNhbHQ$aGFzaGhhc2hoYXNoaGFzaA");
+        account.setStatus(AccountStatus.ACTIVE);
+        account.setRegistrationChannel(RegistrationChannel.ONLINE);
+        account.setMembershipTier(MembershipTier.VIP);
+        account.setMembershipCreditMinor(0L);
+        OffsetDateTime now = OffsetDateTime.now();
+        account.setActivatedAt(now);
+        account.setCreatedAt(now);
+        account.setUpdatedAt(now);
+        userAccountMapper.insert(account);
     }
 
     @Test
@@ -249,7 +280,7 @@ class OnlineRegistrationApiTest extends ApiIntegrationTest {
     void rejectsRegistrationWhenTheOrderIsNotPaidYet() throws Exception {
         channelHttpClient.nextOpenId(OPENID);
         channelHttpClient.nextPrepayId("wx-prepay-unpaid");
-        String outTradeNo = createOrder();
+        String outTradeNo = createOrder(PHONE);
 
         mockMvc.perform(post(
                         "/api/v1/public/online-payments/orders/{outTradeNo}/registration-tokens", outTradeNo))
@@ -276,9 +307,13 @@ class OnlineRegistrationApiTest extends ApiIntegrationTest {
     }
 
     private String paidOrder(String transactionId, String openid) throws Exception {
+        return paidOrder(transactionId, openid, PHONE);
+    }
+
+    private String paidOrder(String transactionId, String openid, String phone) throws Exception {
         channelHttpClient.nextOpenId(openid);
         channelHttpClient.nextPrepayId("wx-prepay-" + transactionId);
-        String outTradeNo = createOrder();
+        String outTradeNo = createOrder(phone);
         String body = WechatPayTestSupport.successNotificationBody(
                 outTradeNo, transactionId, openid, 59_900L, 59_900L);
         String timestamp = String.valueOf(Instant.now().getEpochSecond());
@@ -295,12 +330,12 @@ class OnlineRegistrationApiTest extends ApiIntegrationTest {
         return outTradeNo;
     }
 
-    private String createOrder() throws Exception {
+    private String createOrder(String phone) throws Exception {
         return readData(mockMvc.perform(post("/api/v1/public/online-payments/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"authorizationCode":"code-1","authorizationDocumentVersion":"v0.3"}
-                                """))
+                                {"authorizationCode":"code-1","authorizationDocumentVersion":"v0.3","phone":"%s"}
+                                """.formatted(phone)))
                 .andExpect(status().isCreated())
                 .andReturn(), "outTradeNo");
     }

@@ -116,6 +116,7 @@ public class RegistrationTokenService {
                 payment.getId(),
                 order.getOutTradeNo(),
                 payer,
+                order.getPhoneToken(),
                 creditMinor,
                 order.getPresentedAuthorizationDocumentId());
     }

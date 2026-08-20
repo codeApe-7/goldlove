@@ -48,6 +48,16 @@ class WechatPaymentMembershipMigrationTest extends PostgresIntegrationTest {
                 assertThat(columnExists(owner, "registration_token", "token")).isFalse();
                 assertThat(columnExists(owner, "registration_token", "token_hmac")).isTrue();
 
+                // V11：订单只存手机号的 HMAC，明文与密文都不落这张表。
+                assertThat(columnExists(owner, "wechat_payment_order", "phone_token")).isTrue();
+                assertThat(columnExists(owner, "wechat_payment_order", "phone")).isFalse();
+                assertThat(columnExists(owner, "wechat_payment_order", "phone_ciphertext")).isFalse();
+                assertThat(queryLong(owner, """
+                        SELECT count(*) FROM pg_indexes
+                        WHERE tablename = 'wechat_payment_order'
+                          AND indexname = 'ix_wechat_payment_order_phone_token'
+                        """)).isOne();
+
                 long documentId = seedAuthorizationDocument(owner);
                 long adminId = seedAdmin(owner);
 
@@ -171,6 +181,12 @@ class WechatPaymentMembershipMigrationTest extends PostgresIntegrationTest {
                         SELECT has_table_privilege('archive_app', 'wechat_payment_order', 'DELETE')
                             OR has_table_privilege('archive_app', 'registration_token', 'DELETE')
                         """)).isFalse();
+                // V11 新增的列由 V9 的表级授权自动覆盖，运行时角色可读写但仍不可 DDL。
+                assertThat(queryBoolean(runtime, """
+                        SELECT has_column_privilege('archive_app', 'wechat_payment_order', 'phone_token', 'SELECT')
+                           AND has_column_privilege('archive_app', 'wechat_payment_order', 'phone_token', 'UPDATE')
+                           AND has_column_privilege('archive_app', 'wechat_payment_order', 'phone_token', 'INSERT')
+                        """)).isTrue();
                 assertThatThrownBy(() -> execute(runtime,
                         "ALTER TABLE registration_token ADD COLUMN sneaky TEXT"))
                         .isInstanceOf(SQLException.class);
@@ -205,7 +221,7 @@ class WechatPaymentMembershipMigrationTest extends PostgresIntegrationTest {
                         """.formatted(accountId, adminId, accountId, adminId));
             }
 
-            assertThat(flyway(databaseUrl).migrate().migrationsExecuted).isEqualTo(2);
+            assertThat(flyway(databaseUrl).migrate().migrationsExecuted).isEqualTo(3);
 
             try (Connection owner = ownerConnection(databaseUrl)) {
                 assertThat(queryLong(owner,

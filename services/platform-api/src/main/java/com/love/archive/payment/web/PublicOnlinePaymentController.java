@@ -70,7 +70,10 @@ public class PublicOnlinePaymentController {
             @Valid @RequestBody CreateOnlineOrderRequest body,
             HttpServletRequest request) {
         OnlineOrderView order = onlinePaymentService.createOrder(
-                body.authorizationCode(), body.authorizationDocumentVersion());
+                body.authorizationCode(),
+                body.authorizationDocumentVersion(),
+                body.phone(),
+                request.getRemoteAddr());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(order, RequestIdFilter.current(request)));
     }
