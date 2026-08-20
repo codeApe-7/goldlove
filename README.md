@@ -66,7 +66,7 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | POST | `/api/v1/admin/profile-reviews/{revisionId}/approve` | 管理员 | 审核通过（请求体携带 `expectedVersion`） |
 | POST | `/api/v1/admin/profile-reviews/{revisionId}/reject` | 管理员 | 审核退回（必须提供面向嘉宾的说明） |
 | GET | `/api/v1/public/online-payments/settings` | 无 | 获取公众号 AppID、下单金额与网页授权链接 |
-| POST | `/api/v1/public/online-payments/orders` | 无 | 用网页授权 code 下单，返回调起支付参数 |
+| POST | `/api/v1/public/online-payments/orders` | 无 | 下单（请求体含 `phone`）。先预检手机号是否已有账号，再返回调起支付参数；该手机号已有「已支付未注册」订单时复用那笔并返回 `paid=true` |
 | GET | `/api/v1/public/online-payments/orders/{outTradeNo}` | 无 | 查询订单状态（本地仍未支付时主动向渠道查单补偿） |
 | POST | `/api/v1/public/online-payments/orders/{outTradeNo}/registration-tokens` | 无 | 支付成功后签发一次性注册令牌（明文仅返回一次） |
 | POST | `/api/v1/public/online-payments/notifications` | 验签 | 微信支付结果通知，幂等结算 |
@@ -130,14 +130,14 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | 路径 | 流程 | 账号状态 |
 |---|---|---|
 | 手动（原有） | 管理员登记已付费访客 → 一次性初始凭证 → 访客激活设密码 | `PAID_PENDING_ACTIVATION` → `ACTIVE` |
-| 线上·微信 | 微信内打开链接 → 网页授权取 openid → 微信支付 → 领取注册令牌 → 填手机号与密码 | 直接 `ACTIVE` |
-| 线上·易支付 | 打开 H5 链接 → 下单指定支付宝 → 跳转支付宝 → 回跳查单 → 领取注册令牌 → 填手机号与密码 | 直接 `ACTIVE` |
+| 线上·微信 | 微信内打开链接 → 填手机号 → 网页授权取 openid → 微信支付 → 领取注册令牌 → 设密码 | 直接 `ACTIVE` |
+| 线上·易支付 | 打开 H5 链接 → 填手机号 → 下单指定支付宝 → 跳转支付宝 → 回跳查单 → 领取注册令牌 → 设密码 | 直接 `ACTIVE` |
 
 线上路径的状态流转：
 
 ```text
-下单(CREATED) → 渠道回调验签 → 订单 PAID + 写 payment_record → 签发注册令牌(UNUSED)
-  → 提交注册 → 建账号(ACTIVE + VIP) + 订单置 registered + 令牌 USED
+手机号预检 → 下单(CREATED) → 渠道回调验签 → 订单 PAID + 写 payment_record → 签发注册令牌(UNUSED)
+  → 提交注册（校验手机号与下单一致）→ 建账号(ACTIVE + VIP) + 订单置 registered + 令牌 USED
   → 累加会员额度 → 达阈值升 SVIP
 ```
 
@@ -150,6 +150,10 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 - 微信 openid / 易支付平台订单号等敏感标识加密存储（AES-256-GCM）并另存 HMAC 供等值查询，不落明文、不打日志。
 - 网页授权回跳地址由服务端配置固定，不接受调用方传入，避免开放重定向。
 - 线上注册不再绑定支付者外部身份（易支付无稳定 openid）；注册成功后账号即 `ACTIVE`，随后按现有流程主动同意授权书再填写档案；付款前展示的授权书版本会钉在订单与付款记录上。
+- **手机号在下单前预检**，把冲突挡在付款之前：已有账号返回 `ACCOUNT_ALREADY_EXISTS`，不留下任何订单；否则把手机号的 HMAC（`registration:phone` 域）钉在订单上，注册时校验一致（`REGISTRATION_PHONE_MISMATCH`）。订单表只存 HMAC，不存手机号明文或密文。
+- 该手机号已有「已支付未注册」订单时**复用那笔订单**，不重复收款；这也让丢了 `out_trade_no` 的用户能凭手机号找回已付款订单（易支付没有 openid 这类付款人标识，`out_trade_no` 是唯一句柄）。
+- 下单预检会暴露「该手机号是否已注册」，因此按手机号 + 客户端 IP 限流（`AUTH_ACCOUNT_MAX_ATTEMPTS` / `AUTH_CLIENT_MAX_ATTEMPTS`，flow `guest-online-order`），且成功后**不重置**手机号计数——命中的多是未注册号码，重置等于放开无限探测。
+- 手机号预检、规范化与限流都在 identity 模块（`RegistrationEligibilityPort` 反向端口），payment 拿到的只是不可逆比对令牌，避免 `payment → identity` 形成模块环。
 
 | 环境变量 | 说明 |
 |---|---|
@@ -191,6 +195,7 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | `REGISTRATION_TOKEN_USED` | 409 | 注册令牌已被使用 |
 | `REGISTRATION_ORDER_NOT_PAID` | 409 | 订单尚未支付成功 |
 | `REGISTRATION_ALREADY_COMPLETED` | 409 | 该订单已完成注册 |
+| `REGISTRATION_PHONE_MISMATCH` | 409 | 注册手机号与下单时不一致 |
 
 ## 会员等级
 
