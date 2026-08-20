@@ -15,6 +15,7 @@ describe('wechat adapter', () => {
   beforeEach(() => {
     delete (window as unknown as Record<string, unknown>).WeixinJSBridge
     delete (globalThis as unknown as Record<string, unknown>).uni
+    vi.restoreAllMocks()
   })
 
   it('detects the WeChat built-in browser from the user agent', () => {
@@ -28,6 +29,34 @@ describe('wechat adapter', () => {
     expect(readQueryParam('state', 'code=abc123&state=s%2F1')).toBe('s/1')
     expect(readQueryParam('code', '?state=s1')).toBeNull()
     expect(readQueryParam('code', '')).toBeNull()
+  })
+
+  it('finds return parameters that landed inside the hash route', () => {
+    // H5 走 hash 路由，渠道把参数追加在 /#/pages/payment/index 之后时，
+    // location.search 是空的，参数全在 hash 里。
+    const location = {
+      search: '',
+      hash: '#/pages/payment/index?out_trade_no=OTN-1&trade_status=TRADE_SUCCESS',
+    }
+    vi.spyOn(window, 'location', 'get').mockReturnValue(location as unknown as Location)
+
+    expect(readQueryParam('out_trade_no')).toBe('OTN-1')
+    expect(readQueryParam('trade_status')).toBe('TRADE_SUCCESS')
+    expect(readQueryParam('code')).toBeNull()
+  })
+
+  it('still reads plain query parameters and prefers them over the hash', () => {
+    const location = { search: '?out_trade_no=OTN-SEARCH', hash: '#/pages/payment/index' }
+    vi.spyOn(window, 'location', 'get').mockReturnValue(location as unknown as Location)
+
+    expect(readQueryParam('out_trade_no')).toBe('OTN-SEARCH')
+  })
+
+  it('returns null when neither search nor hash carries a query', () => {
+    const location = { search: '', hash: '#/pages/payment/index' }
+    vi.spyOn(window, 'location', 'get').mockReturnValue(location as unknown as Location)
+
+    expect(readQueryParam('out_trade_no')).toBeNull()
   })
 
   it('renames packageValue to package when invoking the JSAPI bridge', async () => {

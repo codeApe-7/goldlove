@@ -17,7 +17,7 @@ interface WeixinJsBridge {
 interface BridgeWindow {
   WeixinJSBridge?: WeixinJsBridge
   navigator?: { userAgent?: string }
-  location?: { search?: string; href?: string }
+  location?: { search?: string; hash?: string; href?: string }
   addEventListener?(type: string, listener: () => void): void
 }
 
@@ -30,9 +30,27 @@ export function isWechatBrowser(userAgent?: string): boolean {
   return /micromessenger/i.test(agent)
 }
 
-/** 从当前地址读取网页授权回跳带回的参数。 */
+/**
+ * H5 是 hash 路由（`/#/pages/payment/index`），支付渠道把回跳参数追加在整串之后时，
+ * 参数会落到 # 里，`location.search` 读不到。因此两处都扫。
+ */
+function currentQuery(): string {
+  const location = bridgeWindow().location
+  const parts: string[] = []
+  const search = (location?.search ?? '').replace(/^\?/, '')
+  if (search) parts.push(search)
+  const hash = location?.hash ?? ''
+  const marker = hash.indexOf('?')
+  if (marker !== -1) {
+    const hashQuery = hash.slice(marker + 1)
+    if (hashQuery) parts.push(hashQuery)
+  }
+  return parts.join('&')
+}
+
+/** 从当前地址读取渠道回跳带回的参数。 */
 export function readQueryParam(name: string, search?: string): string | null {
-  const raw = search ?? bridgeWindow().location?.search ?? ''
+  const raw = search ?? currentQuery()
   const query = raw.startsWith('?') ? raw.slice(1) : raw
   for (const pair of query.split('&')) {
     if (!pair) continue
