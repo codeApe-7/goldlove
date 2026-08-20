@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { dashboardStats } from '@/api/admin'
+import { amountLabel } from '@/utils/presentation'
 import type { AdminDashboardStats } from '@/types'
 import PageHeader from '@/components/PageHeader.vue'
 
@@ -9,11 +10,11 @@ const stats = ref<AdminDashboardStats | null>(null)
 const loading = ref(false)
 
 const cards = [
-  { key: 'pendingReviews', label: '待审核', hint: '等待处理的档案' },
-  { key: 'todayRegistrations', label: '今日登记', hint: '今日新登记访客' },
-  { key: 'todayReviews', label: '今日审核', hint: '今日完成审核' },
-  { key: 'totalProfiles', label: '累计建档', hint: '总档案数量' },
-  { key: 'vipMembers', label: 'VIP 会员', hint: '建档注册即 VIP' },
+  { key: 'totalAccounts', label: '注册用户', hint: '累计注册账号' },
+  { key: 'todayRegistrations', label: '今日注册', hint: '今日新增账号' },
+  { key: 'totalProfiles', label: '累计建档', hint: '已创建的档案' },
+  { key: 'completedProfiles', label: '资料完善', hint: '必填项与头像齐全' },
+  { key: 'vipMembers', label: 'VIP 会员', hint: '付费或兑码升级' },
   { key: 'svipMembers', label: 'SVIP 会员', hint: '累计付费达标自动升级' },
 ] as const
 
@@ -31,7 +32,7 @@ onMounted(async () => {
 
 <template>
   <div class="dashboard-page">
-    <PageHeader title="工作台" description="欢迎使用婚恋智能档案库管理后台，实时掌握审核与建档情况。" />
+    <PageHeader title="工作台" description="欢迎使用婚恋智能档案库管理后台，实时掌握注册、建档与会员情况。" />
     <div v-loading="loading" class="stats-grid">
       <article v-for="card in cards" :key="card.key" class="stat-card">
         <span class="stat-label">{{ card.label }}</span>
@@ -49,18 +50,21 @@ onMounted(async () => {
           <span class="live-dot">实时</span>
         </div>
         <div class="workflow-row">
-          <div><strong class="tabular">{{ stats?.todayRegistrations ?? 0 }}</strong><span>新增登记</span></div>
+          <div><strong class="tabular">{{ stats?.todayRegistrations ?? 0 }}</strong><span>今日注册</span></div>
           <i />
-          <div><strong class="tabular">{{ stats?.pendingReviews ?? 0 }}</strong><span>等待审核</span></div>
+          <div><strong class="tabular">{{ stats?.completedProfiles ?? 0 }}</strong><span>资料完善</span></div>
           <i />
-          <div><strong class="tabular">{{ stats?.todayReviews ?? 0 }}</strong><span>完成审核</span></div>
+          <div>
+            <strong class="tabular">{{ amountLabel(stats?.todayPaidAmountMinor ?? 0) }}</strong>
+            <span>今日收款</span>
+          </div>
         </div>
       </div>
       <aside class="archive-panel sla-panel">
-        <span class="sla-eyebrow">审核提醒</span>
-        <strong class="tabular">{{ stats?.pendingReviews ?? 0 }}</strong>
-        <p>份档案当前待处理</p>
-        <el-button type="primary" @click="$router.push('/reviews')">进入审核管理</el-button>
+        <span class="sla-eyebrow">档案总量</span>
+        <strong class="tabular">{{ stats?.totalProfiles ?? 0 }}</strong>
+        <p>份档案，保存即可见</p>
+        <el-button type="primary" @click="$router.push('/profiles')">进入档案管理</el-button>
       </aside>
     </section>
   </div>

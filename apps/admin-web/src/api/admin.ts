@@ -1,21 +1,14 @@
 import { http, unwrap } from './http'
 import type {
+  AdminActivationCodeItem,
   AdminDashboardStats,
+  AdminPaymentOrderItem,
+  AdminProfileDetail,
+  AdminProfileListItem,
   AdminSession,
   PageView,
   ProfileFieldDefinitionView,
-  ProfileReviewDetail,
-  ProfileReviewListItem,
-  ProvisionedGuest,
 } from '@/types'
-
-export interface AuthorizationDocumentView {
-  version: string
-  title: string
-  content: string
-  contentSha256: string
-  effectiveAt: string
-}
 
 export function login(username: string, password: string): Promise<AdminSession> {
   return unwrap(http.post('/admin/auth/login', { username, password }))
@@ -29,24 +22,19 @@ export function dashboardStats(): Promise<AdminDashboardStats> {
   return unwrap(http.get('/admin/dashboard/stats'))
 }
 
-export function provisionGuest(payload: {
-  phone: string
-  paymentReference: string
-  amountMinor: number
-  paidAt: string
-  authorizationDocumentVersion: string
-  note?: string | null
-}): Promise<ProvisionedGuest> {
-  return unwrap(http.post('/admin/accounts', payload))
+// ---- 档案 ----
+
+export function listProfiles(
+  params: Record<string, string | number | undefined>,
+): Promise<PageView<AdminProfileListItem>> {
+  return unwrap(http.get('/admin/profiles', { params }))
 }
 
-export function reissueCredential(phone: string): Promise<ProvisionedGuest> {
-  return unwrap(http.post('/admin/accounts/activation-credentials/reissue', { phone }))
+export function profileDetail(profileId: number): Promise<AdminProfileDetail> {
+  return unwrap(http.get(`/admin/profiles/${profileId}`))
 }
 
-export function currentAuthorizationDocumentVersion(): Promise<AuthorizationDocumentView> {
-  return unwrap(http.get('/public/authorization-documents/current'))
-}
+// ---- 字段定义 ----
 
 export function listFieldDefinitions(
   page: number,
@@ -63,31 +51,31 @@ export function updateFieldDefinition(id: number, payload: Record<string, unknow
   return unwrap(http.patch(`/admin/profile-field-definitions/${id}`, payload))
 }
 
-export function listReviews(
+// ---- 支付订单 ----
+
+export function listPaymentOrders(
   params: Record<string, string | number | undefined>,
-): Promise<PageView<ProfileReviewListItem>> {
-  return unwrap(http.get('/admin/profile-reviews', { params }))
+): Promise<PageView<AdminPaymentOrderItem>> {
+  return unwrap(http.get('/admin/payment-orders', { params }))
 }
 
-export function reviewDetail(revisionId: number): Promise<ProfileReviewDetail> {
-  return unwrap(http.get(`/admin/profile-reviews/${revisionId}`))
+// ---- 激活码 ----
+
+export function listActivationCodes(
+  params: Record<string, string | number | undefined>,
+): Promise<PageView<AdminActivationCodeItem>> {
+  return unwrap(http.get('/admin/activation-codes', { params }))
 }
 
-export function approveReview(revisionId: number, expectedVersion: number) {
-  return unwrap(http.post(`/admin/profile-reviews/${revisionId}/approve`, { expectedVersion }))
+/** 生成激活码。手机号在生成时就绑定，只有该手机号的账号能兑换。 */
+export function generateActivationCode(payload: {
+  boundPhone: string
+  grantedTier: 'VIP' | 'SVIP'
+  note?: string | null
+}): Promise<AdminActivationCodeItem> {
+  return unwrap(http.post('/admin/activation-codes', payload))
 }
 
-export function rejectReview(
-  revisionId: number,
-  expectedVersion: number,
-  reasonCode: string | null,
-  comment: string,
-) {
-  return unwrap(
-    http.post(`/admin/profile-reviews/${revisionId}/reject`, {
-      expectedVersion,
-      reasonCode,
-      comment,
-    }),
-  )
+export function revokeActivationCode(codeId: number): Promise<null> {
+  return unwrap(http.post(`/admin/activation-codes/${codeId}/revoke`))
 }

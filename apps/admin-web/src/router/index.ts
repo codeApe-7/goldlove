@@ -30,21 +30,26 @@ const router = createRouter({
       children: [
         { path: '', redirect: '/dashboard' },
         { path: 'dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
+        { path: 'profiles', name: 'profiles', component: () => import('@/views/ProfilesView.vue') },
         {
-          path: 'guests/register',
-          name: 'guests-register',
-          component: () => import('@/views/GuestRegisterView.vue'),
+          path: 'profiles/:id',
+          name: 'profile-detail',
+          component: () => import('@/views/ProfileDetailView.vue'),
+        },
+        {
+          path: 'payment-orders',
+          name: 'payment-orders',
+          component: () => import('@/views/PaymentOrdersView.vue'),
+        },
+        {
+          path: 'activation-codes',
+          name: 'activation-codes',
+          component: () => import('@/views/ActivationCodesView.vue'),
         },
         {
           path: 'field-definitions',
           name: 'field-definitions',
           component: () => import('@/views/FieldDefinitionsView.vue'),
-        },
-        { path: 'reviews', name: 'reviews', component: () => import('@/views/ReviewsView.vue') },
-        {
-          path: 'reviews/:id',
-          name: 'review-detail',
-          component: () => import('@/views/ReviewDetailView.vue'),
         },
       ],
     },

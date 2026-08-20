@@ -1,11 +1,40 @@
 import { describe, expect, it } from 'vitest'
-import { fieldTypeLabel, reviewStatusMeta, storageKindLabel } from './presentation'
+import {
+  activationCodeStatusMeta,
+  amountLabel,
+  fieldTypeLabel,
+  membershipTierMeta,
+  paymentOrderStatusMeta,
+  profileStatusMeta,
+  storageKindLabel,
+} from './presentation'
 
 describe('admin presentation helpers', () => {
-  it('localizes every review status', () => {
-    expect(reviewStatusMeta('PENDING')).toEqual({ label: '待审核', tone: 'warning' })
-    expect(reviewStatusMeta('APPROVED')).toEqual({ label: '已通过', tone: 'success' })
-    expect(reviewStatusMeta('REJECTED')).toEqual({ label: '已退回', tone: 'danger' })
+  it('localizes membership tiers', () => {
+    expect(membershipTierMeta('FREE')).toEqual({ label: '普通', tone: 'info' })
+    expect(membershipTierMeta('VIP')).toEqual({ label: 'VIP', tone: 'success' })
+    expect(membershipTierMeta('SVIP')).toEqual({ label: 'SVIP', tone: 'warning' })
+  })
+
+  it('localizes profile completeness', () => {
+    expect(profileStatusMeta('DRAFT')).toEqual({ label: '未填完', tone: 'warning' })
+    expect(profileStatusMeta('COMPLETED')).toEqual({ label: '已完善', tone: 'success' })
+  })
+
+  it('localizes payment order and activation code statuses', () => {
+    expect(paymentOrderStatusMeta('CREATED')).toEqual({ label: '待支付', tone: 'warning' })
+    expect(paymentOrderStatusMeta('PAID')).toEqual({ label: '已支付', tone: 'success' })
+    expect(paymentOrderStatusMeta('CLOSED')).toEqual({ label: '已关闭', tone: 'info' })
+    expect(activationCodeStatusMeta('UNUSED')).toEqual({ label: '未使用', tone: 'warning' })
+    expect(activationCodeStatusMeta('USED')).toEqual({ label: '已兑换', tone: 'success' })
+    expect(activationCodeStatusMeta('REVOKED')).toEqual({ label: '已作废', tone: 'danger' })
+  })
+
+  it('renders minor units as yuan', () => {
+    expect(amountLabel(0)).toBe('¥0.00')
+    expect(amountLabel(1)).toBe('¥0.01')
+    expect(amountLabel(9900)).toBe('¥99.00')
+    expect(amountLabel(59900)).toBe('¥599.00')
   })
 
   it('localizes field metadata', () => {

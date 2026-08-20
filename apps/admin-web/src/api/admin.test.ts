@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { http } from './http'
 import {
-  currentAuthorizationDocumentVersion,
-  provisionGuest,
-  reissueCredential,
+  generateActivationCode,
+  listActivationCodes,
+  listPaymentOrders,
+  listProfiles,
+  profileDetail,
+  revokeActivationCode,
 } from './admin'
 
 describe('admin api', () => {
@@ -15,41 +18,58 @@ describe('admin api', () => {
     } as never
   }
 
-  it('provisionGuest posts minor-unit amount and phone', async () => {
-    vi.spyOn(http, 'post').mockResolvedValue(ok({}))
-    await provisionGuest({
-      phone: '13800138000',
-      paymentReference: 'PAY-1',
-      amountMinor: 19900,
-      paidAt: '2030-07-01T10:00:00Z',
-      authorizationDocumentVersion: 'v0.3',
-      note: null,
+  it('listProfiles forwards filters as query params', async () => {
+    vi.spyOn(http, 'get').mockResolvedValue(ok({ items: [], page: 1, size: 20, total: 0 }))
+
+    await listProfiles({ phone: '138', status: 'DRAFT', page: 2, size: 20 })
+
+    expect(http.get).toHaveBeenCalledWith('/admin/profiles', {
+      params: { phone: '138', status: 'DRAFT', page: 2, size: 20 },
     })
-    expect(http.post).toHaveBeenCalledWith('/admin/accounts', {
-      phone: '13800138000',
-      paymentReference: 'PAY-1',
-      amountMinor: 19900,
-      paidAt: '2030-07-01T10:00:00Z',
-      authorizationDocumentVersion: 'v0.3',
+  })
+
+  it('profileDetail reads a single profile by id', async () => {
+    vi.spyOn(http, 'get').mockResolvedValue(ok({ id: 7, phone: '13800138000' }))
+
+    await expect(profileDetail(7)).resolves.toMatchObject({ phone: '13800138000' })
+    expect(http.get).toHaveBeenCalledWith('/admin/profiles/7')
+  })
+
+  it('listPaymentOrders forwards filters', async () => {
+    vi.spyOn(http, 'get').mockResolvedValue(ok({ items: [], page: 1, size: 20, total: 0 }))
+
+    await listPaymentOrders({ status: 'PAID', page: 1, size: 20 })
+
+    expect(http.get).toHaveBeenCalledWith('/admin/payment-orders', {
+      params: { status: 'PAID', page: 1, size: 20 },
+    })
+  })
+
+  it('generateActivationCode posts the bound phone and tier', async () => {
+    vi.spyOn(http, 'post').mockResolvedValue(
+      ok({ id: 1, code: 'LOVE-7K2M-9XQP-4T8B', boundPhone: '13800138000' }),
+    )
+
+    await expect(
+      generateActivationCode({ boundPhone: '13800138000', grantedTier: 'VIP', note: null }),
+    ).resolves.toMatchObject({ code: 'LOVE-7K2M-9XQP-4T8B' })
+    expect(http.post).toHaveBeenCalledWith('/admin/activation-codes', {
+      boundPhone: '13800138000',
+      grantedTier: 'VIP',
       note: null,
     })
   })
 
-  it('reissueCredential posts phone', async () => {
-    vi.spyOn(http, 'post').mockResolvedValue(ok({}))
-    await reissueCredential('13800138000')
-    expect(http.post).toHaveBeenCalledWith(
-      '/admin/accounts/activation-credentials/reissue',
-      { phone: '13800138000' },
-    )
-  })
+  it('listActivationCodes and revokeActivationCode hit the expected paths', async () => {
+    vi.spyOn(http, 'get').mockResolvedValue(ok({ items: [], page: 1, size: 20, total: 0 }))
+    vi.spyOn(http, 'post').mockResolvedValue(ok(null))
 
-  it('currentAuthorizationDocumentVersion returns version', async () => {
-    vi.spyOn(http, 'get').mockResolvedValue(
-      ok({ version: 'v0.3', title: '付费建档与直播内容授权书' }),
-    )
-    await expect(currentAuthorizationDocumentVersion()).resolves.toMatchObject({
-      version: 'v0.3',
+    await listActivationCodes({ status: 'UNUSED', page: 1, size: 20 })
+    await revokeActivationCode(42)
+
+    expect(http.get).toHaveBeenCalledWith('/admin/activation-codes', {
+      params: { status: 'UNUSED', page: 1, size: 20 },
     })
+    expect(http.post).toHaveBeenCalledWith('/admin/activation-codes/42/revoke')
   })
 })
