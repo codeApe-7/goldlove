@@ -19,6 +19,7 @@ describe('guest auth store', () => {
     vi.mocked(api.login).mockResolvedValue({
       accountId: 1,
       status: 'ACTIVE',
+      membershipTier: 'FREE',
       accessToken: 'tok-1',
       expiresIn: 2592000,
     })
@@ -34,6 +35,7 @@ describe('guest auth store', () => {
     vi.mocked(api.login).mockResolvedValue({
       accountId: 1,
       status: 'ACTIVE',
+      membershipTier: 'FREE',
       accessToken: 'tok-1',
       expiresIn: 2592000,
     })

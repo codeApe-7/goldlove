@@ -20,8 +20,7 @@ const draft: GuestProfileDraft = {
   douyinId: 'dy_demo',
   douyinNickname: '晚风轻语',
   douyinProfileUrl: 'https://www.douyin.com/user/demo',
-  pendingRevisionId: null,
-  currentApprovedRevisionId: null,
+  missingRequiredFieldCodes: [],
   dynamicFields: [],
 }
 

@@ -1,51 +1,39 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { usePaymentStore } from '@/stores/payment'
 import { useAuthStore } from '@/stores/auth'
+import * as api from '@/api'
 import AppIcon from '@/components/AppIcon.vue'
+import BrandMark from '@/components/BrandMark.vue'
+import { isPhoneValid, validateRegistrationForm } from '@/validators/registration'
+import type { AuthorizationDocumentView } from '@/types'
 
-const payment = usePaymentStore()
 const auth = useAuthStore()
-const form = reactive({ password: '', confirmPassword: '' })
+const form = reactive({ phone: '', password: '', confirmPassword: '' })
+const agreed = ref(false)
 const loading = ref(false)
 const error = ref('')
+const documentExpanded = ref(false)
+const authorizationDocument = ref<AuthorizationDocumentView | null>(null)
 
-// 手机号在下单时已收下并校验过，这里只回显，改不了——改了后端也会拒。
-const phone = computed(() => payment.orderedPhone)
-const ready = computed(() => payment.readyToRegister)
-const canSubmit = computed(() => ready.value && !loading.value && form.password !== '')
+const phoneValid = computed(() => isPhoneValid(form.phone))
+const canSubmit = computed(
+  () => agreed.value && phoneValid.value && !loading.value && form.password !== '',
+)
 
 function toast(message: string, icon: 'none' | 'success' = 'none'): void {
   uni.showToast({ title: message, icon })
 }
 
-onMounted(() => {
-  payment.pending = payment.pending ?? null
-  if (!ready.value) {
-    error.value = '没有可用的注册凭证，请重新完成支付'
-  } else if (!phone.value) {
-    error.value = '未能取回下单时的手机号，请返回支付页重新领取凭证'
+onMounted(async () => {
+  try {
+    authorizationDocument.value = await api.currentAuthorizationDocument()
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '授权书加载失败'
   }
 })
 
-function validate(): string | null {
-  if (!phone.value) {
-    return '未能取回下单时的手机号，请返回支付页重新领取凭证'
-  }
-  if (form.password.length < 12 || form.password.length > 128) {
-    return '密码需为 12 至 128 位'
-  }
-  if (!/[A-Za-z]/.test(form.password) || !/\d/.test(form.password)) {
-    return '密码需同时包含字母和数字'
-  }
-  if (form.password !== form.confirmPassword) {
-    return '两次输入的密码不一致'
-  }
-  return null
-}
-
 async function submit(): Promise<void> {
-  const invalid = validate()
+  const invalid = validateRegistrationForm({ ...form, agreed: agreed.value })
   if (invalid) {
     error.value = invalid
     return
@@ -53,11 +41,15 @@ async function submit(): Promise<void> {
   loading.value = true
   error.value = ''
   try {
-    const session = await payment.register(phone.value, form.password)
-    auth.session = session
-    toast('账号创建成功', 'success')
-    // 建档注册即 VIP；接着走已有的授权书与档案流程。
-    uni.redirectTo({ url: '/pages/consent/index' })
+    await auth.register(
+      form.phone.trim(),
+      form.password,
+      form.confirmPassword,
+      authorizationDocument.value?.version ?? '',
+    )
+    toast('注册成功', 'success')
+    // 注册完直接进档案页，没有授权关卡也没有付费门槛。
+    uni.switchTab({ url: '/pages/profile/index' })
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '注册失败'
   } finally {
@@ -65,31 +57,23 @@ async function submit(): Promise<void> {
   }
 }
 
-function backToPayment(): void {
-  uni.redirectTo({ url: '/pages/payment/index' })
+function backToLogin(): void {
+  uni.redirectTo({ url: '/pages/auth/index' })
 }
 </script>
 
 <template>
   <view class="register-page archive-page">
-    <view class="header">
-      <text class="title">完成注册</text>
-      <text class="subtitle">支付已完成，设置密码即可建立账号</text>
+    <view class="brand-hero">
+      <BrandMark light />
+      <text class="brand-title">创建账号</text>
+      <text class="brand-sub">免费注册 · 免费建档</text>
     </view>
 
     <view class="surface">
-      <view v-if="!ready" class="notice warn">
-        <AppIcon name="lock" :size="16" />
-        <view>
-          <strong>注册凭证不可用</strong>
-          <text>注册令牌一次性且短时有效。请返回支付页重新领取。</text>
-        </view>
-      </view>
-
       <label class="field-group">
         <text>手机号</text>
-        <input :value="phone" class="field readonly" type="number" disabled />
-        <text class="hint">下单时已确认，如需更换请返回支付页重新下单</text>
+        <input v-model="form.phone" class="field" type="number" maxlength="11" placeholder="请输入手机号" />
       </label>
       <label class="field-group">
         <text>设置密码</text>
@@ -100,18 +84,31 @@ function backToPayment(): void {
         <input v-model="form.confirmPassword" class="field" type="password" placeholder="请再次输入密码" />
       </label>
 
+      <view class="agreement">
+        <view class="checkbox" :class="{ checked: agreed }" @tap="agreed = !agreed">
+          <text v-if="agreed">✓</text>
+        </view>
+        <text class="agreement-text">
+          我已阅读并同意
+          <text class="link" @tap="documentExpanded = !documentExpanded">《{{ authorizationDocument?.title ?? '授权书' }}》</text>
+        </text>
+      </view>
+      <scroll-view v-if="documentExpanded" class="document" scroll-y>
+        <text class="document-body">{{ authorizationDocument?.content }}</text>
+      </scroll-view>
+
       <text v-if="error" class="error">{{ error }}</text>
 
       <button class="archive-button-primary submit" :disabled="!canSubmit" @tap="submit">
-        {{ loading ? '正在创建账号' : '创建账号' }}
+        {{ loading ? '正在创建账号' : '免费注册' }}
       </button>
-      <text v-if="!ready" class="back" @tap="backToPayment">返回支付页</text>
+      <text class="back" @tap="backToLogin">已有账号？返回登录</text>
 
       <view class="notice">
         <AppIcon name="lock" :size="16" />
         <view>
-          <strong>手机号将加密存储</strong>
-          <text>注册成功即成为 VIP 会员；随后阅读并同意授权书，再完善档案资料。</text>
+          <strong>注册与建档均免费</strong>
+          <text>资料仅用于档案匹配；会员为可选的增值服务，可随时在「我的」中升级。</text>
         </view>
       </view>
     </view>
@@ -122,30 +119,40 @@ function backToPayment(): void {
 .register-page {
   min-height: 100vh;
   margin: 0 auto;
-  padding: calc(40rpx + env(safe-area-inset-top)) 28rpx calc(40rpx + env(safe-area-inset-bottom));
+  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
+  background: #ffffff;
 }
-.header {
-  margin-bottom: 24rpx;
+.brand-hero {
+  height: 360rpx;
+  padding-top: calc(80rpx + env(safe-area-inset-top));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #15181c;
+  color: #ffffff;
 }
-.title {
-  display: block;
-  color: #0d0d0f;
+.brand-title {
+  margin-top: 18rpx;
+  color: #ead4a7;
   font-family: "Songti SC", serif;
-  font-size: 40rpx;
-  letter-spacing: 4rpx;
+  font-size: 38rpx;
+  letter-spacing: 7rpx;
 }
-.subtitle {
-  display: block;
-  margin-top: 10rpx;
-  color: #85868a;
-  font-size: 21rpx;
+.brand-sub {
+  margin-top: 14rpx;
+  color: #c2aa7d;
+  font-size: 22rpx;
+  letter-spacing: 6rpx;
 }
 .surface {
-  padding: 28rpx 26rpx 24rpx;
+  position: relative;
+  z-index: 2;
+  margin: -92rpx 28rpx 0;
+  padding: 32rpx 26rpx 24rpx;
   border: 1rpx solid #e5e3df;
   border-radius: 22rpx;
   background: #ffffff;
-  box-shadow: 0 18rpx 48rpx rgba(13, 13, 15, 0.06);
+  box-shadow: 0 18rpx 48rpx rgba(13, 13, 15, 0.09);
 }
 .field-group {
   display: block;
@@ -165,16 +172,53 @@ function backToPayment(): void {
   border-radius: 10rpx;
   font-size: 25rpx;
 }
-.field.readonly {
-  background: #f7f6f3;
-  color: #55565a;
+.agreement {
+  margin-bottom: 18rpx;
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
 }
-.hint {
-  display: block;
-  margin-top: 8rpx;
-  color: #929397;
-  font-size: 19rpx;
-  font-weight: 400;
+.checkbox {
+  flex-shrink: 0;
+  width: 32rpx;
+  height: 32rpx;
+  margin-top: 2rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid #c9c7c2;
+  border-radius: 6rpx;
+  color: #ffffff;
+  font-size: 20rpx;
+}
+.checkbox.checked {
+  border-color: #0d0d0f;
+  background: #0d0d0f;
+}
+.agreement-text {
+  flex: 1;
+  color: #55565a;
+  font-size: 21rpx;
+  line-height: 1.5;
+}
+.link {
+  color: #0d0d0f;
+  font-weight: 600;
+  text-decoration: underline;
+}
+.document {
+  max-height: 400rpx;
+  margin-bottom: 18rpx;
+  padding: 18rpx;
+  border: 1rpx solid #e5e3df;
+  border-radius: 12rpx;
+  background: #faf9f7;
+}
+.document-body {
+  color: #55565a;
+  font-size: 20rpx;
+  line-height: 1.7;
+  white-space: pre-wrap;
 }
 .error {
   display: block;
@@ -200,12 +244,6 @@ function backToPayment(): void {
   gap: 14rpx;
   border: 1rpx solid #e5e3df;
   border-radius: 12rpx;
-}
-.notice.warn {
-  margin-top: 0;
-  margin-bottom: 22rpx;
-  border-color: #e6d5b8;
-  background: #fdf8ee;
 }
 .notice strong,
 .notice text { display: block; }

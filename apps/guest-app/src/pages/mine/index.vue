@@ -1,24 +1,30 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '@/stores/auth'
-import { useConsentStore } from '@/stores/consent'
+import { useVipPaymentStore } from '@/stores/payment'
 import AppIcon from '@/components/AppIcon.vue'
 import SectionCard from '@/components/SectionCard.vue'
 import ArchiveTabBar from '@/components/ArchiveTabBar.vue'
 
 const auth = useAuthStore()
-const consent = useConsentStore()
+const vip = useVipPaymentStore()
+
+const TIER_LABEL: Record<string, string> = {
+  FREE: '普通用户',
+  VIP: 'VIP 会员',
+  SVIP: 'SVIP 会员',
+}
 
 onShow(async () => {
   try {
-    await consent.load()
+    await vip.loadMembership()
   } catch {
     // 未登录/会话失效由 request 统一处理
   }
 })
 
-function renewConsent(): void {
-  uni.navigateTo({ url: '/pages/consent/index' })
+function goVip(): void {
+  uni.navigateTo({ url: '/pages/vip/index' })
 }
 
 async function logout(): Promise<void> {
@@ -39,14 +45,18 @@ function unavailable(): void {
     </view>
 
     <SectionCard>
-      <view class="authorization-row" @tap="renewConsent">
-        <view><text>授权状态</text><strong>{{ consent.current ? '已授权' : '待授权' }}</strong></view>
-        <view><text>{{ consent.current ? `有效期至 ${consent.current.expiresAt.slice(0, 10)}` : '请阅读并同意授权书' }}</text><AppIcon name="chevron" :size="18" /></view>
+      <view class="authorization-row" @tap="goVip">
+        <view><text>当前等级</text><strong>{{ TIER_LABEL[vip.tier] ?? '普通用户' }}</strong></view>
+        <view><text>{{ vip.isVip ? '会员权益已生效' : '升级解锁会员权益' }}</text><AppIcon name="chevron" :size="18" /></view>
       </view>
     </SectionCard>
 
     <SectionCard>
-      <view class="menu-row" @tap="renewConsent"><AppIcon name="authorization" :size="18" /><text>查看 / 重新同意授权书</text><AppIcon name="chevron" :size="18" /></view>
+      <view class="menu-row upgrade" @tap="goVip">
+        <AppIcon name="authorization" :size="18" />
+        <text>{{ vip.isVip ? '会员中心' : '升级 VIP 会员' }}</text>
+        <AppIcon name="chevron" :size="18" />
+      </view>
     </SectionCard>
 
     <SectionCard>
@@ -67,6 +77,7 @@ function unavailable(): void {
 
 <style lang="scss" scoped>
 .mine-page { padding-top: 24rpx; }
+.menu-row.upgrade text { color: #0d0d0f; font-weight: 600; }
 .identity-card {
   min-height: 158rpx;
   margin-bottom: 22rpx;

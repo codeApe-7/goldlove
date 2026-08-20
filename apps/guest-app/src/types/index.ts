@@ -1,6 +1,9 @@
+export type MembershipTier = 'FREE' | 'VIP' | 'SVIP'
+
 export interface GuestSession {
   accountId: number
   status: string
+  membershipTier: MembershipTier
   accessToken: string
   expiresIn: number
 }
@@ -25,15 +28,9 @@ export interface AuthorizationDocumentView {
   effectiveAt: string
 }
 
-export interface ConsentView {
-  id: number
-  authorizationDocumentVersion: string
-  acceptedAt: string
-  expiresAt: string
-}
-
 export interface GuestProfileDraft {
   profileNo: string | null
+  /** NOT_STARTED / DRAFT / COMPLETED —— 没有审核环节，保存即生效。 */
   status: string
   version: number | null
   gender: string | null
@@ -47,8 +44,7 @@ export interface GuestProfileDraft {
   douyinId: string | null
   douyinNickname: string | null
   douyinProfileUrl: string | null
-  pendingRevisionId: number | null
-  currentApprovedRevisionId: number | null
+  missingRequiredFieldCodes: string[]
   dynamicFields: unknown[]
 }
 
@@ -68,58 +64,38 @@ export interface PhotoUploadResult {
 }
 
 export interface MembershipView {
-  tier: 'VIP' | 'SVIP'
+  tier: MembershipTier
   creditMinor: number
   svipThresholdMinor: number
   creditToNextTierMinor: number
 }
 
-/** 线上支付渠道类型。 */
-export type PaymentChannelType = 'WECHAT_JSAPI' | 'XPAY_ALIPAY'
+/** 线上支付渠道类型。当前只有易支付（跳转支付宝收银台）。 */
+export type PaymentChannelType = 'XPAY_ALIPAY'
 
 /** 可以下发前端的渠道设置，不含任何密钥。 */
 export interface OnlinePaymentSettings {
   channelType: PaymentChannelType
   amountMinor: number
   orderDescription: string
-  authorizeUrl: string | null
-  state: string
 }
 
-/** 微信内调起支付所需的参数，全部由后端签名。 */
-export interface JsapiPayParameters {
-  appId: string
-  timeStamp: string
-  nonceStr: string
-  packageValue: string
-  signType: string
-  paySign: string
-}
-
-/** 前端调起支付所需的参数，按 channelType 取用 jumpUrl 或 wechatJsapi。 */
+/** 前端跳转收银台所需的参数，由后端签名后下发。 */
 export interface PayParameters {
   channelType: PaymentChannelType
   jumpUrl: string | null
-  wechatJsapi: JsapiPayParameters | null
 }
 
 export interface OnlineOrder {
   outTradeNo: string
   amountMinor: number
-  authorizationDocumentVersion: string
-  /** paid 为真时后端复用了已支付订单，此字段为 null，前端不应再调起支付。 */
   payParameters: PayParameters | null
-  paid: boolean
 }
 
 export interface OnlineOrderStatus {
   outTradeNo: string
-  status: 'CREATED' | 'PAID' | 'CLOSED' | 'REFUNDED'
+  status: 'CREATED' | 'PAID' | 'CLOSED'
   amountMinor: number
-  registered: boolean
-}
-
-export interface IssuedRegistrationToken {
-  token: string
-  expiresAt: string
+  /** 该笔付款是否已计入会员额度。 */
+  membershipGranted: boolean
 }
