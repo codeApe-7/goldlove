@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useVipPaymentStore } from '@/stores/payment'
 import { readQueryParam } from '@/adapters/returnParams'
+import { goBackOr } from '@/adapters/navigation'
 import { pendingOrderStore } from '@/stores/payment'
 import AppIcon from '@/components/AppIcon.vue'
 import BrandMark from '@/components/BrandMark.vue'
@@ -105,7 +106,8 @@ async function redeem(): Promise<void> {
 }
 
 function back(): void {
-  uni.navigateBack()
+  // 支付回跳 / 直接打开本页时页面栈里没有上一级，必须兜底回「我的」——会员入口就在那。
+  goBackOr('/pages/mine/index')
 }
 </script>
 
