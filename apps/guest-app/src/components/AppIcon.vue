@@ -51,6 +51,23 @@ withDefaults(defineProps<{ name: string; size?: number }>(), { size: 18 })
       <template v-else-if="name === 'camera'">
         <path d="M4 7.5h3l1.35-2h7.3l1.35 2h3v11H4z" /><circle cx="12" cy="13" r="3.3" />
       </template>
+      <template v-else-if="name === 'search'">
+        <circle cx="10.9" cy="10.9" r="6.4" /><path d="m15.6 15.6 4 4" />
+      </template>
+      <template v-else-if="name === 'eye'">
+        <path d="M2.6 12S6.1 5.9 12 5.9 21.4 12 21.4 12 17.9 18.1 12 18.1 2.6 12 2.6 12Z" />
+        <circle cx="12" cy="12" r="2.9" />
+      </template>
+      <template v-else-if="name === 'eye-off'">
+        <path d="M9.6 6.3A8.9 8.9 0 0 1 12 5.9c5.9 0 9.4 6.1 9.4 6.1a17 17 0 0 1-2.5 3.2M6.4 8A17 17 0 0 0 2.6 12S6.1 18.1 12 18.1c1.2 0 2.3-.25 3.3-.66" />
+        <path d="M10.2 10.3a2.9 2.9 0 0 0 3.9 4.2M3.5 3.5l17 17" />
+      </template>
+      <path v-else-if="name === 'plus'" d="M12 5.5v13M5.5 12h13" />
+      <template v-else-if="name === 'check-circle'">
+        <circle cx="12" cy="12" r="9" /><path d="m8 12.3 2.7 2.7L16.2 9.5" />
+      </template>
+      <circle v-else-if="name === 'dot'" cx="12" cy="12" r="4.6" fill="currentColor" stroke="none" />
+      <circle v-else-if="name === 'circle'" cx="12" cy="12" r="8.6" />
       <circle v-else cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
     </svg>
   </view>

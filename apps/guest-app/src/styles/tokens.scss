@@ -1,0 +1,148 @@
+// 设计系统 token —— 对应《婚恋智能档案库 · H5 表单组件与下拉样式规范 v1.0》第 1 区块。
+// 规范图按 375pt 设计稿标注 px，本文件统一按 1 设计 px = 2rpx 换算。
+// 只允许放变量与 mixin：本文件会被十几个组件分别 @use，含裸选择器会被重复打包。
+
+// ==========================================================================
+// 色彩
+// ==========================================================================
+
+$ds-ink: #0e0f12;
+$ds-graphite: #2b2d30;
+$ds-gray: #8a8d94;
+$ds-porcelain: #f5f4f2;
+$ds-line: #e6e4e1;
+$ds-success: #22c55e;
+$ds-warning: #f59e0b;
+$ds-error: #ef4444;
+$ds-info: #3b82f6;
+$ds-gold: #c9a96a;
+$ds-white: #ffffff;
+
+// 规范图的状态标签用的是低饱和底 + 深色字，主色直接铺底会过重。
+$ds-success-soft: #e6f7ec;
+$ds-success-ink: #15803d;
+$ds-warning-soft: #fef3e0;
+$ds-warning-ink: #a16207;
+$ds-error-soft: #fdebeb;
+$ds-error-ink: #dc2626;
+$ds-info-soft: #e8f1fe;
+$ds-info-ink: #1d4ed8;
+$ds-neutral-soft: #f0efed;
+$ds-neutral-ink: #6b6c70;
+
+// 中灰在瓷白底上做占位符偏浅，占位符单独降一档。
+$ds-placeholder: #a8abb2;
+$ds-disabled-bg: #f2f1ef;
+$ds-disabled-ink: #b4b7bd;
+
+// ==========================================================================
+// 字体
+// ==========================================================================
+
+// 思源黑体 / HarmonyOS Sans 多数设备没有预装，这里按序兜底到系统中文字体。
+// 不打包 web font：中文子集动辄数百 KB，H5 首屏不划算。
+$ds-font-cn: "HarmonyOS Sans SC", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+// 规范图数字用 DIN / Tabular Figures，DIN 同样不预装，靠等宽数字特性保证纵向对齐。
+$ds-font-num: "DIN Alternate", "DIN Condensed", $ds-font-cn;
+$ds-font-serif: "Songti SC", "Source Han Serif SC", serif;
+
+@mixin ds-h1 {
+  font-size: 68rpx;
+  line-height: 88rpx;
+  font-weight: 700;
+}
+
+@mixin ds-h2 {
+  font-size: 56rpx;
+  line-height: 72rpx;
+  font-weight: 500;
+}
+
+@mixin ds-h3 {
+  font-size: 40rpx;
+  line-height: 56rpx;
+  font-weight: 500;
+}
+
+@mixin ds-body-1 {
+  font-size: 32rpx;
+  line-height: 48rpx;
+  font-weight: 400;
+}
+
+@mixin ds-body-2 {
+  font-size: 28rpx;
+  line-height: 40rpx;
+  font-weight: 400;
+}
+
+@mixin ds-caption {
+  font-size: 24rpx;
+  line-height: 32rpx;
+  font-weight: 400;
+}
+
+@mixin ds-tabular {
+  font-family: $ds-font-num;
+  font-variant-numeric: tabular-nums;
+}
+
+// ==========================================================================
+// 间距（4pt 基准：4 8 12 16 20 24 32 40 64 px）
+// ==========================================================================
+
+$ds-space-1: 8rpx;
+$ds-space-2: 16rpx;
+$ds-space-3: 24rpx;
+$ds-space-4: 32rpx;
+$ds-space-5: 40rpx;
+$ds-space-6: 48rpx;
+$ds-space-7: 64rpx;
+$ds-space-8: 80rpx;
+$ds-space-9: 128rpx;
+
+// ==========================================================================
+// 圆角（4 8 16 20 24 px）
+// ==========================================================================
+
+$ds-radius-xs: 8rpx;
+$ds-radius-sm: 16rpx;
+$ds-radius-md: 32rpx;
+$ds-radius-lg: 40rpx;
+$ds-radius-xl: 48rpx;
+$ds-radius-pill: 999rpx;
+
+// ==========================================================================
+// 阴影（只用于卡片与弹层，不铺到普通控件上）
+// ==========================================================================
+
+$ds-shadow-soft: 0 2rpx 4rpx rgba(0, 0, 0, 0.06);
+$ds-shadow-mid: 0 8rpx 24rpx rgba(0, 0, 0, 0.08);
+$ds-shadow-deep: 0 16rpx 48rpx rgba(0, 0, 0, 0.12);
+
+// ==========================================================================
+// 控件尺寸
+// ==========================================================================
+
+// 88rpx ≈ 44px，移动端可点区域下限；小号用于内联次级控件。
+$ds-control-height: 88rpx;
+$ds-control-height-sm: 72rpx;
+$ds-hairline: 1rpx;
+// H5 单栏最大宽度，与 tabBar、页面容器保持同一个值。
+$ds-viewport-max: 430px;
+
+// 弹层与遮罩
+$ds-mask: rgba(14, 15, 18, 0.45);
+$ds-sheet-row-height: 88rpx;
+$ds-transition: 180ms ease;
+
+@mixin ds-focus-ring {
+  border-color: $ds-ink;
+  box-shadow: 0 0 0 4rpx rgba(14, 15, 18, 0.06);
+}
+
+@mixin ds-truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

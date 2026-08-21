@@ -4,7 +4,8 @@
     { "path": "pages/mine/index", "style": { "navigationBarTitleText": "我的" } },
     { "path": "pages/auth/index", "style": { "navigationBarTitleText": "登录", "navigationStyle": "custom" } },
     { "path": "pages/register/index", "style": { "navigationBarTitleText": "注册", "navigationStyle": "custom" } },
-    { "path": "pages/vip/index", "style": { "navigationBarTitleText": "会员", "navigationStyle": "custom" } }
+    { "path": "pages/vip/index", "style": { "navigationBarTitleText": "会员", "navigationStyle": "custom" } },
+    { "path": "pages/design/index", "style": { "navigationBarTitleText": "设计系统规范", "navigationStyle": "custom" } }
   ],
   "tabBar": {
     "color": "#85868A",

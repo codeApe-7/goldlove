@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   guestStatusMeta,
+  isPrivateValue,
+  PRIVATE_FIELD_VALUES,
   profileCompletion,
   profileGroup,
   remainingLifePhotoSlots,
@@ -37,5 +39,32 @@ describe('guest presentation helpers', () => {
   it('counts only life photos against the six-photo limit', () => {
     expect(remainingLifePhotoSlots([{ category: 'AVATAR' }, { category: 'LIFE' }])).toBe(5)
     expect(remainingLifePhotoSlots(Array.from({ length: 7 }, () => ({ category: 'LIFE' })))).toBe(0)
+  })
+})
+
+describe('isPrivateValue', () => {
+  it('识别保密与不公开', () => {
+    expect(isPrivateValue('保密')).toBe(true)
+    expect(isPrivateValue('不公开')).toBe(true)
+  })
+
+  it('容忍首尾空白', () => {
+    expect(isPrivateValue(' 保密 ')).toBe(true)
+  })
+
+  it('具体档位不算保密', () => {
+    expect(isPrivateValue('30万-50万')).toBe(false)
+    expect(isPrivateValue('20万以下')).toBe(false)
+  })
+
+  it('空值与非字符串不算保密', () => {
+    expect(isPrivateValue('')).toBe(false)
+    expect(isPrivateValue(null)).toBe(false)
+    expect(isPrivateValue(undefined)).toBe(false)
+    expect(isPrivateValue(30)).toBe(false)
+  })
+
+  it('保密值清单里不含具体档位', () => {
+    expect(PRIVATE_FIELD_VALUES).toEqual(['保密', '不公开'])
   })
 })

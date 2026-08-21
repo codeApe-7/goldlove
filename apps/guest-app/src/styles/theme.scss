@@ -1,15 +1,12 @@
-$archive-ink: #0d0d0f;
-$archive-graphite: #1e1e22;
-$archive-muted: #6b6c70;
-$archive-line: #e5e3df;
-$archive-bg: #f7f6f3;
-$archive-gold: #c9a96a;
+@use './tokens.scss' as *;
+
+// 全局基底。组件级样式一律 @use tokens 自取变量，不依赖这里的类。
 
 page {
   min-height: 100%;
-  background: $archive-bg;
-  color: $archive-ink;
-  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  background: $ds-porcelain;
+  color: $ds-ink;
+  font-family: $ds-font-cn;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -27,59 +24,67 @@ button::after { border: 0; }
   width: 100%;
   min-height: 100vh;
   margin: 0 auto;
-  padding: 28rpx 28rpx calc(150rpx + env(safe-area-inset-bottom));
-  background: $archive-bg;
+  padding: $ds-space-3 $ds-space-4 calc(#{$ds-space-9} + 40rpx + env(safe-area-inset-bottom));
+  background: $ds-porcelain;
 }
 
+// TODO(dead-code): .archive-title / .archive-subtitle / .archive-tabbar-space 当前无调用点，
+// 属于本次改动之前就存在的死样式，按「不在功能改动里顺手清理」的约定保留，另开清理任务。
 .archive-title {
-  color: $archive-ink;
-  font-size: 38rpx;
-  line-height: 1.25;
-  font-weight: 700;
+  @include ds-h3;
+  color: $ds-ink;
   letter-spacing: -1rpx;
 }
 
 .archive-subtitle {
-  margin-top: 8rpx;
-  color: $archive-muted;
-  font-size: 24rpx;
-}
-
-.archive-button-primary,
-.archive-button-secondary {
-  height: 84rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12rpx;
-  font-size: 27rpx;
-  font-weight: 600;
-  line-height: 84rpx;
-}
-
-.archive-button-primary {
-  background: $archive-ink;
-  color: #ffffff;
-}
-
-.archive-button-secondary {
-  border: 1rpx solid $archive-line;
-  background: #ffffff;
-  color: $archive-ink;
-}
-
-.archive-button-primary[disabled],
-.archive-button-secondary[disabled] {
-  opacity: 0.45;
+  @include ds-caption;
+  margin-top: $ds-space-1;
+  color: $ds-gray;
 }
 
 .archive-tabbar-space { height: calc(110rpx + env(safe-area-inset-bottom)); }
 
-.archive-tabular { font-variant-numeric: tabular-nums; }
+.archive-tabular {
+  @include ds-tabular;
+}
+
+// 按钮基础类保留给尚未迁移的调用点，迁移到 AppButton 后即可删除。
+.archive-button-primary,
+.archive-button-secondary {
+  height: $ds-control-height;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $ds-radius-sm;
+  font-size: 30rpx;
+  font-weight: 600;
+  line-height: $ds-control-height;
+}
+
+.archive-button-primary {
+  background: $ds-ink;
+  color: $ds-white;
+}
+
+.archive-button-secondary {
+  border: $ds-hairline solid $ds-line;
+  background: $ds-white;
+  color: $ds-ink;
+}
+
+.archive-button-primary[disabled],
+.archive-button-secondary[disabled] {
+  background: $ds-disabled-bg;
+  border-color: $ds-disabled-bg;
+  color: $ds-disabled-ink;
+}
 
 @media screen and (min-width: 431px) {
   page { background: #ecebe8; }
-  .archive-page { max-width: 430px; box-shadow: 0 0 32px rgba(13, 13, 15, 0.06); }
+  .archive-page {
+    max-width: $ds-viewport-max;
+    box-shadow: $ds-shadow-mid;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

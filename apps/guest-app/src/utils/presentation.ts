@@ -1,6 +1,17 @@
 export type ProfileGroup = 'basic' | 'career' | 'social' | 'more'
 export type GuestStatusTone = 'neutral' | 'warning' | 'success' | 'danger'
 
+/**
+ * 选了这些值的字段不对外展示具体内容，只显示「保密」本身。
+ * 年薪是唯一支持保密的字段：档位本身就是敏感信息，用户可以选择不公开。
+ */
+export const PRIVATE_FIELD_VALUES = ['保密', '不公开'] as const
+
+export function isPrivateValue(value: unknown): boolean {
+  return typeof value === 'string'
+    && (PRIVATE_FIELD_VALUES as readonly string[]).includes(value.trim())
+}
+
 const FIELD_GROUPS: Record<string, ProfileGroup> = {
   gender: 'basic',
   birth_date: 'basic',
