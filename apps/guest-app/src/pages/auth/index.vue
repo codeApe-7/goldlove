@@ -3,6 +3,8 @@ import { reactive, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import BrandMark from '@/components/BrandMark.vue'
 import AppIcon from '@/components/AppIcon.vue'
+import AppButton from '@/components/AppButton.vue'
+import AppInput from '@/components/AppInput.vue'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -43,17 +45,17 @@ function goRegister(): void {
     </view>
     <view class="auth-surface">
       <view class="form-body">
-        <label class="field-group">
-          <text>手机号</text>
-          <input v-model="form.phone" class="field" type="number" placeholder="请输入手机号" maxlength="11" />
-        </label>
-        <label class="field-group">
-          <text>密码</text>
-          <input v-model="form.password" class="field" type="password" placeholder="请输入密码" />
-        </label>
-        <button class="archive-button-primary submit" :disabled="loading" @tap="submit">
+        <view class="field-group">
+          <text class="field-label">手机号</text>
+          <AppInput v-model="form.phone" type="number" placeholder="请输入手机号" :maxlength="11" />
+        </view>
+        <view class="field-group">
+          <text class="field-label">密码</text>
+          <AppInput v-model="form.password" type="password" placeholder="请输入密码" />
+        </view>
+        <AppButton block :disabled="loading" @tap="submit">
           {{ loading ? '登录中' : '登录' }}
-        </button>
+        </AppButton>
         <text class="register-entry" @tap="goRegister">还没有账号？免费注册建档</text>
       </view>
       <view class="privacy-note"><AppIcon name="lock" :size="16" /><view><strong>我们将严格保护您的隐私与数据安全</strong><text>所有信息仅用于档案匹配，经授权后方可使用。</text></view></view>
@@ -63,11 +65,13 @@ function goRegister(): void {
 </template>
 
 <style lang="scss" scoped>
+@use '@/styles/tokens.scss' as *;
+
 .auth-page {
   min-height: 100vh;
   margin: 0 auto;
-  padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
-  background: #ffffff;
+  padding-bottom: calc(#{$ds-space-7} + env(safe-area-inset-bottom));
+  background: $ds-white;
 }
 .brand-hero {
   position: relative;
@@ -78,7 +82,7 @@ function goRegister(): void {
   align-items: center;
   overflow: hidden;
   background: #15181c;
-  color: #ffffff;
+  color: $ds-white;
 }
 .contour-lines {
   position: absolute;
@@ -104,85 +108,78 @@ function goRegister(): void {
 .brand-title,
 .brand-sub { position: relative; }
 .brand-title {
-  margin-top: 18rpx;
+  margin-top: $ds-space-2;
   color: #ead4a7;
-  font-family: "Songti SC", serif;
-  font-size: 38rpx;
+  font-family: $ds-font-serif;
+  font-size: 44rpx;
   letter-spacing: 7rpx;
 }
 .brand-sub {
-  margin-top: 14rpx;
+  margin-top: $ds-space-2;
+  @include ds-caption;
   color: #c2aa7d;
-  font-size: 22rpx;
   letter-spacing: 6rpx;
 }
 .auth-surface {
   position: relative;
   z-index: 2;
-  margin: -92rpx 28rpx 0;
+  margin: -92rpx $ds-space-4 0;
   overflow: hidden;
-  border: 1rpx solid #e5e3df;
-  border-radius: 22rpx;
-  background: #ffffff;
-  box-shadow: 0 18rpx 48rpx rgba(13, 13, 15, 0.09);
+  border: $ds-hairline solid $ds-line;
+  border-radius: $ds-radius-md;
+  background: $ds-white;
+  box-shadow: $ds-shadow-deep;
 }
 .form-body {
-  padding: 32rpx 32rpx 28rpx;
+  padding: $ds-space-5 $ds-space-5 $ds-space-4;
 }
 .field-group {
-  display: block;
-  margin-bottom: 24rpx;
+  margin-bottom: $ds-space-4;
 }
-.field-group > text {
+.field-label {
   display: block;
-  margin-bottom: 10rpx;
-  font-size: 23rpx;
+  margin-bottom: $ds-space-2;
+  @include ds-body-2;
   font-weight: 600;
-}
-.field {
-  width: 100%;
-  height: 76rpx;
-  padding: 0 22rpx;
-  border: 1rpx solid #dfddd9;
-  border-radius: 10rpx;
-  font-size: 25rpx;
-}
-.submit {
-  margin-top: 8rpx;
 }
 .register-entry {
   display: block;
-  margin-top: 20rpx;
-  color: #0d0d0f;
+  margin-top: $ds-space-4;
+  @include ds-body-2;
+  color: $ds-ink;
   text-align: center;
-  font-size: 21rpx;
   font-weight: 600;
   text-decoration: underline;
 }
 .privacy-note {
-  margin: 0 20rpx 20rpx;
-  padding: 20rpx;
+  margin: 0 $ds-space-3 $ds-space-3;
+  padding: $ds-space-3;
   display: flex;
-  gap: 14rpx;
-  border: 1rpx solid #e5e3df;
-  border-radius: 12rpx;
-  color: #55565a;
+  gap: $ds-space-2;
+  border: $ds-hairline solid $ds-line;
+  border-radius: $ds-radius-sm;
+  color: $ds-graphite;
 }
 .privacy-note strong,
 .privacy-note text { display: block; }
-.privacy-note strong { font-size: 21rpx; }
-.privacy-note text { margin-top: 5rpx; color: #929397; font-size: 19rpx; line-height: 1.5; }
+.privacy-note strong { @include ds-body-2; }
+.privacy-note text {
+  margin-top: $ds-space-1;
+  @include ds-caption;
+  color: $ds-gray;
+  line-height: 34rpx;
+}
 .service-footer {
-  margin-top: 54rpx;
+  margin-top: $ds-space-8;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 9rpx;
-  color: #8b8c90;
-  font-size: 20rpx;
+  gap: $ds-space-1;
+  @include ds-caption;
+  color: $ds-gray;
 }
-.service-footer text:nth-child(2) { color: #4a4b4f; }
+.service-footer text:nth-child(2) { color: $ds-graphite; }
 @media screen and (min-width: 431px) {
-  .auth-page { max-width: 430px; }
+  .auth-page { max-width: $ds-viewport-max; }
 }
 </style>

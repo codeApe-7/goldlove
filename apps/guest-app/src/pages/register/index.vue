@@ -4,6 +4,9 @@ import { useAuthStore } from '@/stores/auth'
 import * as api from '@/api'
 import AppIcon from '@/components/AppIcon.vue'
 import BrandMark from '@/components/BrandMark.vue'
+import AppButton from '@/components/AppButton.vue'
+import AppInput from '@/components/AppInput.vue'
+import AppCheckbox from '@/components/AppCheckbox.vue'
 import { isPhoneValid, validateRegistrationForm } from '@/validators/registration'
 import type { AuthorizationDocumentView } from '@/types'
 
@@ -71,27 +74,30 @@ function backToLogin(): void {
     </view>
 
     <view class="surface">
-      <label class="field-group">
-        <text>手机号</text>
-        <input v-model="form.phone" class="field" type="number" maxlength="11" placeholder="请输入手机号" />
-      </label>
-      <label class="field-group">
-        <text>设置密码</text>
-        <input v-model="form.password" class="field" type="password" placeholder="12 至 128 位，含字母和数字" />
-      </label>
-      <label class="field-group">
-        <text>确认密码</text>
-        <input v-model="form.confirmPassword" class="field" type="password" placeholder="请再次输入密码" />
-      </label>
+      <view class="field-group">
+        <text class="field-label">手机号</text>
+        <AppInput v-model="form.phone" type="number" placeholder="请输入手机号" :maxlength="11" />
+      </view>
+      <view class="field-group">
+        <text class="field-label">设置密码</text>
+        <AppInput
+          v-model="form.password"
+          type="password"
+          placeholder="12 至 128 位，含字母和数字"
+        />
+      </view>
+      <view class="field-group">
+        <text class="field-label">确认密码</text>
+        <AppInput v-model="form.confirmPassword" type="password" placeholder="请再次输入密码" />
+      </view>
 
       <view class="agreement">
-        <view class="checkbox" :class="{ checked: agreed }" @tap="agreed = !agreed">
-          <text v-if="agreed">✓</text>
-        </view>
-        <text class="agreement-text">
+        <AppCheckbox v-model="agreed">
           我已阅读并同意
-          <text class="link" @tap="documentExpanded = !documentExpanded">《{{ authorizationDocument?.title ?? '授权书' }}》</text>
-        </text>
+          <text class="link" @tap.stop="documentExpanded = !documentExpanded">
+            《{{ authorizationDocument?.title ?? '档案与直播内容授权书' }}》
+          </text>
+        </AppCheckbox>
       </view>
       <scroll-view v-if="documentExpanded" class="document" scroll-y>
         <text class="document-body">{{ authorizationDocument?.content }}</text>
@@ -99,9 +105,9 @@ function backToLogin(): void {
 
       <text v-if="error" class="error">{{ error }}</text>
 
-      <button class="archive-button-primary submit" :disabled="!canSubmit" @tap="submit">
+      <AppButton block :disabled="!canSubmit" @tap="submit">
         {{ loading ? '正在创建账号' : '免费注册' }}
-      </button>
+      </AppButton>
       <text class="back" @tap="backToLogin">已有账号？返回登录</text>
 
       <view class="notice">
@@ -116,11 +122,13 @@ function backToLogin(): void {
 </template>
 
 <style lang="scss" scoped>
+@use '@/styles/tokens.scss' as *;
+
 .register-page {
   min-height: 100vh;
   margin: 0 auto;
-  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
-  background: #ffffff;
+  padding-bottom: calc(#{$ds-space-8} + env(safe-area-inset-bottom));
+  background: $ds-white;
 }
 .brand-hero {
   height: 360rpx;
@@ -129,127 +137,94 @@ function backToLogin(): void {
   flex-direction: column;
   align-items: center;
   background: #15181c;
-  color: #ffffff;
+  color: $ds-white;
 }
 .brand-title {
-  margin-top: 18rpx;
+  margin-top: $ds-space-2;
   color: #ead4a7;
-  font-family: "Songti SC", serif;
-  font-size: 38rpx;
+  font-family: $ds-font-serif;
+  font-size: 44rpx;
   letter-spacing: 7rpx;
 }
 .brand-sub {
-  margin-top: 14rpx;
+  margin-top: $ds-space-2;
+  @include ds-caption;
   color: #c2aa7d;
-  font-size: 22rpx;
   letter-spacing: 6rpx;
 }
 .surface {
   position: relative;
   z-index: 2;
-  margin: -92rpx 28rpx 0;
-  padding: 32rpx 26rpx 24rpx;
-  border: 1rpx solid #e5e3df;
-  border-radius: 22rpx;
-  background: #ffffff;
-  box-shadow: 0 18rpx 48rpx rgba(13, 13, 15, 0.09);
+  margin: -92rpx $ds-space-4 0;
+  padding: $ds-space-5 $ds-space-5 $ds-space-4;
+  border: $ds-hairline solid $ds-line;
+  border-radius: $ds-radius-md;
+  background: $ds-white;
+  box-shadow: $ds-shadow-deep;
 }
 .field-group {
-  display: block;
-  margin-bottom: 24rpx;
+  margin-bottom: $ds-space-4;
 }
-.field-group > text {
+.field-label {
   display: block;
-  margin-bottom: 10rpx;
-  font-size: 23rpx;
+  margin-bottom: $ds-space-2;
+  @include ds-body-2;
   font-weight: 600;
 }
-.field {
-  width: 100%;
-  height: 76rpx;
-  padding: 0 22rpx;
-  border: 1rpx solid #dfddd9;
-  border-radius: 10rpx;
-  font-size: 25rpx;
-}
 .agreement {
-  margin-bottom: 18rpx;
-  display: flex;
-  align-items: flex-start;
-  gap: 12rpx;
-}
-.checkbox {
-  flex-shrink: 0;
-  width: 32rpx;
-  height: 32rpx;
-  margin-top: 2rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1rpx solid #c9c7c2;
-  border-radius: 6rpx;
-  color: #ffffff;
-  font-size: 20rpx;
-}
-.checkbox.checked {
-  border-color: #0d0d0f;
-  background: #0d0d0f;
-}
-.agreement-text {
-  flex: 1;
-  color: #55565a;
-  font-size: 21rpx;
-  line-height: 1.5;
+  margin-bottom: $ds-space-3;
 }
 .link {
-  color: #0d0d0f;
+  color: $ds-ink;
   font-weight: 600;
   text-decoration: underline;
 }
 .document {
   max-height: 400rpx;
-  margin-bottom: 18rpx;
-  padding: 18rpx;
-  border: 1rpx solid #e5e3df;
-  border-radius: 12rpx;
+  margin-bottom: $ds-space-3;
+  padding: $ds-space-3;
+  border: $ds-hairline solid $ds-line;
+  border-radius: $ds-radius-sm;
   background: #faf9f7;
 }
 .document-body {
-  color: #55565a;
-  font-size: 20rpx;
-  line-height: 1.7;
+  @include ds-caption;
+  color: $ds-graphite;
+  line-height: 38rpx;
   white-space: pre-wrap;
 }
 .error {
   display: block;
-  margin-bottom: 14rpx;
-  color: #b3261e;
-  font-size: 21rpx;
-}
-.submit {
-  width: 100%;
+  margin-bottom: $ds-space-2;
+  @include ds-caption;
+  color: $ds-error;
 }
 .back {
   display: block;
-  margin-top: 14rpx;
-  color: #85868a;
+  margin-top: $ds-space-3;
+  @include ds-caption;
+  color: $ds-gray;
   text-align: center;
-  font-size: 20rpx;
   text-decoration: underline;
 }
 .notice {
-  margin-top: 22rpx;
-  padding: 18rpx;
+  margin-top: $ds-space-4;
+  padding: $ds-space-3;
   display: flex;
-  gap: 14rpx;
-  border: 1rpx solid #e5e3df;
-  border-radius: 12rpx;
+  gap: $ds-space-2;
+  border: $ds-hairline solid $ds-line;
+  border-radius: $ds-radius-sm;
 }
 .notice strong,
 .notice text { display: block; }
-.notice strong { font-size: 21rpx; }
-.notice text { margin-top: 5rpx; color: #929397; font-size: 19rpx; line-height: 1.5; }
+.notice strong { @include ds-body-2; }
+.notice text {
+  margin-top: $ds-space-1;
+  @include ds-caption;
+  color: $ds-gray;
+  line-height: 34rpx;
+}
 @media screen and (min-width: 431px) {
-  .register-page { max-width: 430px; }
+  .register-page { max-width: $ds-viewport-max; }
 }
 </style>

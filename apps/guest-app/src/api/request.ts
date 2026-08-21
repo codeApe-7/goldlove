@@ -65,6 +65,7 @@ export function request<T>(options: UniApp.RequestOptions): Promise<T> {
 export function uploadPhoto(
   source: PhotoUploadSource | string,
   category: 'AVATAR' | 'LIFE',
+  onProgress?: (percent: number) => void,
 ): Promise<ApiEnvelope<PhotoUploadResult>> {
   return new Promise((resolve, reject) => {
     const options: UniApp.UploadFileOption = {
@@ -101,6 +102,12 @@ export function uploadPhoto(
     } else {
       options.filePath = resolved.filePath
     }
-    uni.uploadFile(options)
+    // 带 success / fail 回调时 uni.uploadFile 返回的是 UploadTask，但类型声明里被
+    // Promise 重载抢先命中，只能断言回来才能挂进度监听。
+    const task = uni.uploadFile(options) as unknown as UniApp.UploadTask | undefined
+    // 上传进度用于渲染进度环。部分平台不返回 UploadTask，拿不到就不显示百分比。
+    if (onProgress && task?.onProgressUpdate) {
+      task.onProgressUpdate((result) => onProgress(result.progress))
+    }
   })
 }

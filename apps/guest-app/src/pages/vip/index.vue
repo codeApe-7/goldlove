@@ -6,6 +6,8 @@ import { goBackOr } from '@/adapters/navigation'
 import { pendingOrderStore } from '@/stores/payment'
 import AppIcon from '@/components/AppIcon.vue'
 import BrandMark from '@/components/BrandMark.vue'
+import AppButton from '@/components/AppButton.vue'
+import AppInput from '@/components/AppInput.vue'
 
 const vip = useVipPaymentStore()
 const code = ref('')
@@ -132,17 +134,19 @@ function back(): void {
 
       <view class="method">
         <text class="section-title">方式一 · 在线支付</text>
-        <button class="archive-button-primary submit" :disabled="loading" @tap="startPayment">
+        <AppButton block :disabled="loading" @tap="startPayment">
           {{ loading ? busyLabel || '处理中' : `支付宝支付 ${vip.amountLabel}` }}
-        </button>
+        </AppButton>
       </view>
 
       <view class="method">
         <text class="section-title">方式二 · 激活码</text>
-        <input v-model="code" class="field" type="text" placeholder="请输入激活码，如 LOVE-XXXX-XXXX-XXXX" />
-        <button class="archive-button-ghost submit" :disabled="!canRedeem" @tap="redeem">
-          使用激活码升级
-        </button>
+        <AppInput v-model="code" placeholder="请输入激活码，如 LOVE-XXXX-XXXX-XXXX" />
+        <view class="redeem">
+          <AppButton variant="secondary" block :disabled="!canRedeem" @tap="redeem">
+            使用激活码升级
+          </AppButton>
+        </view>
         <text class="hint">激活码在生成时已绑定手机号，只能由该手机号的账号使用</text>
       </view>
 
@@ -152,11 +156,13 @@ function back(): void {
 </template>
 
 <style lang="scss" scoped>
+@use '@/styles/tokens.scss' as *;
+
 .vip-page {
   min-height: 100vh;
   margin: 0 auto;
-  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
-  background: #ffffff;
+  padding-bottom: calc(#{$ds-space-8} + env(safe-area-inset-bottom));
+  background: $ds-white;
 }
 .brand-hero {
   height: 340rpx;
@@ -165,90 +171,83 @@ function back(): void {
   flex-direction: column;
   align-items: center;
   background: #15181c;
-  color: #ffffff;
+  color: $ds-white;
 }
 .brand-title {
-  margin-top: 18rpx;
+  margin-top: $ds-space-2;
   color: #ead4a7;
-  font-family: "Songti SC", serif;
-  font-size: 38rpx;
+  font-family: $ds-font-serif;
+  font-size: 44rpx;
   letter-spacing: 7rpx;
 }
 .brand-sub {
-  margin-top: 14rpx;
+  margin-top: $ds-space-2;
+  @include ds-caption;
   color: #c2aa7d;
-  font-size: 22rpx;
   letter-spacing: 4rpx;
 }
 .surface {
   position: relative;
   z-index: 2;
-  margin: -92rpx 28rpx 0;
-  padding: 30rpx 26rpx 24rpx;
-  border: 1rpx solid #e5e3df;
-  border-radius: 22rpx;
-  background: #ffffff;
-  box-shadow: 0 18rpx 48rpx rgba(13, 13, 15, 0.09);
+  margin: -92rpx $ds-space-4 0;
+  padding: $ds-space-5 $ds-space-5 $ds-space-4;
+  border: $ds-hairline solid $ds-line;
+  border-radius: $ds-radius-md;
+  background: $ds-white;
+  box-shadow: $ds-shadow-deep;
 }
 .section-title {
   display: block;
-  margin-bottom: 14rpx;
-  font-size: 23rpx;
+  margin-bottom: $ds-space-2;
+  @include ds-body-2;
   font-weight: 600;
 }
 .benefits {
-  padding-bottom: 22rpx;
-  border-bottom: 1rpx solid #eeece8;
+  padding-bottom: $ds-space-4;
+  border-bottom: $ds-hairline solid #eeece8;
 }
 .benefit {
-  margin-bottom: 12rpx;
+  margin-bottom: $ds-space-2;
   display: flex;
   align-items: center;
-  gap: 12rpx;
-  color: #55565a;
-  font-size: 21rpx;
+  gap: $ds-space-2;
+  @include ds-body-2;
+  color: $ds-graphite;
 }
 .method {
-  margin-top: 24rpx;
+  margin-top: $ds-space-4;
 }
-.field {
-  width: 100%;
-  height: 76rpx;
-  margin-bottom: 14rpx;
-  padding: 0 22rpx;
-  border: 1rpx solid #dfddd9;
-  border-radius: 10rpx;
-  font-size: 25rpx;
+.redeem {
+  margin-top: $ds-space-2;
 }
-.submit { width: 100%; }
 .hint {
   display: block;
-  margin-top: 10rpx;
-  color: #929397;
-  font-size: 19rpx;
-  line-height: 1.5;
+  margin-top: $ds-space-2;
+  @include ds-caption;
+  color: $ds-gray;
+  line-height: 34rpx;
 }
 .notice-text {
   display: block;
-  margin-top: 18rpx;
-  color: #1f7a4d;
-  font-size: 21rpx;
+  margin-top: $ds-space-3;
+  @include ds-body-2;
+  color: $ds-success-ink;
 }
 .error {
   display: block;
-  margin-top: 18rpx;
-  color: #b3261e;
-  font-size: 21rpx;
+  margin-top: $ds-space-3;
+  @include ds-body-2;
+  color: $ds-error;
 }
 .back {
   display: block;
-  margin-top: 24rpx;
-  color: #85868a;
+  margin-top: $ds-space-4;
+  @include ds-caption;
+  color: $ds-gray;
   text-align: center;
-  font-size: 20rpx;
   text-decoration: underline;
 }
 @media screen and (min-width: 431px) {
-  .vip-page { max-width: 430px; }
+  .vip-page { max-width: $ds-viewport-max; }
 }
 </style>

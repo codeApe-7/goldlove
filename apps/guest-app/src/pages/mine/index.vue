@@ -112,85 +112,109 @@ function unavailable(): void {
 </template>
 
 <style lang="scss" scoped>
-.mine-page { padding-top: 24rpx; }
-.menu-row.upgrade text { color: #0d0d0f; font-weight: 600; }
+@use '@/styles/tokens.scss' as *;
+
+.mine-page { padding-top: $ds-space-3; }
+.menu-row.upgrade text { color: $ds-ink; font-weight: 600; }
 .identity-card {
-  min-height: 158rpx;
-  margin-bottom: 22rpx;
-  padding: 28rpx;
+  min-height: 178rpx;
+  margin-bottom: $ds-space-3;
+  padding: $ds-space-4;
   display: flex;
   align-items: center;
-  gap: 22rpx;
-  border-radius: 22rpx;
+  gap: $ds-space-3;
+  border-radius: $ds-radius-md;
   background: linear-gradient(145deg, #171a1e, #222529);
-  color: #ffffff;
-  box-shadow: 0 16rpx 32rpx rgba(13, 13, 15, 0.12);
+  color: $ds-white;
+  box-shadow: $ds-shadow-deep;
 }
 .avatar-mark {
-  width: 88rpx;
-  height: 88rpx;
+  width: 96rpx;
+  height: 96rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1rpx solid rgba(255,255,255,.18);
+  border: $ds-hairline solid rgba(255, 255, 255, 0.18);
   border-radius: 50%;
-  background: rgba(255,255,255,.08);
+  background: rgba(255, 255, 255, 0.08);
   color: #dbc28f;
 }
 .identity-copy strong,
 .identity-copy text { display: block; }
-.identity-copy strong { font-size: 28rpx; }
-.identity-copy text { margin-top: 8rpx; color: #a9aaae; font-size: 21rpx; }
+.identity-copy strong { @include ds-h3; }
+.identity-copy text {
+  margin-top: $ds-space-1;
+  @include ds-caption;
+  color: #a9aaae;
+}
 .authorization-row {
-  min-height: 102rpx;
-  padding: 18rpx 20rpx;
+  min-height: 118rpx;
+  padding: $ds-space-3;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: $ds-space-3;
 }
 .authorization-row > view:first-child text,
 .authorization-row > view:first-child strong { display: block; }
-.authorization-row > view:first-child text { color: #85868a; font-size: 20rpx; }
-.authorization-row > view:first-child strong { margin-top: 5rpx; font-size: 25rpx; }
-.authorization-row > view:last-child { display: flex; align-items: center; color: #8a8b8f; font-size: 19rpx; }
-.menu-row {
-  min-height: 82rpx;
-  padding: 0 20rpx;
+.authorization-row > view:first-child text {
+  @include ds-caption;
+  color: $ds-gray;
+}
+.authorization-row > view:first-child strong {
+  margin-top: $ds-space-1;
+  @include ds-body-1;
+}
+.authorization-row > view:last-child {
   display: flex;
   align-items: center;
-  gap: 16rpx;
-  border-bottom: 1rpx solid #edebe7;
-  color: #444549;
+  @include ds-caption;
+  color: $ds-gray;
+}
+.menu-row {
+  min-height: $ds-control-height;
+  padding: 0 $ds-space-3;
+  display: flex;
+  align-items: center;
+  gap: $ds-space-2;
+  border-bottom: $ds-hairline solid #edebe7;
+  color: $ds-graphite;
 }
 .menu-row:last-child { border-bottom: 0; }
-.menu-row > text:nth-child(2) { flex: 1; font-size: 23rpx; }
-.menu-row small { color: #8a8b8f; font-size: 19rpx; }
-.menu-row > :last-child { color: #9a9b9e; }
+.menu-row > text:nth-child(2) {
+  flex: 1;
+  @include ds-body-2;
+}
+.menu-row small {
+  @include ds-caption;
+  color: $ds-gray;
+}
+.menu-row > :last-child { color: $ds-gray; }
 .chevron {
   display: flex;
   align-items: center;
-  transition: transform .18s ease;
+  transition: transform $ds-transition;
 }
 .chevron.expanded { transform: rotate(90deg); }
 .document {
   max-height: 460rpx;
-  padding: 18rpx 20rpx;
-  border-bottom: 1rpx solid #edebe7;
+  padding: $ds-space-3;
+  border-bottom: $ds-hairline solid #edebe7;
   background: #faf9f7;
 }
 .document-body {
-  color: #55565a;
-  font-size: 20rpx;
-  line-height: 1.7;
+  @include ds-caption;
+  color: $ds-graphite;
+  line-height: 38rpx;
   white-space: pre-wrap;
 }
 .logout {
-  height: 80rpx;
-  margin-top: 12rpx;
+  height: $ds-control-height;
+  margin-top: $ds-space-2;
   border: 0;
   background: transparent;
-  color: #dc2626;
-  font-size: 24rpx;
-  line-height: 80rpx;
+  @include ds-body-2;
+  color: $ds-error-ink;
+  line-height: $ds-control-height;
 }
 </style>
