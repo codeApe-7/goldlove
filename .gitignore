@@ -13,3 +13,4 @@ application-local.yml
 application-local.yaml
 *.log
 .m2/
+/love-deployment-access.md
