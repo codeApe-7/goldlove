@@ -324,6 +324,31 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
     }
 
     @Test
+    void acceptsEducationAndOccupationOptionsFromTheCoreDefinition() {
+        GuestProfileDraftView saved = service.save(
+                accountId, withEducationAndOccupation(null, "硕士研究生", "金融 / 投资"), REQUEST_ID);
+
+        assertThat(saved.education()).isEqualTo("硕士研究生")
+                .describedAs("学历改为固定选项后仍要能正常保存合法取值");
+        assertThat(saved.occupation()).isEqualTo("金融 / 投资");
+    }
+
+    @Test
+    void rejectsFreeTextEducation() {
+        // V2 把学历改成固定选项集，自由文本不再合法——这是本次「后端字段适配」的核心行为。
+        assertCode(() -> service.save(
+                        accountId, withEducationAndOccupation(null, "本科", "互联网 / IT"), REQUEST_ID),
+                "FIELD_VALUE_INVALID");
+    }
+
+    @Test
+    void rejectsFreeTextOccupation() {
+        assertCode(() -> service.save(
+                        accountId, withEducationAndOccupation(null, "大学本科", "工程师"), REQUEST_ID),
+                "FIELD_VALUE_INVALID");
+    }
+
+    @Test
     void rejectsChangingTextDefinitionToOptionWithoutOptions() {
         long definitionId = createDefinition(
                 "task4_text_to_option", ProfileFieldType.TEXT, List.of());
@@ -420,9 +445,9 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
                 "男",
                 LocalDate.of(1995, 5, 20),
                 178,
-                "本科",
-                "工程师",
-                "20-30万",
+                "大学本科",
+                "互联网 / IT",
+                "20万-30万",
                 "杭州",
                 "wx-private-123",
                 "dy-private-456",
@@ -454,6 +479,16 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
         return new SaveGuestProfileCommand(
                 base.expectedVersion(), base.gender(), base.birthDate(), base.heightCm(),
                 base.education(), base.occupation(), incomeRange, base.city(),
+                base.wechatId(), base.douyinId(), base.douyinNickname(),
+                base.douyinProfileUrl(), base.dynamicFields());
+    }
+
+    private SaveGuestProfileCommand withEducationAndOccupation(
+            Long version, String education, String occupation) {
+        SaveGuestProfileCommand base = validCommand(version);
+        return new SaveGuestProfileCommand(
+                base.expectedVersion(), base.gender(), base.birthDate(), base.heightCm(),
+                education, occupation, base.incomeRange(), base.city(),
                 base.wechatId(), base.douyinId(), base.douyinNickname(),
                 base.douyinProfileUrl(), base.dynamicFields());
     }

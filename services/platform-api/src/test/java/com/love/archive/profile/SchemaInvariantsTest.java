@@ -36,6 +36,34 @@ class SchemaInvariantsTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void migrationAlignsFieldOptionsWithTheDesignSpec() {
+        // V2 清空全部用户数据后重建字段定义，学历与职业由自由文本改成固定选项集。
+        assertThat(dataTypeOf("education")).isEqualTo("SINGLE_OPTION");
+        assertThat(dataTypeOf("occupation")).isEqualTo("SINGLE_OPTION");
+        assertThat(optionsOf("education")).contains("博士及以上", "硕士研究生", "大学本科", "大专");
+        assertThat(optionsOf("occupation")).contains("互联网 / IT", "金融 / 投资", "其他行业");
+
+        // 三级联动是前端录入方式，所在城市仍按文本存回。
+        assertThat(dataTypeOf("city")).isEqualTo("TEXT");
+
+        assertThat(optionsOf("gender")).contains("男", "女", "不公开");
+
+        // 年薪档位本身敏感，「保密」不在规范图 6 档里但必须保留，前端选中后不展示具体区间。
+        assertThat(optionsOf("income_range"))
+                .contains("20万以下", "20万-30万", "30万-50万", "50万-80万", "80万-120万", "120万以上", "保密")
+                .doesNotContain("小于10万", "10-20万", "20-30万", "50-100万");
+
+        // CORE 字段的值写在 guest_profile 的具名列里，从不产生 profile_field_value 行，
+        // 所以永远不会被标记为用过——这是「改得动 data_type」的前提。
+        // 只断言 CORE，因为本类其他用例会造出用过的 DYNAMIC 字段。
+        assertThat(jdbc.sql("""
+                        SELECT count(*) FROM profile_field_definition
+                        WHERE storage_kind = 'CORE' AND ever_used
+                        """)
+                .query(Integer.class).single()).isZero();
+    }
+
+    @Test
     void reviewAndManualPathTablesAreGone() {
         for (String table : new String[] {
                 "profile_revision", "profile_revision_field_value", "profile_revision_photo",
@@ -163,8 +191,22 @@ class SchemaInvariantsTest extends PostgresIntegrationTest {
         }
     }
 
-    private boolean tableExists(String table) {
-        return jdbc.sql("SELECT to_regclass('public.' || :table) IS NOT NULL")
+    private String dataTypeOf(String fieldCode) {
+        return jdbc.sql("SELECT data_type FROM profile_field_definition WHERE field_code = :code")
+                .param("code", fieldCode)
+                .query(String.class)
+                .single();
+    }
+
+    /** options_json 是 JSON 数组文本，这里只做包含判断，不引入 JSON 解析依赖。 */
+    private String optionsOf(String fieldCode) {
+        return jdbc.sql("SELECT options_json FROM profile_field_definition WHERE field_code = :code")
+                .param("code", fieldCode)
+                .query(String.class)
+                .single();
+    }
+
+    private boolean tableExists(String table) {        return jdbc.sql("SELECT to_regclass('public.' || :table) IS NOT NULL")
                 .param("table", table)
                 .query(Boolean.class)
                 .single();

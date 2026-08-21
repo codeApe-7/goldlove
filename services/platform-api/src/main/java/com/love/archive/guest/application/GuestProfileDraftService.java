@@ -52,6 +52,8 @@ public class GuestProfileDraftService {
             org.slf4j.LoggerFactory.getLogger(GuestProfileDraftService.class);
     private static final String CORE_GENDER_FIELD_CODE = "gender";
     private static final String CORE_INCOME_RANGE_FIELD_CODE = "income_range";
+    private static final String CORE_EDUCATION_FIELD_CODE = "education";
+    private static final String CORE_OCCUPATION_FIELD_CODE = "occupation";
     private static final Pattern PHOTO_OBJECT_KEY = Pattern.compile(
             "profiles/(\\d+)/(avatar|life)/"
                     + "([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
@@ -618,6 +620,15 @@ public class GuestProfileDraftService {
         if (incomeRange != null) {
             validateCoreSingleOption(CORE_INCOME_RANGE_FIELD_CODE, incomeRange);
         }
+        // 学历与职业已改为固定选项集（V2），取值必须落在选项里，不再接受自由文本。
+        String education = optionalText(command.education(), "学历", 100);
+        if (education != null) {
+            validateCoreSingleOption(CORE_EDUCATION_FIELD_CODE, education);
+        }
+        String occupation = optionalText(command.occupation(), "职业", 200);
+        if (occupation != null) {
+            validateCoreSingleOption(CORE_OCCUPATION_FIELD_CODE, occupation);
+        }
         String wechatId = optionalText(command.wechatId(), "微信号", 200);
         String douyinId = optionalText(command.douyinId(), "抖音号", 200);
         String profileUrl = normalizeUrl(command.douyinProfileUrl());
@@ -625,8 +636,8 @@ public class GuestProfileDraftService {
                 gender,
                 command.birthDate(),
                 command.heightCm(),
-                optionalText(command.education(), "学历", 100),
-                optionalText(command.occupation(), "职业", 200),
+                education,
+                occupation,
                 incomeRange,
                 optionalText(command.city(), "所在城市", 100),
                 wechatId,
