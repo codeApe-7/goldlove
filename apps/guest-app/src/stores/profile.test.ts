@@ -8,7 +8,6 @@ vi.mock('@/api', () => ({
   getDraft: vi.fn(),
   listPhotos: vi.fn(),
   saveDraft: vi.fn(),
-  submitProfile: vi.fn(),
 }))
 
 describe('guest profile store', () => {
@@ -25,21 +24,6 @@ describe('guest profile store', () => {
     await store.load()
     expect(store.draft?.profileNo).toBe('p1')
     expect(store.photos.map((item) => item.objectKey)).toEqual(['a'])
-  })
-
-  it('submit reuses the same idempotency key on retry', async () => {
-    vi.mocked(api.submitProfile).mockResolvedValue({
-      id: 1,
-      status: 'PENDING',
-      reviewDeadlineAt: '',
-    })
-    const store = useProfileStore()
-    await store.submit()
-    const key = sessionStorage.getItem('profile-submission-key')
-    expect(key).toBeTruthy()
-    await store.submit()
-    expect(api.submitProfile).toHaveBeenCalledTimes(2)
-    expect(api.submitProfile).toHaveBeenLastCalledWith(key)
   })
 
   it('addUploaded replaces avatar and appends life uploads', () => {

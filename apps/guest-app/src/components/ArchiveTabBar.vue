@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 
-type ArchiveTabKey = 'profile' | 'status' | 'mine'
+type ArchiveTabKey = 'profile' | 'mine'
 
 const props = defineProps<{ current: ArchiveTabKey }>()
 
 const items: Array<{ key: ArchiveTabKey; label: string; url: string }> = [
   { key: 'profile', label: '档案', url: '/pages/profile/index' },
-  { key: 'status', label: '状态', url: '/pages/status/index' },
   { key: 'mine', label: '我的', url: '/pages/mine/index' },
 ]
 
@@ -37,11 +36,6 @@ function navigate(item: (typeof items)[number]): void {
           <svg v-if="item.key === 'profile'" viewBox="0 0 24 24">
             <path v-if="current === item.key" class="icon-fill" d="M3.7 10.15 12 3.5l8.3 6.65v9.6a.75.75 0 0 1-.75.75H14.5v-6h-5v6H4.45a.75.75 0 0 1-.75-.75z" />
             <path v-else d="m3.7 10.15 8.3-6.65 8.3 6.65M5.2 9.2v10.55c0 .41.34.75.75.75H9.5v-6h5v6h3.55c.41 0 .75-.34.75-.75V9.2" />
-          </svg>
-          <svg v-else-if="item.key === 'status'" viewBox="0 0 24 24">
-            <path v-if="current === item.key" class="icon-fill" d="M12 2.8c2.37 1.55 4.97 2.32 7.2 2.55v5.94c0 4.58-2.72 8.33-7.2 9.91-4.48-1.58-7.2-5.33-7.2-9.91V5.35C7.03 5.12 9.63 4.35 12 2.8Z" />
-            <path v-else d="M12 2.8c2.37 1.55 4.97 2.32 7.2 2.55v5.94c0 4.58-2.72 8.33-7.2 9.91-4.48-1.58-7.2-5.33-7.2-9.91V5.35C7.03 5.12 9.63 4.35 12 2.8Z" />
-            <path class="icon-check" d="m8.75 11.9 2.1 2.1 4.45-4.65" />
           </svg>
           <svg v-else viewBox="0 0 24 24">
             <path v-if="current === item.key" class="icon-fill" d="M12 11.6a4.35 4.35 0 1 0 0-8.7 4.35 4.35 0 0 0 0 8.7Zm0 1.9c-5.02 0-8.05 2.58-8.05 5.42 0 .65.53 1.18 1.18 1.18h13.74c.65 0 1.18-.53 1.18-1.18 0-2.84-3.03-5.42-8.05-5.42Z" />
@@ -77,7 +71,7 @@ function navigate(item: (typeof items)[number]): void {
 .archive-tabbar__inner {
   height: 100rpx;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .archive-tabbar__item {
@@ -123,11 +117,6 @@ function navigate(item: (typeof items)[number]): void {
 .archive-tabbar__icon .icon-fill {
   fill: currentColor;
   stroke: currentColor;
-}
-
-.archive-tabbar__item.is-active .icon-check {
-  stroke: #ffffff;
-  stroke-width: 1.8;
 }
 
 .archive-tabbar__item:active {

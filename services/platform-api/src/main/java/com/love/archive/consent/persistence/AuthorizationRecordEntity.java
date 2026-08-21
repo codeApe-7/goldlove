@@ -29,12 +29,12 @@ public class AuthorizationRecordEntity {
     private OffsetDateTime expiresAt;
     @TableField("source_page")
     private String sourcePage;
-    @TableField("client_ip_hmac")
-    private String clientIpHmac;
-    @TableField("user_agent_sha256")
-    private String userAgentSha256;
-    @TableField("session_reference_hmac")
-    private String sessionReferenceHmac;
+    @TableField("client_ip")
+    private String clientIp;
+    @TableField("user_agent")
+    private String userAgent;
+    @TableField("session_reference")
+    private String sessionReference;
     @TableField("created_at")
     private OffsetDateTime createdAt;
 }

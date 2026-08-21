@@ -27,7 +27,7 @@ public class AuthInterceptorConfiguration implements WebMvcConfigurer {
                 .addPathPatterns("/api/v1/guest/**")
                 .excludePathPatterns(
                         "/api/v1/guest/auth/login",
-                        "/api/v1/guest/auth/activate")
+                        "/api/v1/guest/auth/register")
                 .order(-100);
     }
 }

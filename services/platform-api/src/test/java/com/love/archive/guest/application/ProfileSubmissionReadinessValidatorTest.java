@@ -16,8 +16,7 @@ class ProfileSubmissionReadinessValidatorTest {
     @Test
     void recognizesProtectedWechatAsPresentAndIgnoresOptionalSocialAccounts() {
         GuestProfileEntity profile = new GuestProfileEntity();
-        profile.setWechatIdCiphertext(new byte[] {1, 2, 3});
-        profile.setWechatIdHmac("wechat-hmac");
+        profile.setWechatId("wx-real-id");
 
         List<String> missing = validator.missingRequiredFieldCodes(
                 profile,
@@ -29,19 +28,6 @@ class ProfileSubmissionReadinessValidatorTest {
                 List.of());
 
         assertThat(missing).isEmpty();
-    }
-
-    @Test
-    void reportsWechatMissingUnlessCiphertextAndHmacAreBothPresent() {
-        GuestProfileEntity profile = new GuestProfileEntity();
-        profile.setWechatIdCiphertext(new byte[] {1, 2, 3});
-
-        List<String> missing = validator.missingRequiredFieldCodes(
-                profile,
-                List.of(coreDefinition(1L, "wechat_id", true, 80)),
-                List.of());
-
-        assertThat(missing).containsExactly("wechat_id");
     }
 
     private static ProfileFieldDefinitionEntity coreDefinition(

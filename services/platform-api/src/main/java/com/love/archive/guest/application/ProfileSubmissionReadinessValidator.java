@@ -49,21 +49,15 @@ public final class ProfileSubmissionReadinessValidator {
             case "occupation" -> hasText(profile.getOccupation());
             case "income_range" -> hasText(profile.getIncomeRange());
             case "city" -> hasText(profile.getCity());
-            case "wechat_id" -> hasBytes(profile.getWechatIdCiphertext())
-                    && hasText(profile.getWechatIdHmac());
-            case "douyin_id" -> hasBytes(profile.getDouyinIdCiphertext())
-                    && hasText(profile.getDouyinIdHmac());
-            case "douyin_nickname" -> hasBytes(profile.getDouyinNicknameCiphertext());
-            case "douyin_profile_url" -> hasBytes(profile.getDouyinProfileUrlCiphertext());
+            case "wechat_id" -> hasText(profile.getWechatId());
+            case "douyin_id" -> hasText(profile.getDouyinId());
+            case "douyin_nickname" -> hasText(profile.getDouyinNickname());
+            case "douyin_profile_url" -> hasText(profile.getDouyinProfileUrl());
             default -> false;
         };
     }
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
-    }
-
-    private static boolean hasBytes(byte[] value) {
-        return value != null && value.length > 0;
     }
 }

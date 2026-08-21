@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import * as api from '@/api'
 import type { GuestProfileDraft, PhotoUploadResult } from '@/types'
 
-const IDEMPOTENCY_KEY = 'profile-submission-key'
 
 export type LocalPhoto = Pick<PhotoUploadResult, 'objectKey' | 'category' | 'previewUrl'>
 
@@ -46,16 +45,18 @@ export const useProfileStore = defineStore('guest-profile', {
     removeByObjectKey(objectKey: string): void {
       this.photos = this.photos.filter((photo) => photo.objectKey !== objectKey)
     },
-    async save(values: Record<string, unknown>): Promise<void> {
+    async save(values: Record<string, unknown>): Promise<GuestProfileDraft> {
       const avatar = this.avatar
-      this.draft = await api.saveDraft({
+      const draft = await api.saveDraft({
         ...values,
         photos: {
           avatar: avatar?.objectKey ?? null,
           life: this.lifePhotos.map((photo) => photo.objectKey),
         },
       })
+      this.draft = draft
       await this.refreshPhotos()
+      return draft
     },
     async refreshPhotos(): Promise<void> {
       const photos = await api.listPhotos()
@@ -65,17 +66,6 @@ export const useProfileStore = defineStore('guest-profile', {
         previewUrl: photo.previewUrl,
       }))
     },
-    async submit(): Promise<{ id: number; status: string; reviewDeadlineAt: string }> {
-      const key = idempotencyKey()
-      return api.submitProfile(key)
-    },
   },
 })
 
-function idempotencyKey(): string {
-  const existing = sessionStorage.getItem(IDEMPOTENCY_KEY)
-  if (existing) return existing
-  const key = crypto.randomUUID()
-  sessionStorage.setItem(IDEMPOTENCY_KEY, key)
-  return key
-}

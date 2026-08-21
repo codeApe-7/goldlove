@@ -1,14 +1,46 @@
-export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type MembershipTier = 'FREE' | 'VIP' | 'SVIP'
+export type ProfileStatus = 'DRAFT' | 'COMPLETED'
+export type PaymentOrderStatus = 'CREATED' | 'PAID' | 'CLOSED'
+export type ActivationCodeStatus = 'UNUSED' | 'USED' | 'REVOKED'
 
-export function reviewStatusMeta(status: ReviewStatus): {
-  label: string
-  tone: 'warning' | 'success' | 'danger'
-} {
+type Tone = 'info' | 'warning' | 'success' | 'danger'
+
+export function membershipTierMeta(tier: MembershipTier): { label: string; tone: Tone } {
   return ({
-    PENDING: { label: '待审核', tone: 'warning' },
-    APPROVED: { label: '已通过', tone: 'success' },
-    REJECTED: { label: '已退回', tone: 'danger' },
-  } as const)[status]
+    FREE: { label: '普通', tone: 'info' },
+    VIP: { label: 'VIP', tone: 'success' },
+    SVIP: { label: 'SVIP', tone: 'warning' },
+  } as const)[tier] ?? { label: tier, tone: 'info' }
+}
+
+export function profileStatusMeta(status: ProfileStatus | string): { label: string; tone: Tone } {
+  return ({
+    DRAFT: { label: '未填完', tone: 'warning' },
+    COMPLETED: { label: '已完善', tone: 'success' },
+  } as const)[status as ProfileStatus] ?? { label: status, tone: 'info' }
+}
+
+export function paymentOrderStatusMeta(status: PaymentOrderStatus): { label: string; tone: Tone } {
+  return ({
+    CREATED: { label: '待支付', tone: 'warning' },
+    PAID: { label: '已支付', tone: 'success' },
+    CLOSED: { label: '已关闭', tone: 'info' },
+  } as const)[status] ?? { label: status, tone: 'info' }
+}
+
+export function activationCodeStatusMeta(
+  status: ActivationCodeStatus,
+): { label: string; tone: Tone } {
+  return ({
+    UNUSED: { label: '未使用', tone: 'warning' },
+    USED: { label: '已兑换', tone: 'success' },
+    REVOKED: { label: '已作废', tone: 'danger' },
+  } as const)[status] ?? { label: status, tone: 'info' }
+}
+
+/** 金额一律以分存储，展示时才换算成元。 */
+export function amountLabel(amountMinor: number): string {
+  return `¥${(amountMinor / 100).toFixed(2)}`
 }
 
 export function fieldTypeLabel(type: string): string {

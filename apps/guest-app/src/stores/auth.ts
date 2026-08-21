@@ -9,10 +9,18 @@ export const useAuthStore = defineStore('guest-auth', {
   }),
   getters: {
     isAuthenticated: (state) => state.session !== null,
+    tier: (state) => state.session?.membershipTier ?? 'FREE',
   },
   actions: {
-    async activate(phone: string, initialCredential: string, newPassword: string): Promise<void> {
-      const session = await api.activate(phone, initialCredential, newPassword)
+    /** 免费注册，成功即持有会话。 */
+    async register(
+      phone: string,
+      password: string,
+      confirmPassword: string,
+      authorizationDocumentVersion: string,
+    ): Promise<void> {
+      const session = await api.register(
+        phone, password, confirmPassword, authorizationDocumentVersion)
       this.session = session
       h5SessionAdapter.write(session)
     },

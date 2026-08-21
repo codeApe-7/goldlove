@@ -5,9 +5,8 @@ import BrandMark from '@/components/BrandMark.vue'
 import AppIcon from '@/components/AppIcon.vue'
 
 const auth = useAuthStore()
-const mode = ref<'activate' | 'login'>('login')
 const loading = ref(false)
-const form = reactive({ phone: '', credential: '', password: '' })
+const form = reactive({ phone: '', password: '' })
 
 function toast(message: string, icon: 'none' | 'success' = 'none'): void {
   uni.showToast({ title: message, icon })
@@ -20,18 +19,17 @@ async function submit(): Promise<void> {
   }
   loading.value = true
   try {
-    if (mode.value === 'activate') {
-      await auth.activate(form.phone.trim(), form.credential.trim(), form.password)
-      toast('激活成功', 'success')
-    } else {
-      await auth.login(form.phone.trim(), form.password)
-    }
+    await auth.login(form.phone.trim(), form.password)
     uni.switchTab({ url: '/pages/profile/index' })
   } catch (error) {
     toast(error instanceof Error ? error.message : '操作失败')
   } finally {
     loading.value = false
   }
+}
+
+function goRegister(): void {
+  uni.navigateTo({ url: '/pages/register/index' })
 }
 </script>
 
@@ -44,27 +42,19 @@ async function submit(): Promise<void> {
       <text class="brand-sub">真实 · 严谨 · 安全 · 专属</text>
     </view>
     <view class="auth-surface">
-      <view class="mode-tabs">
-        <text :class="['tab', mode === 'activate' ? 'active' : '']" @tap="mode = 'activate'">激活账号</text>
-        <text :class="['tab', mode === 'login' ? 'active' : '']" @tap="mode = 'login'">密码登录</text>
-      </view>
       <view class="form-body">
         <label class="field-group">
           <text>手机号</text>
           <input v-model="form.phone" class="field" type="number" placeholder="请输入手机号" maxlength="11" />
         </label>
-        <label v-if="mode === 'activate'" class="field-group">
-          <text>初始凭证</text>
-          <input v-model="form.credential" class="field" type="text" placeholder="请输入初始凭证" />
-        </label>
         <label class="field-group">
-          <text>{{ mode === 'activate' ? '设置密码' : '密码' }}</text>
-          <input v-model="form.password" class="field" type="password" :placeholder="mode === 'activate' ? '请设置登录密码' : '请输入密码'" />
+          <text>密码</text>
+          <input v-model="form.password" class="field" type="password" placeholder="请输入密码" />
         </label>
         <button class="archive-button-primary submit" :disabled="loading" @tap="submit">
-          {{ mode === 'activate' ? '立即激活' : '登录' }}
+          {{ loading ? '登录中' : '登录' }}
         </button>
-        <text v-if="mode === 'activate'" class="agreement">激活即表示您已阅读并同意《授权书》</text>
+        <text class="register-entry" @tap="goRegister">还没有账号？免费注册建档</text>
       </view>
       <view class="privacy-note"><AppIcon name="lock" :size="16" /><view><strong>我们将严格保护您的隐私与数据安全</strong><text>所有信息仅用于档案匹配，经授权后方可使用。</text></view></view>
     </view>
@@ -136,33 +126,6 @@ async function submit(): Promise<void> {
   background: #ffffff;
   box-shadow: 0 18rpx 48rpx rgba(13, 13, 15, 0.09);
 }
-.mode-tabs {
-  height: 82rpx;
-  display: flex;
-  border-bottom: 1rpx solid #e5e3df;
-}
-.tab {
-  position: relative;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #818286;
-  font-size: 25rpx;
-}
-.tab.active {
-  color: #0d0d0f;
-  font-weight: 600;
-}
-.tab.active::after {
-  position: absolute;
-  bottom: 0;
-  width: 44rpx;
-  height: 3rpx;
-  border-radius: 99rpx;
-  background: #0d0d0f;
-  content: '';
-}
 .form-body {
   padding: 32rpx 32rpx 28rpx;
 }
@@ -187,12 +150,14 @@ async function submit(): Promise<void> {
 .submit {
   margin-top: 8rpx;
 }
-.agreement {
+.register-entry {
   display: block;
-  margin-top: 16rpx;
-  color: #85868a;
+  margin-top: 20rpx;
+  color: #0d0d0f;
   text-align: center;
-  font-size: 20rpx;
+  font-size: 21rpx;
+  font-weight: 600;
+  text-decoration: underline;
 }
 .privacy-note {
   margin: 0 20rpx 20rpx;

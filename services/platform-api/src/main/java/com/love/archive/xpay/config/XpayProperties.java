@@ -10,7 +10,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param platformPublicKey  平台公钥（X.509 PEM），用于验签响应与通知
  * @param notifyUrl          异步回调地址，指向 xpay 通知端点
  * @param returnUrl          支付完成后同步跳转地址
- * @param baseUrl            API 网关，默认 https://xpay.unbb.cn/xpay/epayn
+ * @param baseUrl            API 网关地址，必填。刻意不给默认值——
+ *                           渠道服务商的域名属于部署配置，不该硬编码进源码
  */
 @ConfigurationProperties(prefix = "app.xpay")
 public record XpayProperties(
@@ -21,10 +22,8 @@ public record XpayProperties(
         String returnUrl,
         String baseUrl) {
 
-    private static final String DEFAULT_BASE_URL = "https://xpay.unbb.cn/xpay/epayn";
-
     public String resolvedBaseUrl() {
-        return hasText(baseUrl) ? stripTrailingSlash(baseUrl) : DEFAULT_BASE_URL;
+        return stripTrailingSlash(baseUrl);
     }
 
     /** 缺任何一项凭据都不装配渠道客户端，业务侧返回 PAYMENT_CHANNEL_NOT_CONFIGURED。 */
@@ -32,7 +31,8 @@ public record XpayProperties(
         return hasText(pid)
                 && hasText(merchantPrivateKey)
                 && hasText(platformPublicKey)
-                && hasText(notifyUrl);
+                && hasText(notifyUrl)
+                && hasText(baseUrl);
     }
 
     private static boolean hasText(String value) {
@@ -40,6 +40,9 @@ public record XpayProperties(
     }
 
     private static String stripTrailingSlash(String value) {
+        if (value == null) {
+            return null;
+        }
         String trimmed = value.strip();
         return trimmed.endsWith("/") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
     }

@@ -1,11 +1,9 @@
 import { request, uploadPhoto } from './request'
 import type {
   AuthorizationDocumentView,
-  ConsentView,
   GuestFieldDefinition,
   GuestProfileDraft,
   GuestSession,
-  IssuedRegistrationToken,
   MembershipView,
   OnlineOrder,
   OnlineOrderStatus,
@@ -14,11 +12,25 @@ import type {
   ProfilePhotoView,
 } from '@/types'
 
-export function activate(phone: string, initialCredential: string, newPassword: string) {
+// ---- 账号 ----
+
+/** 免费自助注册：手机号 + 密码 + 勾选授权书，没有前置条件。 */
+export function register(
+  phone: string,
+  password: string,
+  confirmPassword: string,
+  authorizationDocumentVersion: string,
+) {
   return request<GuestSession>({
-    url: '/guest/auth/activate',
+    url: '/guest/auth/register',
     method: 'POST',
-    data: { phone, initialCredential, newPassword },
+    data: {
+      phone,
+      password,
+      confirmPassword,
+      acceptedAuthorization: true,
+      authorizationDocumentVersion,
+    },
   })
 }
 
@@ -38,17 +50,7 @@ export function currentAuthorizationDocument() {
   return request<AuthorizationDocumentView>({ url: '/public/authorization-documents/current' })
 }
 
-export function currentConsent() {
-  return request<ConsentView | null>({ url: '/guest/consents/current' })
-}
-
-export function acceptConsent(authorizationDocumentVersion: string, sourcePage: string) {
-  return request<ConsentView>({
-    url: '/guest/consents',
-    method: 'POST',
-    data: { authorizationDocumentVersion, accepted: true, sourcePage },
-  })
-}
+// ---- 档案 ----
 
 export function fieldDefinitions() {
   return request<GuestFieldDefinition[]>({ url: '/guest/profile/field-definitions' })
@@ -68,9 +70,10 @@ export function saveDraft(payload: Record<string, unknown>) {
 
 export function profileStatus() {
   return request<{
+    profileNo: string | null
     status: string
-    pendingRevisionId: number | null
-    currentApprovedRevisionId: number | null
+    version: number | null
+    missingRequiredFieldCodes: string[]
   }>({ url: '/guest/profile/status' })
 }
 
@@ -78,59 +81,38 @@ export function listPhotos() {
   return request<ProfilePhotoView[]>({ url: '/guest/profile/photos' })
 }
 
-export function submitProfile(idempotencyKey: string) {
-  return request<{ id: number; status: string; reviewDeadlineAt: string }>({
-    url: '/guest/profile/submissions',
-    method: 'POST',
-    header: { 'Idempotency-Key': idempotencyKey },
-  })
-}
-
 export { uploadPhoto }
+
+// ---- 会员 ----
 
 export function membership() {
   return request<MembershipView>({ url: '/guest/membership' })
 }
 
-// ---- 线上支付 → 注册建档 ----
-
-export function onlinePaymentSettings() {
-  return request<OnlinePaymentSettings>({ url: '/public/online-payments/settings' })
-}
-
-/**
- * 下单。金额由后端配置决定，前端不传金额。
- * 手机号在此处预检（是否已有账号）并钉在订单上，注册时必须一致。
- */
-export function createOnlineOrder(
-  phone: string,
-  authorizationCode: string,
-  authorizationDocumentVersion: string,
-) {
-  return request<OnlineOrder>({
-    url: '/public/online-payments/orders',
+/** 用激活码升级。码在生成时已绑定手机号，只有本人能兑。 */
+export function redeemActivationCode(code: string) {
+  return request<MembershipView>({
+    url: '/guest/membership/activation-codes',
     method: 'POST',
-    data: { phone, authorizationCode, authorizationDocumentVersion },
+    data: { code },
   })
 }
 
-export function onlineOrderStatus(outTradeNo: string) {
+// ---- VIP 升级支付 ----
+
+export function vipPaymentSettings() {
+  return request<OnlinePaymentSettings>({ url: '/guest/vip-payments/settings' })
+}
+
+/** 下单。金额与账号都由后端决定，前端什么都不传。 */
+export function createVipOrder() {
+  return request<OnlineOrder>({ url: '/guest/vip-payments/orders', method: 'POST' })
+}
+
+export function vipOrderStatus(outTradeNo: string) {
   return request<OnlineOrderStatus>({
-    url: `/public/online-payments/orders/${encodeURIComponent(outTradeNo)}`,
+    url: `/guest/vip-payments/orders/${encodeURIComponent(outTradeNo)}`,
   })
 }
 
-export function issueRegistrationToken(outTradeNo: string) {
-  return request<IssuedRegistrationToken>({
-    url: `/public/online-payments/orders/${encodeURIComponent(outTradeNo)}/registration-tokens`,
-    method: 'POST',
-  })
-}
-
-export function registerOnline(registrationToken: string, phone: string, password: string) {
-  return request<GuestSession>({
-    url: '/public/registrations',
-    method: 'POST',
-    data: { registrationToken, phone, password },
-  })
-}
+export type { PhotoUploadResult }

@@ -5,18 +5,13 @@ export interface AdminSession {
 }
 
 export interface AdminDashboardStats {
-  pendingReviews: number
+  totalAccounts: number
   todayRegistrations: number
-  todayReviews: number
   totalProfiles: number
+  completedProfiles: number
   vipMembers: number
   svipMembers: number
-}
-
-export interface ProvisionedGuest {
-  accountId: number
-  phoneMasked: string
-  initialCredential: string
+  todayPaidAmountMinor: number
 }
 
 export interface PageView<T> {
@@ -26,15 +21,7 @@ export interface PageView<T> {
   total: number
 }
 
-export interface ProfileReviewListItem {
-  revisionId: number
-  revisionNumber: number
-  status: 'PENDING' | 'APPROVED' | 'REJECTED'
-  submittedAt: string
-  reviewDeadlineAt: string
-  profileNo: string
-  currentApprovedRevisionId: number | null
-}
+export type MembershipTier = 'FREE' | 'VIP' | 'SVIP'
 
 export interface ProfileFieldDefinitionView {
   id: number
@@ -50,29 +37,40 @@ export interface ProfileFieldDefinitionView {
   version: number
 }
 
-export interface ProfileReviewPhoto {
-  category: 'AVATAR' | 'LIFE'
-  sha256: string
-  sizeBytes: number
-  contentType: string
-  width: number
-  height: number
-  sortOrder: number
-  downloadUrl: string
-}
-
-export interface ProfileFieldDifference {
-  fieldCode: string
-  fieldLabel: string
-  oldValue: string | null
-  newValue: string | null
-}
-
-export interface ProfileReviewDetail {
+export interface AdminProfileListItem {
+  id: number
   profileNo: string
-  revisionId: number
-  revisionNumber: number
-  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  phone: string
+  membershipTier: MembershipTier
+  /** DRAFT / COMPLETED —— 没有审核环节，保存即可见。 */
+  status: string
+  updatedAt: string
+}
+
+export interface AdminProfileFieldValue {
+  fieldCode: string
+  label: string
+  dataType: string
+  value: string | null
+}
+
+/** previewUrl 是 15 分钟内有效的签名地址，不落库。 */
+export interface AdminProfilePhoto {
+  id: number
+  category: 'AVATAR' | 'LIFE'
+  sortOrder: number
+  previewUrl: string
+}
+
+export interface AdminProfileDetail {
+  id: number
+  profileNo: string
+  phone: string
+  membershipTier: MembershipTier
+  membershipCreditMinor: number
+  status: string
+  createdAt: string
+  updatedAt: string
   gender: string | null
   birthDate: string | null
   heightCm: number | null
@@ -84,12 +82,31 @@ export interface ProfileReviewDetail {
   douyinId: string | null
   douyinNickname: string | null
   douyinProfileUrl: string | null
-  submittedAt: string
-  reviewDeadlineAt: string
-  reviewedAt: string | null
-  version: number
-  dynamicFields: unknown[]
-  lastApprovedRevisionId: number | null
-  photos: ProfileReviewPhoto[]
-  differences: ProfileFieldDifference[]
+  dynamicFields: AdminProfileFieldValue[]
+  photos: AdminProfilePhoto[]
+}
+
+export interface AdminPaymentOrderItem {
+  id: number
+  outTradeNo: string
+  phone: string
+  channel: string
+  amountMinor: number
+  status: 'CREATED' | 'PAID' | 'CLOSED'
+  paidAt: string | null
+  createdAt: string
+}
+
+export interface AdminActivationCodeItem {
+  id: number
+  code: string
+  boundPhone: string
+  /** 绑定手机号当前是否已注册；未注册时该码可能被抢注者领走。 */
+  boundPhoneRegistered: boolean
+  grantedTier: 'VIP' | 'SVIP'
+  status: 'UNUSED' | 'USED' | 'REVOKED'
+  note: string | null
+  createdAt: string
+  redeemedAt: string | null
+  redeemedPhone: string | null
 }

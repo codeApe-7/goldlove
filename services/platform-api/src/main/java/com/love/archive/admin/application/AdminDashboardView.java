@@ -1,10 +1,11 @@
 package com.love.archive.admin.application;
 
 public record AdminDashboardView(
-        long pendingReviews,
+        long totalAccounts,
         long todayRegistrations,
-        long todayReviews,
         long totalProfiles,
+        long completedProfiles,
         long vipMembers,
-        long svipMembers) {
+        long svipMembers,
+        long todayPaidAmountMinor) {
 }

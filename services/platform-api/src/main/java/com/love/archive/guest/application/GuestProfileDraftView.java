@@ -20,11 +20,11 @@ public record GuestProfileDraftView(
         String douyinId,
         String douyinNickname,
         URI douyinProfileUrl,
-        Long pendingRevisionId,
-        Long currentApprovedRevisionId,
+        List<String> missingRequiredFieldCodes,
         List<ProfileFieldValueView> dynamicFields) {
 
     public GuestProfileDraftView {
+        missingRequiredFieldCodes = List.copyOf(missingRequiredFieldCodes);
         dynamicFields = List.copyOf(dynamicFields);
     }
 }

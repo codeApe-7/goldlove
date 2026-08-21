@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Bell, DataBoard, DocumentChecked, Postcard, Tickets } from '@element-plus/icons-vue'
+import { Bell, CreditCard, DataBoard, Folder, Key, Tickets } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import BrandMark from '@/components/BrandMark.vue'
 
@@ -10,9 +10,10 @@ const auth = useAuthStore()
 
 const menus = [
   { path: '/dashboard', label: '工作台', icon: DataBoard },
-  { path: '/guests/register', label: '访客登记', icon: Postcard },
+  { path: '/profiles', label: '档案管理', icon: Folder },
+  { path: '/payment-orders', label: '支付订单', icon: CreditCard },
+  { path: '/activation-codes', label: '激活码', icon: Key },
   { path: '/field-definitions', label: '字段配置', icon: Tickets },
-  { path: '/reviews', label: '审核管理', icon: DocumentChecked },
 ]
 
 async function confirmLogout(): Promise<void> {

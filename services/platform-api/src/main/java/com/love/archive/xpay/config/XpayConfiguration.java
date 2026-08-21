@@ -36,6 +36,7 @@ public class XpayConfiguration {
                 "app.xpay.merchant-private-key",
                 "app.xpay.platform-public-key",
                 "app.xpay.notify-url",
+                "app.xpay.base-url",
         };
 
         @Override

@@ -10,13 +10,6 @@ import org.apache.ibatis.annotations.Select;
 public interface ProfilePhotoMapper extends BaseMapper<ProfilePhotoEntity> {
 
     @Select("""
-            SELECT COUNT(*)
-            FROM profile_revision_photo
-            WHERE object_key = #{objectKey}
-            """)
-    int countRevisionReferences(@Param("objectKey") String objectKey);
-
-    @Select("""
             SELECT COALESCE(MAX(sort_order), -1) + 1
             FROM profile_photo
             WHERE guest_profile_id = #{guestProfileId}

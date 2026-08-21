@@ -14,8 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 会员等级：建档注册即 VIP，累计付费额度达到阈值自动升 SVIP。
- * 手动登记与线上支付共用同一套累计逻辑，幂等锚点是付款记录上的 membership_credit_minor。
+ * 会员等级：注册即 FREE，付费或兑换激活码升 VIP，累计付费额度达阈值自动升 SVIP。
+ * 等级只升不降，幂等锚点是付款记录上的 membership_credit_minor。
  */
 @Service
 @RequiredArgsConstructor
@@ -26,7 +26,7 @@ public class MembershipService {
     private final MembershipProperties properties;
 
     /**
-     * 把一笔付款计入账号的累计额度并按需升级；同一笔付款重复调用不会重复累加。
+     * 把一笔付款计入累计额度并按需升级；同一笔付款重复调用不会重复累加。
      */
     @Transactional
     public MembershipView creditPayment(long accountId, long paymentRecordId, long creditMinor) {
@@ -42,7 +42,22 @@ public class MembershipService {
     }
 
     /**
-     * 读取当前会员状态，并顺带把「额度已达标但等级未跟上」的历史数据对齐。
+     * 直接授予等级，供激活码兑换使用。不动累计付费额度——兑码不是付费，
+     * 不应该顶 SVIP 的付费阈值。
+     */
+    @Transactional
+    public MembershipView grantTier(long accountId, MembershipTier tier) {
+        UserAccountEntity account = lockAccount(accountId);
+        long credited = currentCredit(account);
+        MembershipTier target = higher(currentTier(account), tier);
+        if (target == currentTier(account)) {
+            return toView(target, credited);
+        }
+        return apply(account, credited, target);
+    }
+
+    /**
+     * 读取当前会员状态，并顺带把「额度已达标但等级未跟上」的数据对齐。
      */
     @Transactional
     public MembershipView current(long accountId) {
@@ -72,12 +87,17 @@ public class MembershipService {
         return toView(tier, credited);
     }
 
+    /** 付过钱至少是 VIP，累计达阈值是 SVIP；已有等级只升不降。 */
     private MembershipTier resolveTier(UserAccountEntity account, long credited) {
+        MembershipTier earned;
         if (credited >= properties.getSvipThresholdMinor()) {
-            return MembershipTier.SVIP;
+            earned = MembershipTier.SVIP;
+        } else if (credited > 0) {
+            earned = MembershipTier.VIP;
+        } else {
+            earned = MembershipTier.FREE;
         }
-        // 已升级的账号不因阈值调整而降级。
-        return currentTier(account) == MembershipTier.SVIP ? MembershipTier.SVIP : MembershipTier.VIP;
+        return higher(currentTier(account), earned);
     }
 
     private MembershipView toView(MembershipTier tier, long credited) {
@@ -97,11 +117,16 @@ public class MembershipService {
         return account;
     }
 
+    /** 枚举声明顺序即等级高低：FREE < VIP < SVIP。 */
+    private static MembershipTier higher(MembershipTier left, MembershipTier right) {
+        return left.compareTo(right) >= 0 ? left : right;
+    }
+
     private static long currentCredit(UserAccountEntity account) {
         return account.getMembershipCreditMinor() == null ? 0L : account.getMembershipCreditMinor();
     }
 
     private static MembershipTier currentTier(UserAccountEntity account) {
-        return account.getMembershipTier() == null ? MembershipTier.VIP : account.getMembershipTier();
+        return account.getMembershipTier() == null ? MembershipTier.FREE : account.getMembershipTier();
     }
 }

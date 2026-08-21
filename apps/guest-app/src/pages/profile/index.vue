@@ -23,7 +23,6 @@ const store = useProfileStore()
 const definitions = ref<GuestFieldDefinition[]>([])
 const values = reactive<Record<string, string | number | boolean | null>>({})
 const saving = ref(false)
-const submitting = ref(false)
 
 const missing = computed(() => validateProfileForm(definitions.value, values))
 const avatar = computed(() => store.avatar)
@@ -104,33 +103,16 @@ function removePhoto(photo: { objectKey: string }): void {
 async function save(): Promise<void> {
   saving.value = true
   try {
-    await store.save(profileValuesToDraftPayload(values, store.draft?.version ?? null))
-    uni.showToast({ title: '草稿已保存', icon: 'success' })
+    const draft = await store.save(profileValuesToDraftPayload(values, store.draft?.version ?? null))
+    // 没有审核环节，保存即对管理员可见。
+    uni.showToast({
+      title: draft?.status === 'COMPLETED' ? '已保存，资料完整' : '已保存',
+      icon: 'success',
+    })
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : '保存失败', icon: 'none' })
   } finally {
     saving.value = false
-  }
-}
-
-async function submit(): Promise<void> {
-  if (missing.value.length > 0) {
-    uni.showToast({ title: `缺少必填：${missing.value.join('、')}`, icon: 'none' })
-    return
-  }
-  if (!store.avatar) {
-    uni.showToast({ title: '请上传头像', icon: 'none' })
-    return
-  }
-  submitting.value = true
-  try {
-    await save()
-    await store.submit()
-    uni.switchTab({ url: '/pages/status/index' })
-  } catch (error) {
-    uni.showToast({ title: error instanceof Error ? error.message : '提交失败', icon: 'none' })
-  } finally {
-    submitting.value = false
   }
 }
 </script>
@@ -186,8 +168,9 @@ async function submit(): Promise<void> {
     </SectionCard>
 
     <view class="actions">
-      <button class="archive-button-secondary" :disabled="saving" @tap="save">保存草稿</button>
-      <button class="archive-button-primary" :disabled="submitting" @tap="submit">提交审核</button>
+      <button class="archive-button-primary save-button" :disabled="saving" @tap="save">
+        {{ saving ? '保存中' : '保存档案' }}
+      </button>
     </view>
     <ArchiveTabBar current="profile" />
   </view>

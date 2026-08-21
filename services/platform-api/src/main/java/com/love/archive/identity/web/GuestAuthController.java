@@ -4,6 +4,8 @@ import cn.dev33.satoken.stp.StpLogic;
 import com.love.archive.common.web.ApiResponse;
 import com.love.archive.common.web.RequestIdFilter;
 import com.love.archive.identity.application.GuestAuthService;
+import com.love.archive.identity.application.SelfRegistrationCommand;
+import com.love.archive.identity.application.SelfRegistrationService;
 import com.love.archive.identity.domain.PhoneNormalizer;
 import com.love.archive.identity.security.AuthLogics;
 import com.love.archive.identity.security.AuthenticationAttemptLimiter;
@@ -22,22 +24,28 @@ import org.springframework.web.bind.annotation.RestController;
 public class GuestAuthController {
 
     private final GuestAuthService guestAuthService;
+    private final SelfRegistrationService selfRegistrationService;
     private final AuthLogics authLogics;
     private final AuthenticationAttemptLimiter attemptLimiter;
     private final PhoneNormalizer phoneNormalizer;
 
-    @PostMapping("/activate")
-    public ApiResponse<GuestSessionView> activate(
-            @Valid @RequestBody ActivateGuestRequest body,
+    @PostMapping("/register")
+    public ApiResponse<GuestSessionView> register(
+            @Valid @RequestBody SelfRegistrationRequest body,
             HttpServletRequest request) {
-        String rateLimitPhone = normalizeForRateLimit(body.phone());
-        attemptLimiter.checkAndConsume("guest-activation", rateLimitPhone, request.getRemoteAddr());
-        GuestSessionView session = guestAuthService.activate(
+        // 注册是公开写接口，按手机号 + 来源地址双维度限流。
+        // 成功后刻意不重置手机号计数：同一号码只能注册一次，重复请求都是异常流量。
+        attemptLimiter.checkAndConsume(
+                "guest-register", normalizeForRateLimit(body.phone()), request.getRemoteAddr());
+        GuestSessionView session = selfRegistrationService.register(new SelfRegistrationCommand(
                 body.phone(),
-                body.initialCredential(),
-                body.newPassword(),
-                RequestIdFilter.current(request));
-        attemptLimiter.resetAccount("guest-activation", rateLimitPhone);
+                body.password(),
+                body.confirmPassword(),
+                body.acceptedAuthorization(),
+                body.authorizationDocumentVersion(),
+                request.getRemoteAddr(),
+                request.getHeader("User-Agent"),
+                RequestIdFilter.current(request)));
         return ApiResponse.success(withSessionToken(session), RequestIdFilter.current(request));
     }
 
@@ -78,6 +86,7 @@ public class GuestAuthController {
         return new GuestSessionView(
                 session.accountId(),
                 session.status(),
+                session.membershipTier(),
                 logic.getTokenValue(),
                 logic.getTokenTimeout());
     }

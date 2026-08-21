@@ -41,40 +41,36 @@ class SensitiveDataGuardTest {
         assertThat(applicationConfig)
                 .contains("${DB_PASSWORD:}")
                 .contains("${REDIS_PASSWORD:}")
-                .contains("${PHONE_ENCRYPTION_KEY:}")
-                .contains("${PHONE_SEARCH_KEY:}")
-                .contains("${PROFILE_ENCRYPTION_KEY:}")
-                .contains("${PROFILE_HMAC_KEY:}")
                 .contains("${ADMIN_BOOTSTRAP_PASSWORD:}")
-                .contains("${WECHAT_APP_SECRET:}")
-                .contains("${WECHAT_MERCHANT_PRIVATE_KEY:}")
-                .contains("${WECHAT_API_V3_KEY:}");
+                .contains("${COS_SECRET_KEY:}")
+                .contains("${XPAY_MERCHANT_PRIVATE_KEY:}")
+                .contains("${XPAY_PLATFORM_PUBLIC_KEY:}");
     }
 
+    /**
+     * 手机号、微信号、抖音号现在是明文列，所以「不要打进日志」这条比以前更重要。
+     */
     @Test
     void productionLoggingDoesNotReferenceSensitiveRequestFields() throws IOException {
         String productionJava = readTree(MODULE_ROOT.resolve("src/main/java"));
         assertThat(productionJava)
                 .doesNotContainPattern("(?i)LOGGER\\.(trace|debug|info|warn|error)\\("
-                        + "[^;]*(password|phone|credential|openid|unionid"
-                        + "|wechat|douyin|clientIp|sessionReference|objectKey|object_key)");
+                        + "[^;]*(password|phone|credential|activationCode|activation_code"
+                        + "|wechat_?id|douyin|clientIp|sessionReference|objectKey|object_key)");
     }
 
     @Test
-    void localEnvExampleDocumentsProfileEncryptionKeys() throws IOException {
+    void localEnvExampleCarriesNoRealCredentials() throws IOException {
         String envExample = Files.readString(
                 MODULE_ROOT.resolve("../../.env.example").normalize());
         assertThat(envExample)
-                .contains("PROFILE_ENCRYPTION_KEY=")
-                .contains("PROFILE_HMAC_KEY=")
-                .contains("WECHAT_APP_SECRET=")
-                .contains("WECHAT_MERCHANT_PRIVATE_KEY=")
-                .contains("WECHAT_API_V3_KEY=")
-                .contains("WECHAT_PLATFORM_PUBLIC_KEY=");
-        // 示例文件绝不带真实密钥。
+                .contains("XPAY_MERCHANT_PRIVATE_KEY=")
+                .contains("XPAY_PLATFORM_PUBLIC_KEY=")
+                .contains("COS_SECRET_KEY=");
+        // 示例文件绝不带真实密钥，也不预置商户号。
         assertThat(envExample)
-                .doesNotContain("WECHAT_APP_SECRET=wx")
-                .doesNotContain("BEGIN PRIVATE KEY");
+                .doesNotContain("BEGIN PRIVATE KEY")
+                .doesNotContainPattern("XPAY_PID=\\d");
     }
 
     @Test

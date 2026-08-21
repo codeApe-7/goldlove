@@ -38,22 +38,14 @@ public class GuestProfileEntity {
     private String incomeRange;
     @TableField("city")
     private String city;
-    @TableField("wechat_id_ciphertext")
-    private byte[] wechatIdCiphertext;
-    @TableField("wechat_id_hmac")
-    private String wechatIdHmac;
-    @TableField("douyin_id_ciphertext")
-    private byte[] douyinIdCiphertext;
-    @TableField("douyin_id_hmac")
-    private String douyinIdHmac;
-    @TableField("douyin_nickname_ciphertext")
-    private byte[] douyinNicknameCiphertext;
-    @TableField("douyin_profile_url_ciphertext")
-    private byte[] douyinProfileUrlCiphertext;
-    @TableField("pending_revision_id")
-    private Long pendingRevisionId;
-    @TableField("current_approved_revision_id")
-    private Long currentApprovedRevisionId;
+    @TableField("wechat_id")
+    private String wechatId;
+    @TableField("douyin_id")
+    private String douyinId;
+    @TableField("douyin_nickname")
+    private String douyinNickname;
+    @TableField("douyin_profile_url")
+    private String douyinProfileUrl;
     @TableField("status")
     private ProfileStatus status;
     @Version
@@ -63,17 +55,4 @@ public class GuestProfileEntity {
     private OffsetDateTime createdAt;
     @TableField("updated_at")
     private OffsetDateTime updatedAt;
-
-    public byte[] getWechatIdCiphertext() { return cloneOrNull(wechatIdCiphertext); }
-    public void setWechatIdCiphertext(byte[] wechatIdCiphertext) { this.wechatIdCiphertext = cloneOrNull(wechatIdCiphertext); }
-    public byte[] getDouyinIdCiphertext() { return cloneOrNull(douyinIdCiphertext); }
-    public void setDouyinIdCiphertext(byte[] douyinIdCiphertext) { this.douyinIdCiphertext = cloneOrNull(douyinIdCiphertext); }
-    public byte[] getDouyinNicknameCiphertext() { return cloneOrNull(douyinNicknameCiphertext); }
-    public void setDouyinNicknameCiphertext(byte[] douyinNicknameCiphertext) { this.douyinNicknameCiphertext = cloneOrNull(douyinNicknameCiphertext); }
-    public byte[] getDouyinProfileUrlCiphertext() { return cloneOrNull(douyinProfileUrlCiphertext); }
-    public void setDouyinProfileUrlCiphertext(byte[] douyinProfileUrlCiphertext) { this.douyinProfileUrlCiphertext = cloneOrNull(douyinProfileUrlCiphertext); }
-
-    private static byte[] cloneOrNull(byte[] value) {
-        return value == null ? null : value.clone();
-    }
 }

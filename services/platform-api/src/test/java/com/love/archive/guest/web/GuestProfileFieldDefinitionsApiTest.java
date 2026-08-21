@@ -12,9 +12,7 @@ import com.love.archive.guest.domain.FieldStorageKind;
 import com.love.archive.guest.domain.ProfileFieldType;
 import com.love.archive.guest.persistence.ProfileFieldDefinitionEntity;
 import com.love.archive.guest.persistence.ProfileFieldDefinitionMapper;
-import com.love.archive.identity.application.GuestProvisioningService;
 import com.love.archive.identity.security.PasswordHasher;
-import com.love.archive.identity.web.ProvisionedGuestView;
 import com.love.archive.testsupport.ApiIntegrationTest;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -31,7 +29,6 @@ class GuestProfileFieldDefinitionsApiTest extends ApiIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private AdminUserMapper adminMapper;
     @Autowired private PasswordHasher passwordHasher;
-    @Autowired private GuestProvisioningService provisioningService;
     @Autowired private ProfileFieldDefinitionMapper definitionMapper;
     @Autowired private StringRedisTemplate redis;
 
@@ -43,11 +40,7 @@ class GuestProfileFieldDefinitionsApiTest extends ApiIntegrationTest {
         resetDatabase();
         redis.getConnectionFactory().getConnection().serverCommands().flushDb();
         adminId = insertAdmin();
-        ProvisionedGuestView guest = provisioningService.provision(
-                adminId, "13800138000", "PAY-GUEST-FIELDS", 199_00L,
-                OffsetDateTime.now().minusMinutes(5), "v0.3", null, "guest-fields-provision");
-        guestToken = activateAndLogin(
-                "13800138000", guest.initialCredential(), "Guest-fields-2026");
+        guestToken = registerGuest(mockMvc, "13800138000", "Guest-fields-2026");
     }
 
     @Test
@@ -113,27 +106,4 @@ class GuestProfileFieldDefinitionsApiTest extends ApiIntegrationTest {
         return admin.getId();
     }
 
-    private String activateAndLogin(String phone, String credential, String password)
-            throws Exception {
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .post("/api/v1/guest/auth/activate")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"phone":"%s","initialCredential":"%s","newPassword":"%s"}
-                                """.formatted(phone, credential, password)))
-                .andExpect(status().isOk());
-        MvcResult login = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .post("/api/v1/guest/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"phone":"%s","password":"%s"}
-                                """.formatted(phone, password)))
-                .andExpect(status().isOk())
-                .andReturn();
-        return new ObjectMapper()
-                .readTree(login.getResponse().getContentAsString())
-                .get("data")
-                .get("accessToken")
-                .asText();
-    }
 }

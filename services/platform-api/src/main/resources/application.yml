@@ -69,54 +69,32 @@ app:
     browser-security:
       allowed-origins: ${BROWSER_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174}
     security:
-      phone-encryption-key: ${PHONE_ENCRYPTION_KEY:}
-      phone-search-key: ${PHONE_SEARCH_KEY:}
-      initial-credential-length: 20
-      activation-ttl: 7d
       argon2:
         memory-ki-b: 65536
         iterations: 3
         parallelism: 1
         salt-length: 16
         hash-length: 32
-  sensitive-security:
-    encryption-key: ${PROFILE_ENCRYPTION_KEY:}
-    hmac-key: ${PROFILE_HMAC_KEY:}
   membership:
     svip-threshold-minor: ${MEMBERSHIP_SVIP_THRESHOLD_MINOR:59900}
   payment:
     online:
       provider: ${ONLINE_PAYMENT_PROVIDER:}
-      registration-amount-minor: ${ONLINE_REGISTRATION_AMOUNT_MINOR:100}
-      order-description: ${ONLINE_REGISTRATION_DESCRIPTION:婚恋智能档案库建档服务}
-      registration-token-ttl: ${REGISTRATION_TOKEN_TTL:30m}
+      vip-upgrade-amount-minor: ${VIP_UPGRADE_AMOUNT_MINOR:100}
+      order-description: ${VIP_UPGRADE_DESCRIPTION:婚恋智能档案库 VIP 会员}
   storage:
     cos:
       secret-id: ${COS_SECRET_ID:}
       secret-key: ${COS_SECRET_KEY:}
       region: ${COS_REGION:ap-guangzhou}
       bucket: ${COS_BUCKET:}
-  wechat:
-    pay:
-      app-id: ${WECHAT_APP_ID:}
-      app-secret: ${WECHAT_APP_SECRET:}
-      merchant-id: ${WECHAT_MERCHANT_ID:}
-      merchant-serial-number: ${WECHAT_MERCHANT_SERIAL_NUMBER:}
-      merchant-private-key: ${WECHAT_MERCHANT_PRIVATE_KEY:}
-      api-v3-key: ${WECHAT_API_V3_KEY:}
-      platform-public-key-id: ${WECHAT_PLATFORM_PUBLIC_KEY_ID:}
-      platform-public-key: ${WECHAT_PLATFORM_PUBLIC_KEY:}
-      notify-url: ${WECHAT_PAY_NOTIFY_URL:}
-      oauth-redirect-uri: ${WECHAT_OAUTH_REDIRECT_URI:}
-      api-base-url: ${WECHAT_PAY_API_BASE_URL:https://api.mch.weixin.qq.com}
-      oauth-base-url: ${WECHAT_OAUTH_BASE_URL:https://api.weixin.qq.com}
   xpay:
     pid: ${XPAY_PID:}
     merchant-private-key: ${XPAY_MERCHANT_PRIVATE_KEY:}
     platform-public-key: ${XPAY_PLATFORM_PUBLIC_KEY:}
     notify-url: ${XPAY_NOTIFY_URL:}
     return-url: ${XPAY_RETURN_URL:}
-    base-url: ${XPAY_BASE_URL:https://xpay.unbb.cn/xpay/epayn}
+    base-url: ${XPAY_BASE_URL:}
 
 management:
   endpoints:
