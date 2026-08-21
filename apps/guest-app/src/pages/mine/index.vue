@@ -1,13 +1,25 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '@/stores/auth'
 import { useVipPaymentStore } from '@/stores/payment'
+import * as api from '@/api'
 import AppIcon from '@/components/AppIcon.vue'
 import SectionCard from '@/components/SectionCard.vue'
 import ArchiveTabBar from '@/components/ArchiveTabBar.vue'
+import type { AuthorizationDocumentView } from '@/types'
 
 const auth = useAuthStore()
 const vip = useVipPaymentStore()
+
+const authorizationDocument = ref<AuthorizationDocumentView | null>(null)
+const documentExpanded = ref(false)
+const documentLoading = ref(false)
+
+/** 注册时勾选的那份授权书，标题以后端下发的为准。 */
+const authorizationTitle = computed(
+  () => authorizationDocument.value?.title ?? '档案与直播内容授权书',
+)
 
 const TIER_LABEL: Record<string, string> = {
   FREE: '普通用户',
@@ -30,6 +42,22 @@ function goVip(): void {
 async function logout(): Promise<void> {
   await auth.logout()
   uni.reLaunch({ url: '/pages/auth/index' })
+}
+
+async function toggleAuthorizationDocument(): Promise<void> {
+  if (documentExpanded.value) {
+    documentExpanded.value = false
+    return
+  }
+  documentLoading.value = true
+  try {
+    authorizationDocument.value ??= await api.currentAuthorizationDocument()
+    documentExpanded.value = true
+  } catch {
+    uni.showToast({ title: '授权书加载失败', icon: 'none' })
+  } finally {
+    documentLoading.value = false
+  }
 }
 
 function unavailable(): void {
@@ -61,7 +89,15 @@ function unavailable(): void {
 
     <SectionCard>
       <view class="menu-row" @tap="unavailable"><AppIcon name="shield" :size="18" /><text>隐私政策</text><AppIcon name="chevron" :size="18" /></view>
-      <view class="menu-row" @tap="unavailable"><AppIcon name="document" :size="18" /><text>用户协议</text><AppIcon name="chevron" :size="18" /></view>
+      <view class="menu-row" @tap="toggleAuthorizationDocument">
+        <AppIcon name="document" :size="18" />
+        <text>{{ authorizationTitle }}</text>
+        <small v-if="documentLoading">加载中</small>
+        <view class="chevron" :class="{ expanded: documentExpanded }"><AppIcon name="chevron" :size="18" /></view>
+      </view>
+      <scroll-view v-if="documentExpanded" class="document" scroll-y>
+        <text class="document-body">{{ authorizationDocument?.content }}</text>
+      </scroll-view>
       <view class="menu-row" @tap="unavailable"><AppIcon name="account" :size="18" /><text>账户与安全</text><AppIcon name="chevron" :size="18" /></view>
     </SectionCard>
 
@@ -130,6 +166,24 @@ function unavailable(): void {
 .menu-row > text:nth-child(2) { flex: 1; font-size: 23rpx; }
 .menu-row small { color: #8a8b8f; font-size: 19rpx; }
 .menu-row > :last-child { color: #9a9b9e; }
+.chevron {
+  display: flex;
+  align-items: center;
+  transition: transform .18s ease;
+}
+.chevron.expanded { transform: rotate(90deg); }
+.document {
+  max-height: 460rpx;
+  padding: 18rpx 20rpx;
+  border-bottom: 1rpx solid #edebe7;
+  background: #faf9f7;
+}
+.document-body {
+  color: #55565a;
+  font-size: 20rpx;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
 .logout {
   height: 80rpx;
   margin-top: 12rpx;
