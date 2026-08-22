@@ -37,7 +37,7 @@ function forgotPassword(): void {
       <div class="brand-lockup">
         <BrandMark light />
         <div>
-          <strong>婚恋智能档案库</strong>
+          <strong>gold 智能档案库</strong>
           <span>管理后台</span>
         </div>
       </div>
@@ -46,9 +46,9 @@ function forgotPassword(): void {
     <main class="login-stage">
       <section class="login-card">
         <BrandMark class="panel-mark" />
-        <h1>婚恋智能档案库</h1>
+        <h1>gold 智能档案库</h1>
         <p class="panel-label">管理后台</p>
-        <p class="tagline">专业审核 · 严谨可信 · 安全合规</p>
+        <p class="tagline">真实 · 严谨 · 安全合规</p>
         <el-form label-position="top" @submit.prevent="submit">
           <el-form-item label="账号">
             <el-input v-model="form.username" autocomplete="username" placeholder="请输入账号或手机号" />
@@ -63,7 +63,9 @@ function forgotPassword(): void {
             />
           </el-form-item>
           <div class="form-meta">
-            <el-checkbox>记住我</el-checkbox>
+            <!-- 会话是 HttpOnly Cookie，服务端 30 天有效期；前端没有「记住我」这个开关可拨，
+                 所以这里不放一个点了没反应的复选框。 -->
+            <span />
             <el-button link @click="forgotPassword">忘记密码？</el-button>
           </div>
           <el-button type="primary" class="submit" :loading="loading" native-type="submit">
@@ -72,7 +74,7 @@ function forgotPassword(): void {
         </el-form>
         <p class="login-help">如有疑问，请联系系统管理员或查看帮助文档</p>
       </section>
-      <p class="copyright">© 2026 婚恋智能档案库 · 管理后台</p>
+      <p class="copyright">© 2026 gold 智能档案库 · 管理后台</p>
     </main>
   </div>
 </template>
@@ -82,7 +84,7 @@ function forgotPassword(): void {
   min-width: 900px;
   height: 100%;
   display: flex;
-  background: #f8f8f7;
+  background: var(--ds-page);
 }
 .brand-rail {
   width: 22%;
@@ -91,7 +93,7 @@ function forgotPassword(): void {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background: #171a1e;
+  background: var(--ds-sidebar);
   color: #ffffff;
 }
 .brand-lockup {
@@ -104,18 +106,19 @@ function forgotPassword(): void {
   display: block;
 }
 .brand-lockup strong {
-  font-size: 16px;
+  font-size: var(--ds-h3-size);
+  font-weight: var(--ds-h3-weight);
   letter-spacing: 0.05em;
 }
 .brand-lockup span {
   margin-top: 5px;
-  color: #aaabae;
-  font-size: 11px;
+  color: var(--ds-sidebar-text);
+  font-size: var(--ds-caption-size);
   letter-spacing: 0.22em;
 }
 .brand-rail > p {
-  color: #818286;
-  font-size: 11px;
+  color: #6b6d73;
+  font-size: var(--ds-caption-size);
   letter-spacing: 0.18em;
 }
 .login-stage {
@@ -128,9 +131,9 @@ function forgotPassword(): void {
 .login-card {
   width: 360px;
   padding: 36px 42px 30px;
-  border: 1px solid var(--archive-line);
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-surface);
   box-shadow: 0 20px 50px rgba(17, 17, 19, 0.05);
 }
 .panel-mark {
@@ -140,20 +143,21 @@ function forgotPassword(): void {
 h1 {
   margin: 0;
   text-align: center;
-  font-size: 18px;
+  font-size: var(--ds-h2-size);
+  font-weight: var(--ds-h2-weight);
   letter-spacing: 0.06em;
 }
 .panel-label {
   margin: 6px 0 0;
   text-align: center;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--ds-body-size);
+  font-weight: 500;
 }
 .tagline {
   margin: 8px 0 26px;
   text-align: center;
-  color: var(--archive-muted);
-  font-size: 11px;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-caption-size);
   letter-spacing: 0.08em;
 }
 .form-meta {
@@ -170,13 +174,13 @@ h1 {
 .login-help {
   margin: 18px 0 0;
   text-align: center;
-  color: #9a9b9e;
-  font-size: 10px;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-caption-size);
 }
 .copyright {
   position: absolute;
   bottom: 28px;
-  color: #a0a1a4;
-  font-size: 10px;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-caption-size);
 }
 </style>

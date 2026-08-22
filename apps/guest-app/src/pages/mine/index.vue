@@ -69,7 +69,7 @@ function unavailable(): void {
   <view class="archive-page mine-page">
     <view class="identity-card">
       <view class="avatar-mark"><AppIcon name="user" :size="28" /></view>
-      <view class="identity-copy"><strong>婚恋档案用户</strong><text class="archive-tabular">账号 ID：{{ auth.session?.accountId ?? '—' }}</text></view>
+      <view class="identity-copy"><strong>档案用户</strong><text class="archive-tabular">账号 ID：{{ auth.session?.accountId ?? '—' }}</text></view>
     </view>
 
     <SectionCard>

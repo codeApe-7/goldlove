@@ -32,7 +32,7 @@ onMounted(async () => {
 
 <template>
   <div class="dashboard-page">
-    <PageHeader title="工作台" subtitle="欢迎使用婚恋智能档案库管理后台，实时掌握注册、建档与会员情况。" />
+    <PageHeader title="工作台" subtitle="欢迎使用gold 智能档案库管理后台，实时掌握注册、建档与会员情况。" />
     <div v-loading="loading" class="stats-grid">
       <article v-for="card in cards" :key="card.key" class="stat-card">
         <span class="stat-label">{{ card.label }}</span>

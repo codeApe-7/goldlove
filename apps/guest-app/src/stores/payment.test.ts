@@ -20,7 +20,7 @@ vi.mock('@/adapters/payment', () => ({
 const SETTINGS: OnlinePaymentSettings = {
   channelType: 'XPAY_ALIPAY',
   amountMinor: 9900,
-  orderDescription: '婚恋智能档案库 VIP 会员',
+  orderDescription: 'gold 智能档案库 VIP 会员',
 }
 
 const ORDER: OnlineOrder = {

@@ -40,7 +40,7 @@ function goRegister(): void {
     <view class="brand-hero">
       <view class="contour-lines" aria-hidden="true"><text v-for="n in 6" :key="n" /></view>
       <BrandMark light />
-      <text class="brand-title">婚恋智能档案库</text>
+      <text class="brand-title">gold 智能档案库</text>
       <text class="brand-sub">真实 · 严谨 · 安全 · 专属</text>
     </view>
     <view class="auth-surface">

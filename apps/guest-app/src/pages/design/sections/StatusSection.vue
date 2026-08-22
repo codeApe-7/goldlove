@@ -49,7 +49,7 @@ const consentShare = ref(false)
           本人承诺以上填写信息真实无误，愿意承担相应法律责任
         </AppCheckbox>
         <AppCheckbox v-model="consentReview">
-          授权婚恋智能档案库对信息进行人工审核与真实性核验
+          授权gold 智能档案库对信息进行人工审核与真实性核验
         </AppCheckbox>
         <AppCheckbox v-model="consentShare">
           同意平台在匹配需要时，向对方展示我的部分信息

@@ -41,7 +41,7 @@ const SHADOWS = [
       <view class="brand-plate">
         <BrandMark light />
         <view class="brand-copy">
-          <text class="brand-name">婚恋智能档案库</text>
+          <text class="brand-name">gold 智能档案库</text>
           <text class="brand-slogan">真实 · 严谨 · 安全 · 专属</text>
         </view>
       </view>

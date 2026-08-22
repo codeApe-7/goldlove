@@ -54,7 +54,7 @@ function showNotifications(): void {
       <div class="logo">
         <BrandMark compact light />
         <div>
-          <strong>婚恋智能档案库</strong>
+          <strong>gold 智能档案库</strong>
           <span>管理后台</span>
         </div>
       </div>

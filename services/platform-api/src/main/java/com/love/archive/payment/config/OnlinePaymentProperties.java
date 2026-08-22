@@ -13,7 +13,7 @@ public class OnlinePaymentProperties {
     private long vipUpgradeAmountMinor = 100L;
 
     /** 下单商品描述。 */
-    private String orderDescription = "婚恋智能档案库 VIP 会员";
+    private String orderDescription = "gold 智能档案库 VIP 会员";
 
     /** 启用的线上支付渠道（当前只有 XPAY_ALIPAY）。为空时取唯一已配置渠道。 */
     private String provider;
