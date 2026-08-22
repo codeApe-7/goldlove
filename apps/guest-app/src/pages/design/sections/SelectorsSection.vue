@@ -80,6 +80,10 @@ const truncated = ref('海外留学博士后研究人员联合培养项目')
     <view class="spec-group">
       <text class="spec-group__title">3.5 单选 — 职业（行业）示例</text>
       <AppSelect v-model="industry" :options="INDUSTRY" placeholder="请选择职业" />
+      <text class="spec-note">
+        档案表单里的学历、职业、年薪取值都是「范围」，实际用的是 3.7 的底部弹层滚轮；
+        3.1–3.6 的内联下拉留在组件库里，供选项需要搜索或场景不适合弹层时使用。
+      </text>
     </view>
 
     <view class="spec-group">

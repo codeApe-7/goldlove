@@ -3,6 +3,9 @@ import type { GuestFieldDefinition } from '@/types'
 /**
  * 字段定义 → 录入控件。规范图第 3 区块给几个核心字段单独设计了交互形态，
  * 其余字段按 dataType 兜底。沿用 utils/presentation.ts 里按 fieldCode 分组的既有做法。
+ *
+ * 注：AppSelect 的可搜索形态（规范 3.3）仍在组件库与规范预览页里，
+ * 只是档案表单的字段都不需要搜索，没有映射到这里。
  */
 export type ProfileControlKind =
   | 'radio-tiles'
@@ -10,18 +13,19 @@ export type ProfileControlKind =
   | 'date'
   | 'wheel-select'
   | 'select'
-  | 'searchable-select'
   | 'number'
   | 'textarea'
   | 'checkbox'
   | 'text'
 
 // 这几个控件都要求后端下发了选项，没有选项就必须回落。
+// 学历 / 职业 / 年薪 统一走底部弹层滚轮：选项都是「范围」而非自由取值，
+// 弹层比内联展开更适合移动端，也不会被卡片裁切。
 const OPTION_DRIVEN_CONTROLS: Record<string, ProfileControlKind> = {
   gender: 'radio-tiles',
+  education: 'wheel-select',
+  occupation: 'wheel-select',
   income_range: 'wheel-select',
-  occupation: 'searchable-select',
-  education: 'select',
 }
 
 const BY_DATA_TYPE: Record<GuestFieldDefinition['dataType'], ProfileControlKind> = {

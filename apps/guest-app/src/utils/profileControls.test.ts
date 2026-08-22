@@ -38,20 +38,17 @@ describe('profileControl 按字段编码指定专用控件', () => {
     }))).toBe('wheel-select')
   })
 
-  it('职业用可搜索下拉', () => {
+  it('职业与学历同样用底部弹层滚轮，取值是范围不是自由文本', () => {
     expect(profileControl(definition({
       fieldCode: 'occupation',
       dataType: 'SINGLE_OPTION',
-      options: ['产品经理', '项目经理'],
-    }))).toBe('searchable-select')
-  })
-
-  it('学历用内联下拉', () => {
+      options: ['互联网 / IT', '金融 / 投资'],
+    }))).toBe('wheel-select')
     expect(profileControl(definition({
       fieldCode: 'education',
       dataType: 'SINGLE_OPTION',
       options: ['大学本科', '大专'],
-    }))).toBe('select')
+    }))).toBe('wheel-select')
   })
 })
 

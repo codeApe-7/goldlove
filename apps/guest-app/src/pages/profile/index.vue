@@ -248,15 +248,6 @@ async function save(): Promise<void> {
             @update:model-value="setValue(definition.fieldCode, $event)"
           />
           <AppSelect
-            v-else-if="profileControl(definition) === 'searchable-select'"
-            :model-value="textValue(definition.fieldCode)"
-            :options="definition.options"
-            :placeholder="definition.instructions || '请选择'"
-            searchable
-            :search-placeholder="`搜索${definition.label}关键词`"
-            @update:model-value="setValue(definition.fieldCode, $event)"
-          />
-          <AppSelect
             v-else-if="profileControl(definition) === 'select'"
             :model-value="textValue(definition.fieldCode)"
             :options="definition.options"

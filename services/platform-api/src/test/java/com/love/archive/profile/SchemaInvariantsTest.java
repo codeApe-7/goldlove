@@ -41,11 +41,10 @@ class SchemaInvariantsTest extends PostgresIntegrationTest {
         assertThat(dataTypeOf("education")).isEqualTo("SINGLE_OPTION");
         assertThat(dataTypeOf("occupation")).isEqualTo("SINGLE_OPTION");
         assertThat(optionsOf("education")).contains("博士及以上", "硕士研究生", "大学本科", "大专");
-        // V3 把职业细化到岗位一级（规范 3.3），不再是 V2 的行业档（规范 3.5）。
+        // V3 曾把职业细化到 47 个岗位，V4 改回「职业范围」粒度（规范 3.5 的行业档）。
         assertThat(optionsOf("occupation"))
-                .contains("产品经理", "产品运营", "项目经理",
-                        "前端开发工程师", "后端开发工程师", "数据分析师", "其他职业")
-                .doesNotContain("互联网 / IT", "金融 / 投资", "其他行业");
+                .contains("互联网 / IT", "金融 / 投资", "教育 / 培训", "其他行业")
+                .doesNotContain("产品经理", "前端开发工程师", "数据分析师");
 
         // 三级联动是前端录入方式，所在城市仍按文本存回。
         assertThat(dataTypeOf("city")).isEqualTo("TEXT");

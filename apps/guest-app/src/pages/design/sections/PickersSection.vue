@@ -8,11 +8,15 @@ import AppTagSelect from '@/components/AppTagSelect.vue'
 
 /** 规范图区块 3.7–3.11 · 底部弹层滚轮、级联、日期、性别格子、多选标签。 */
 const INCOME = ['20万以下', '20万-30万', '30万-50万', '50万-80万', '80万-120万', '120万以上', '保密']
+const EDUCATION = ['博士及以上', '硕士研究生', '大学本科', '大专', '高中及以下', '其他学历']
+const OCCUPATION = ['互联网 / IT', '金融 / 投资', '教育 / 培训', '医疗 / 健康', '法律 / 咨询', '政府 / 事业单位', '其他行业']
 const GENDER_ICONS: Record<string, string> = { 男: 'user', 女: 'user', 不公开: 'lock' }
 const HOBBY_CATALOG = ['健身', '旅行', '阅读', '摄影', '音乐', '美食', '电影', '烹饪', '羽毛球']
 
 const income = ref('30万-50万')
 const privateIncome = ref('保密')
+const education = ref('大学本科')
+const occupation = ref('互联网 / IT')
 const region = ref('北京市 / 东城区')
 const birthDate = ref('1992-03-30')
 const gender = ref('男')
@@ -48,6 +52,26 @@ const hobbies = ref(['健身', '旅行', '阅读', '摄影'])
       />
       <text class="spec-note">
         年薪档位本身是敏感信息，选「保密」后加锁标、收敛字重，档案里不再展示具体区间。
+      </text>
+
+      <view class="spacer" />
+      <text class="spec-label">学历与职业同样走这个形态</text>
+      <AppWheelSelect
+        v-model="education"
+        :options="EDUCATION"
+        title="请选择学历"
+        placeholder="请选择学历"
+      />
+      <view class="spacer" />
+      <AppWheelSelect
+        v-model="occupation"
+        :options="OCCUPATION"
+        title="请选择职业"
+        placeholder="请选择职业"
+      />
+      <text class="spec-note">
+        学历、职业、年薪三个字段的取值都是「范围」，档案表单统一用底部弹层滚轮录入
+        （上面 3.1–3.6 的内联下拉仍在组件库里，供其他场景使用）。
       </text>
     </view>
 
