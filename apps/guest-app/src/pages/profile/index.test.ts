@@ -53,4 +53,16 @@ describe('滚轮的居中项与未选中项颜色分开', () => {
     expect(wheelSource).toMatch(/\.wheel-item \{[\s\S]*?color: \$ds-placeholder/)
     expect(wheelSource).toMatch(/\.wheel-item\.is-active \{[\s\S]*?color: \$ds-ink/)
   })
+
+  it('遮罩只盖上下两条，不能用 background 简写盖住居中项', () => {
+    // uni-app 给遮罩加了内联 background-size: 100% <遮罩高度>px。
+    // 用 background 简写会把 position 重置为 0 0、repeat 重置为 repeat，
+    // 两条渐变平铺下来正好盖住居中那一行，把品牌黑洗成灰——这就是原来的 bug。
+    const mask = wheelSource.match(/\.wheel-mask \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(mask).not.toBe('')
+    expect(mask).toContain('background-image:')
+    expect(mask).toContain('background-position: top, bottom;')
+    expect(mask).toContain('background-repeat: no-repeat, no-repeat;')
+    expect(mask).not.toMatch(/\n\s*background:\s/)
+  })
 })

@@ -324,6 +324,24 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
     }
 
     @Test
+    void treatsBlankDouyinUrlAsAbsentInsteadOfMalformed() {
+        // 抖音主页链接是选填的，但 Jackson 把 JSON 空串反序列化成 URI.create("")
+        // 而不是 null，曾导致「未填写选填字段」被当成格式错误，整份档案存不下去。
+        GuestProfileDraftView saved = service.save(
+                accountId, withDouyinProfileUrl(null, URI.create("")), REQUEST_ID);
+
+        assertThat(saved.douyinProfileUrl()).isNull();
+    }
+
+    @Test
+    void stillRejectsDouyinUrlWithoutHttpScheme() {
+        assertCode(() -> service.save(
+                        accountId, withDouyinProfileUrl(null, URI.create("douyin.com/user/x")),
+                        REQUEST_ID),
+                "FIELD_VALUE_INVALID");
+    }
+
+    @Test
     void acceptsEducationAndOccupationOptionsFromTheCoreDefinition() {
         GuestProfileDraftView saved = service.save(
                 accountId, withEducationAndOccupation(null, "硕士研究生", "数据分析师"), REQUEST_ID);
@@ -491,6 +509,15 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
                 education, occupation, base.incomeRange(), base.city(),
                 base.wechatId(), base.douyinId(), base.douyinNickname(),
                 base.douyinProfileUrl(), base.dynamicFields());
+    }
+
+    private SaveGuestProfileCommand withDouyinProfileUrl(Long version, URI profileUrl) {
+        SaveGuestProfileCommand base = validCommand(version);
+        return new SaveGuestProfileCommand(
+                base.expectedVersion(), base.gender(), base.birthDate(), base.heightCm(),
+                base.education(), base.occupation(), base.incomeRange(), base.city(),
+                base.wechatId(), base.douyinId(), base.douyinNickname(),
+                profileUrl, base.dynamicFields());
     }
 
     private void updateGenderOptions(List<String> options) {

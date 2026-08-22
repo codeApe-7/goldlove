@@ -671,6 +671,12 @@ public class GuestProfileDraftService {
         if (uri == null) {
             return null;
         }
+        // Jackson 把 JSON 空串反序列化成 URI.create("")——这是 URI 类型的特例，不是 null。
+        // 抖音主页链接是选填的，客户端对未填写字段发空串很正常，这里必须当作「没填」，
+        // 否则整份档案永远存不下去（报错还落在一个用户没填过的字段上）。
+        if (uri.toString().isBlank()) {
+            return null;
+        }
         String scheme = uri.getScheme();
         String normalized = uri.normalize().toASCIIString();
         if (scheme == null

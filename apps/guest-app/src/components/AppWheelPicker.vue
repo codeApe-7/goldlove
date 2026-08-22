@@ -75,9 +75,14 @@ function onChange(event: Event): void {
   border-bottom: $ds-hairline solid $ds-line;
 }
 
-// 未选中项已经是淡灰，遮罩只做很轻的淡出，避免整列糊成一片白。
+// uni-app 会给遮罩元素加内联 `background-size: 100% <遮罩高度>px`，所以这里只能写
+// background-image / position / repeat，**不能用 background 简写**——简写会把
+// position 重置为 0 0、repeat 重置为 repeat，两条渐变就会平铺盖住居中那一行，
+// 把 is-active 的品牌黑洗成灰色（本来的 bug 就是这么来的）。
 .wheel-mask {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0)),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0));
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.55)),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.55));
+  background-position: top, bottom;
+  background-repeat: no-repeat, no-repeat;
 }
 </style>

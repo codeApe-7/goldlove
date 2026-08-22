@@ -30,7 +30,11 @@ export function profileValuesToDraftPayload(
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = { expectedVersion }
   for (const [fieldCode, property] of Object.entries(CORE_FIELD_PROPERTIES)) {
-    payload[property] = values[fieldCode] ?? ''
+    const value = values[fieldCode]
+    // 没填的字段必须发 null，不能发空串。后端 douyinProfileUrl 是 URI 类型，
+    // Jackson 会把空串反序列化成 URI.create("")（URI 的特例，不是 null），
+    // 于是选填的抖音主页链接会被当成「有值但格式不对」直接拒掉。
+    payload[property] = value === '' || value === undefined ? null : value
   }
   return payload
 }
