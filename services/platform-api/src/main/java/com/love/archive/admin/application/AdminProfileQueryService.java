@@ -1,6 +1,7 @@
 package com.love.archive.admin.application;
 
 import com.love.archive.admin.persistence.AdminProfileQueryMapper;
+import com.love.archive.admin.persistence.query.AdminProfileCountsRow;
 import com.love.archive.admin.persistence.query.AdminProfileDetailRow;
 import com.love.archive.admin.persistence.query.AdminProfileFieldRow;
 import com.love.archive.admin.persistence.query.AdminProfileListRow;
@@ -38,18 +39,45 @@ public class AdminProfileQueryService {
                 filter, pageSize, (pageNumber - 1) * pageSize);
         long total = profileQueryMapper.count(filter);
         return new PageView<>(
-                rows.stream()
-                        .map(row -> new AdminProfileListItem(
-                                row.getId(),
-                                row.getProfileNo(),
-                                row.getPhone(),
-                                row.getMembershipTier(),
-                                row.getStatus(),
-                                row.getUpdatedAt()))
-                        .toList(),
+                rows.stream().map(AdminProfileQueryService::toListItem).toList(),
                 pageNumber,
                 pageSize,
                 total);
+    }
+
+    /** tab 上的数量。用筛选条上的条件统计，不含 tab 自身条件。 */
+    @Transactional(readOnly = true)
+    public AdminProfileCounts counts(AdminProfileFilter filter) {
+        AdminProfileCountsRow row = profileQueryMapper.counts(filter.withoutTabConditions());
+        if (row == null) {
+            return new AdminProfileCounts(0, 0, 0, 0, 0);
+        }
+        return new AdminProfileCounts(
+                orZero(row.getTotal()),
+                orZero(row.getDraft()),
+                orZero(row.getCompleted()),
+                orZero(row.getSuspended()),
+                orZero(row.getPaid()));
+    }
+
+    private static AdminProfileListItem toListItem(AdminProfileListRow row) {
+        return new AdminProfileListItem(
+                row.getId(),
+                row.getProfileNo(),
+                row.getUserAccountId(),
+                row.getPhone(),
+                row.getMembershipTier(),
+                row.getAccountStatus(),
+                row.getStatus(),
+                row.getGender(),
+                row.getBirthDate(),
+                row.getCity(),
+                row.getCreatedAt(),
+                row.getUpdatedAt());
+    }
+
+    private static long orZero(Long value) {
+        return value == null ? 0L : value;
     }
 
     @Transactional(readOnly = true)
@@ -61,9 +89,11 @@ public class AdminProfileQueryService {
         return new AdminProfileDetail(
                 row.getId(),
                 row.getProfileNo(),
+                row.getUserAccountId(),
                 row.getPhone(),
                 row.getMembershipTier(),
                 row.getMembershipCreditMinor() == null ? 0L : row.getMembershipCreditMinor(),
+                row.getAccountStatus(),
                 row.getStatus(),
                 row.getCreatedAt(),
                 row.getUpdatedAt(),

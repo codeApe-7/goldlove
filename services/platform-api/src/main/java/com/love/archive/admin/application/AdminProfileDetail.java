@@ -3,14 +3,15 @@ package com.love.archive.admin.application;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.UUID;
 
 public record AdminProfileDetail(
         long id,
-        UUID profileNo,
+        String profileNo,
+        long accountId,
         String phone,
         String membershipTier,
         long membershipCreditMinor,
+        String accountStatus,
         String status,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,

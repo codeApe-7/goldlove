@@ -67,8 +67,12 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | POST | `/api/v1/public/payment-notifications/xpay` | 验签 | 易支付结果通知，幂等结算 |
 | POST | `/api/v1/admin/auth/login` | 无 | 管理员登录 |
 | GET | `/api/v1/admin/dashboard/stats` | 管理员 | 工作台统计 |
-| GET | `/api/v1/admin/profiles` | 管理员 | 分页档案列表（手机号/完成度/等级筛选） |
+| GET | `/api/v1/admin/profiles` | 管理员 | 分页档案列表（关键词/完成度/账号状态/等级/地区/创建时间/排序） |
+| GET | `/api/v1/admin/profiles/counts` | 管理员 | 各状态 tab 的数量（忽略 tab 自身条件） |
+| GET | `/api/v1/admin/profiles/export` | 管理员 | 导出 CSV（可传 `ids` 只导勾选行，上限 5000，写审计） |
 | GET | `/api/v1/admin/profiles/{id}` | 管理员 | 档案详情（含动态字段与签名照片地址） |
+| POST | `/api/v1/admin/accounts/{id}/suspend` | 管理员 | 停用访客账号（备注写入审计） |
+| POST | `/api/v1/admin/accounts/{id}/activate` | 管理员 | 启用访客账号 |
 | GET | `/api/v1/admin/payment-orders` | 管理员 | 分页支付订单列表 |
 | POST | `/api/v1/admin/activation-codes` | 管理员 | 生成激活码（绑定手机号 + 等级） |
 | GET | `/api/v1/admin/activation-codes` | 管理员 | 分页激活码列表（含兑换人） |
@@ -158,6 +162,11 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | `PAYMENT_NOTIFY_SIGNATURE_INVALID` | 400 | 回调验签失败（回调端点对外返回 401） |
 | `PROFILE_VERSION_CONFLICT` | 409 | 档案版本已变化，请刷新后重试 |
 | `PROFILE_NOT_FOUND` | 404 | 档案不存在 |
+| `PROFILE_EXPORT_TOO_LARGE` | 400 | 单次导出超过 5000 条 |
+| `REQUEST_PARAM_INVALID` | 400 | 请求参数取值不正确（枚举值不认识等，消息带参数名） |
+| `ACCOUNT_NOT_FOUND` | 404 | 账号不存在 |
+| `ACCOUNT_CLOSED` | 409 | 账号已注销，不能再改状态 |
+| `ACCOUNT_STATUS_CONFLICT` | 409 | 账号状态并发变化，请重试 |
 
 ## 对象存储（腾讯云 COS）
 

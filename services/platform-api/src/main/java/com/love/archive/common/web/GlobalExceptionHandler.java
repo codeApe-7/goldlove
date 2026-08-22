@@ -52,10 +52,24 @@ public final class GlobalExceptionHandler {
                 "PHOTO_CONTENT_INVALID", "文件内容不能为空", RequestIdFilter.current(request)));
     }
 
+    /**
+     * 请求参数类型转换失败（多数是枚举值不认识）。
+     *
+     * <p>照片类别保留专属错误码——它已经写进 README 的错误码表，前端也照着判。
+     * 其余参数报通用错误码并带上参数名：以前这里对所有类型不匹配都回
+     * 「照片类别不正确」，一个错误的 sort 值也会得到这句话，排查时纯属误导。</p>
+     */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    ResponseEntity<ApiResponse<Void>> handleTypeMismatch(HttpServletRequest request) {
+    ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
+            MethodArgumentTypeMismatchException exception, HttpServletRequest request) {
+        if ("category".equals(exception.getName())) {
+            return ResponseEntity.badRequest().body(ApiResponse.failure(
+                    "PHOTO_CATEGORY_INVALID", "照片类别不正确", RequestIdFilter.current(request)));
+        }
         return ResponseEntity.badRequest().body(ApiResponse.failure(
-                "PHOTO_CATEGORY_INVALID", "照片类别不正确", RequestIdFilter.current(request)));
+                "REQUEST_PARAM_INVALID",
+                "请求参数 " + exception.getName() + " 取值不正确",
+                RequestIdFilter.current(request)));
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)

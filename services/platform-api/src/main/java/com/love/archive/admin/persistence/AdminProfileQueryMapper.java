@@ -1,6 +1,7 @@
 package com.love.archive.admin.persistence;
 
 import com.love.archive.admin.application.AdminProfileFilter;
+import com.love.archive.admin.persistence.query.AdminProfileCountsRow;
 import com.love.archive.admin.persistence.query.AdminProfileDetailRow;
 import com.love.archive.admin.persistence.query.AdminProfileFieldRow;
 import com.love.archive.admin.persistence.query.AdminProfileListRow;
@@ -23,12 +24,24 @@ public interface AdminProfileQueryMapper {
     @SelectProvider(type = AdminProfileSqlProvider.class, method = "count")
     long count(@Param("filter") AdminProfileFilter filter);
 
+    @SelectProvider(type = AdminProfileSqlProvider.class, method = "counts")
+    AdminProfileCountsRow counts(@Param("filter") AdminProfileFilter filter);
+
+    /** 导出：列与详情一致，因此复用 AdminProfileDetailRow。ids 为空表示导出整个筛选结果。 */
+    @SelectProvider(type = AdminProfileSqlProvider.class, method = "export")
+    List<AdminProfileDetailRow> export(
+            @Param("filter") AdminProfileFilter filter,
+            @Param("ids") List<Long> ids,
+            @Param("limit") long limit);
+
     @Select("""
-            SELECT p.id, p.profile_no, p.status, p.created_at, p.updated_at,
+            SELECT p.id, p.profile_no::text AS profile_no, p.status,
+                   p.created_at, p.updated_at,
                    p.gender, p.birth_date, p.height_cm, p.education, p.occupation,
                    p.income_range, p.city, p.wechat_id, p.douyin_id,
                    p.douyin_nickname, p.douyin_profile_url,
-                   a.id AS user_account_id, a.phone, a.membership_tier, a.membership_credit_minor
+                   a.id AS user_account_id, a.phone, a.membership_tier,
+                   a.membership_credit_minor, a.status AS account_status
               FROM guest_profile p
               JOIN user_account a ON a.id = p.user_account_id
              WHERE p.id = #{profileId}
