@@ -27,6 +27,7 @@ import {
   remainingLifePhotoSlots,
 } from '@/utils/presentation'
 import { profileControl } from '@/utils/profileControls'
+import { setDocumentTitle } from '@/utils/documentTitle'
 import {
   draftToProfileValues,
   profileValuesToDraftPayload,
@@ -90,6 +91,8 @@ const lifeItems = computed<UploaderItem[]>(() => {
 })
 
 onShow(async () => {
+  // 原生导航栏留短标题「我的档案」，浏览器标签页带上品牌名。
+  setDocumentTitle('我的档案')
   await Promise.all([loadDefinitions(), store.load()])
   // 只在首次进入时用服务端草稿填充表单。onShow 会被重复触发——H5 选图打开系统文件框
   // 再回来算一次页面显示，切到「我的」再切回来也算一次——那时用服务端数据覆盖

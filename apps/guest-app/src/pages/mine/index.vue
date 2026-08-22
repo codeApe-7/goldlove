@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import { setDocumentTitle } from '@/utils/documentTitle'
 import { useAuthStore } from '@/stores/auth'
 import { useVipPaymentStore } from '@/stores/payment'
 import * as api from '@/api'
@@ -28,6 +29,7 @@ const TIER_LABEL: Record<string, string> = {
 }
 
 onShow(async () => {
+  setDocumentTitle('我的')
   try {
     await vip.loadMembership()
   } catch {
