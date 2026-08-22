@@ -57,6 +57,36 @@ describe('request', () => {
     expect(handler).toHaveBeenCalledTimes(1)
   })
 
+  it('does not treat a wrong password as an expired session', async () => {
+    // 输错密码时后端返回 401「手机号或密码错误」。以前这里被当成会话过期：
+    // 文案换成「请先登录」，还会 reLaunch 回登录页——人本来就在登录页，
+    // 结果页面一闪，什么原因都没看到。
+    const handler = vi.fn()
+    setUnauthorizedHandler(handler)
+    stubRequest((options) => {
+      options.success?.({
+        statusCode: 401,
+        header: {},
+        cookies: [],
+        data: { success: false, code: 'AUTH_INVALID_CREDENTIALS', message: '手机号或密码错误' },
+      } as UniApp.RequestSuccessCallbackResult)
+    })
+    await expect(request<never>({ url: '/guest/auth/login' })).rejects.toThrow('手机号或密码错误')
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('falls back to a human sentence when the body carries no message', async () => {
+    stubRequest((options) => {
+      options.success?.({
+        statusCode: 429,
+        header: {},
+        cookies: [],
+        data: null,
+      } as unknown as UniApp.RequestSuccessCallbackResult)
+    })
+    await expect(request<never>({ url: '/x' })).rejects.toThrow('操作过于频繁，请稍后再试')
+  })
+
   it('attaches bearer token from stored session', async () => {
     sessionStorage.setItem(
       'guest-session',

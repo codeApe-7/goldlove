@@ -112,16 +112,6 @@ describe('admin api', () => {
     })
   })
 
-  it('exportProfiles reads the error message out of the blob body', async () => {
-    // responseType 是 blob 时错误响应体也是 blob，直接抛出去只会得到「[object Blob]」。
-    const failure = {
-      response: { data: new Blob([JSON.stringify({ message: '单次最多导出 5000 条' })]) },
-    }
-    vi.spyOn(http, 'get').mockRejectedValue(failure)
-
-    await expect(exportProfiles({})).rejects.toThrow('单次最多导出 5000 条')
-  })
-
   it('suspendAccount and activateAccount post the reason', async () => {
     vi.spyOn(http, 'post').mockResolvedValue(ok({ accountId: 3, status: 'SUSPENDED' }))
 

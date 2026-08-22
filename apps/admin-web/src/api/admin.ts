@@ -48,53 +48,19 @@ export function profileDetail(profileId: number): Promise<AdminProfileDetail> {
  *
  * ids 用逗号串而不是数组：axios 默认把数组序列化成 `ids[]=1&ids[]=2`，
  * Spring 的 `List<Long>` 收不到，而逗号串它会自己拆开。
+ *
+ * 失败时的错误文案由 http.ts 的拦截器统一处理（它会把 blob 响应体读成文本再取 message）。
  */
 export async function exportProfiles(
   params: ProfileQuery,
   ids: number[] = [],
 ): Promise<Blob> {
   const query = ids.length > 0 ? { ...params, ids: ids.join(',') } : params
-  try {
-    const response = await http.get('/admin/profiles/export', {
-      params: query,
-      responseType: 'blob',
-    })
-    return response.data as Blob
-  } catch (error) {
-    // 失败时响应体也是 blob，直接抛出去只会得到「[object Blob]」。
-    throw new Error(await readBlobErrorMessage(error))
-  }
-}
-
-async function readBlobErrorMessage(error: unknown): Promise<string> {
-  const body = (error as { response?: { data?: unknown } })?.response?.data
-  if (body instanceof Blob) {
-    try {
-      const parsed = JSON.parse(await blobText(body)) as { message?: string }
-      if (parsed.message) {
-        return parsed.message
-      }
-    } catch {
-      // 不是 JSON 就走下面的兜底文案
-    }
-  }
-  return error instanceof Error ? error.message : '导出失败'
-}
-
-/**
- * 读 Blob 文本。优先用 Blob.text()，退回 FileReader——
- * jsdom 的 Blob 没有 text()，只走 text() 的话这段错误处理在测试里根本跑不到。
- */
-function blobText(blob: Blob): Promise<string> {
-  if (typeof blob.text === 'function') {
-    return blob.text()
-  }
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result ?? ''))
-    reader.onerror = () => reject(reader.error ?? new Error('读取响应失败'))
-    reader.readAsText(blob)
+  const response = await http.get('/admin/profiles/export', {
+    params: query,
+    responseType: 'blob',
   })
+  return response.data as Blob
 }
 
 // ---- 账号状态 ----
