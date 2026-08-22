@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { http } from './http'
 import {
+  activateAccount,
+  exportProfiles,
   generateActivationCode,
   listActivationCodes,
   listPaymentOrders,
   listProfiles,
+  profileCounts,
   profileDetail,
   revokeActivationCode,
+  suspendAccount,
 } from './admin'
 
 describe('admin api', () => {
@@ -21,10 +25,21 @@ describe('admin api', () => {
   it('listProfiles forwards filters as query params', async () => {
     vi.spyOn(http, 'get').mockResolvedValue(ok({ items: [], page: 1, size: 20, total: 0 }))
 
-    await listProfiles({ phone: '138', status: 'DRAFT', page: 2, size: 20 })
+    await listProfiles({ keyword: '138', status: 'DRAFT', paidOnly: true, page: 2, size: 20 })
 
     expect(http.get).toHaveBeenCalledWith('/admin/profiles', {
-      params: { phone: '138', status: 'DRAFT', page: 2, size: 20 },
+      params: { keyword: '138', status: 'DRAFT', paidOnly: true, page: 2, size: 20 },
+    })
+  })
+
+  it('profileCounts hits the counts endpoint', async () => {
+    vi.spyOn(http, 'get').mockResolvedValue(
+      ok({ total: 2, draft: 1, completed: 1, suspended: 0, paid: 0 }),
+    )
+
+    await expect(profileCounts({ keyword: '138' })).resolves.toMatchObject({ total: 2 })
+    expect(http.get).toHaveBeenCalledWith('/admin/profiles/counts', {
+      params: { keyword: '138' },
     })
   })
 
@@ -71,5 +86,49 @@ describe('admin api', () => {
       params: { status: 'UNUSED', page: 1, size: 20 },
     })
     expect(http.post).toHaveBeenCalledWith('/admin/activation-codes/42/revoke')
+  })
+
+  it('exportProfiles asks for a blob and joins ids with commas', async () => {
+    const blob = new Blob(['﻿档案编号'], { type: 'text/csv' })
+    vi.spyOn(http, 'get').mockResolvedValue({ data: blob } as never)
+
+    await expect(exportProfiles({ status: 'DRAFT' }, [7, 9])).resolves.toBe(blob)
+    // axios 默认会把数组序列化成 ids[]=7&ids[]=9，Spring 的 List<Long> 收不到；
+    // 逗号串它会自己拆开。
+    expect(http.get).toHaveBeenCalledWith('/admin/profiles/export', {
+      params: { status: 'DRAFT', ids: '7,9' },
+      responseType: 'blob',
+    })
+  })
+
+  it('exportProfiles omits ids when nothing is selected', async () => {
+    vi.spyOn(http, 'get').mockResolvedValue({ data: new Blob() } as never)
+
+    await exportProfiles({ status: 'DRAFT' })
+
+    expect(http.get).toHaveBeenCalledWith('/admin/profiles/export', {
+      params: { status: 'DRAFT' },
+      responseType: 'blob',
+    })
+  })
+
+  it('exportProfiles reads the error message out of the blob body', async () => {
+    // responseType 是 blob 时错误响应体也是 blob，直接抛出去只会得到「[object Blob]」。
+    const failure = {
+      response: { data: new Blob([JSON.stringify({ message: '单次最多导出 5000 条' })]) },
+    }
+    vi.spyOn(http, 'get').mockRejectedValue(failure)
+
+    await expect(exportProfiles({})).rejects.toThrow('单次最多导出 5000 条')
+  })
+
+  it('suspendAccount and activateAccount post the reason', async () => {
+    vi.spyOn(http, 'post').mockResolvedValue(ok({ accountId: 3, status: 'SUSPENDED' }))
+
+    await expect(suspendAccount(3, '资料不实')).resolves.toMatchObject({ status: 'SUSPENDED' })
+    expect(http.post).toHaveBeenCalledWith('/admin/accounts/3/suspend', { reason: '资料不实' })
+
+    await activateAccount(3, null)
+    expect(http.post).toHaveBeenCalledWith('/admin/accounts/3/activate', { reason: null })
   })
 })

@@ -1,0 +1,62 @@
+/**
+ * 后台设计令牌 —— 依据《婚恋智能档案库 · 后台组件与筛选控件规范》第 1 区块。
+ *
+ * 后台是桌面 Web，单位直接用 px（访客端 uni-app 那套 rpx 换算在这里不适用）。
+ * 只在这里声明变量，选择器与 Element Plus 覆盖写在 theme.css，
+ * 这样 tokens.test.ts 能把数值逐条锁住而不受样式改动影响。
+ */
+:root {
+  /* 1.1 侧边栏与配色基调 */
+  --ds-sidebar: #0f1115;
+  --ds-sidebar-text: #b8b9bc;
+  --ds-sidebar-active-text: #ffffff;
+  --ds-surface: #ffffff;
+  --ds-page: #f7f8fa;
+  --ds-line: #e5e7eb;
+
+  /* 1.4 状态色与语义 */
+  --ds-primary: #1d4ed8;
+  --ds-primary-hover: #1a44bd;
+  --ds-primary-soft: #eef2ff;
+  --ds-success: #16a34a;
+  --ds-warning: #f59e0b;
+  --ds-danger: #dc2626;
+  --ds-neutral: #6b7280;
+  --ds-disabled: #d1d5db;
+
+  /* 文本层级：规范图只给了字号，正文色沿用侧边栏同源的近黑，辅助文字用中性色 */
+  --ds-text: #111827;
+  --ds-text-secondary: #4b5563;
+  --ds-text-muted: var(--ds-neutral);
+  --ds-text-placeholder: #9ca3af;
+
+  /* 1.3 字体与排版 */
+  --ds-font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --ds-h1-size: 28px;
+  --ds-h1-weight: 700;
+  --ds-h2-size: 20px;
+  --ds-h2-weight: 600;
+  --ds-h3-size: 16px;
+  --ds-h3-weight: 600;
+  --ds-body-size: 14px;
+  --ds-body-weight: 400;
+  --ds-caption-size: 12px;
+  --ds-caption-weight: 400;
+
+  /* 1.2 圆角与阴影 */
+  --ds-radius-card: 8px;
+  --ds-radius-control: 6px;
+  --ds-shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --ds-shadow-overlay: 0 8px 24px rgba(16, 24, 40, 0.08);
+
+  /* 间距：4px 基准，规范图的表单与工具栏间隙都落在这几档上 */
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-5: 24px;
+  --ds-space-6: 32px;
+
+  /* 控件高度：规范图 2.1 的按钮与 3.1 的下拉框同高，视觉才对得齐 */
+  --ds-control-height: 34px;
+}

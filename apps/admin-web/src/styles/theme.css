@@ -1,34 +1,62 @@
+/**
+ * 全局样式 —— 令牌在 tokens.css，这里只做「令牌 → Element Plus 变量」的映射与组件级修正。
+ */
+@import './tokens.css';
+
 :root {
-  --archive-ink: #0d0d0f;
-  --archive-graphite: #1e1e22;
-  --archive-muted: #6b6c70;
-  --archive-line: #e5e3df;
-  --archive-bg: #f7f6f3;
-  --archive-white: #ffffff;
+  /* Element Plus 主色。必须连同 light-N / dark-2 一起给：
+     EP 的 plain / disabled / hover 态用的是这些派生色，只改 primary 会留下它自带的浅蓝。 */
+  --el-color-primary: var(--ds-primary);
+  --el-color-primary-light-3: #6183e4;
+  --el-color-primary-light-5: #8ea7ec;
+  --el-color-primary-light-7: #bbcaf3;
+  --el-color-primary-light-8: #d2d6f7;
+  --el-color-primary-light-9: #e8edfb;
+  --el-color-primary-dark-2: #173ead;
+
+  --el-color-success: var(--ds-success);
+  --el-color-warning: var(--ds-warning);
+  --el-color-danger: var(--ds-danger);
+  --el-color-error: var(--ds-danger);
+  --el-color-info: var(--ds-neutral);
+
+  --el-text-color-primary: var(--ds-text);
+  --el-text-color-regular: var(--ds-text-secondary);
+  --el-text-color-secondary: var(--ds-text-muted);
+  --el-text-color-placeholder: var(--ds-text-placeholder);
+  --el-text-color-disabled: var(--ds-disabled);
+
+  --el-bg-color-page: var(--ds-page);
+  --el-border-color: var(--ds-line);
+  --el-border-color-light: var(--ds-line);
+  --el-border-color-lighter: #eef0f3;
+  --el-border-radius-base: var(--ds-radius-control);
+  --el-font-size-base: var(--ds-body-size);
+  --el-component-size: var(--ds-control-height);
+  --el-box-shadow-light: var(--ds-shadow-card);
+
+  /* 旧变量名的兼容层：仍有页面在用 --archive-*，逐页迁移期间先指向新令牌，
+     避免同一个界面上出现两套色值。新代码请直接用 --ds-*。 */
+  --archive-ink: var(--ds-text);
+  --archive-graphite: var(--ds-text-secondary);
+  --archive-muted: var(--ds-text-muted);
+  --archive-line: var(--ds-line);
+  --archive-bg: var(--ds-page);
+  --archive-white: var(--ds-surface);
   --archive-gold: #c9a96a;
-  --archive-success: #22c55e;
-  --archive-warning: #f59e0b;
-  --archive-danger: #ef4444;
-
-  --el-color-primary: var(--archive-ink);
-  --el-color-success: var(--archive-success);
-  --el-color-warning: var(--archive-warning);
-  --el-color-danger: var(--archive-danger);
-  --el-bg-color-page: var(--archive-bg);
-  --el-border-color: var(--archive-line);
-  --el-border-color-light: #eeece8;
-  --el-border-radius-base: 6px;
-  --el-font-size-base: 13px;
+  --archive-success: var(--ds-success);
+  --archive-warning: var(--ds-warning);
+  --archive-danger: var(--ds-danger);
 }
-
 html,
 body,
 #app {
   height: 100%;
   margin: 0;
-  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  background: var(--archive-bg);
-  color: var(--archive-ink);
+  font-family: var(--ds-font-family);
+  font-size: var(--ds-body-size);
+  background: var(--ds-page);
+  color: var(--ds-text);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -46,100 +74,131 @@ select {
 }
 
 .el-main {
-  padding: 24px !important;
+  padding: var(--ds-space-5) !important;
   overflow-x: hidden !important;
 }
 
+/* 1.2：卡片圆角 8px + 极轻的卡片阴影；浮层（下拉、抽屉、弹窗）用更重的一档 */
 .el-card {
-  border-color: var(--archive-line) !important;
-  border-radius: 8px !important;
-  box-shadow: none !important;
+  border-color: var(--ds-line) !important;
+  border-radius: var(--ds-radius-card) !important;
+  box-shadow: var(--ds-shadow-card) !important;
 }
 
 .el-card__header {
-  padding: 16px 18px !important;
-  color: var(--archive-ink);
-  font-weight: 600;
+  padding: var(--ds-space-4) 18px !important;
+  color: var(--ds-text);
+  font-size: var(--ds-h3-size);
+  font-weight: var(--ds-h3-weight);
 }
 
 .el-card__body {
   padding: 18px !important;
 }
 
+.el-popper,
+.el-select__popper,
+.el-dropdown__popper,
+.el-picker__popper {
+  box-shadow: var(--ds-shadow-overlay) !important;
+}
+/* 2.1 按钮：主按钮实心蓝、次按钮描边、幽灵按钮无底 */
 .el-button {
-  min-height: 34px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  min-height: var(--ds-control-height);
+  border-radius: var(--ds-radius-control);
+  font-weight: 500;
 }
 
-.el-button--primary:not(.is-link) {
-  --el-button-bg-color: var(--archive-ink);
-  --el-button-border-color: var(--archive-ink);
-  --el-button-hover-bg-color: var(--archive-graphite);
-  --el-button-hover-border-color: var(--archive-graphite);
-  --el-button-active-bg-color: #000000;
+.el-button.is-disabled,
+.el-button.is-disabled:hover {
+  border-color: var(--ds-disabled);
+  color: var(--ds-text-placeholder);
 }
 
+/* 3.1 下拉框与输入框：1px 描边，聚焦时描边换成主色，不加外发光 */
 .el-input__wrapper,
 .el-textarea__inner,
 .el-select__wrapper,
 .el-date-editor.el-input__wrapper,
 .el-input-number {
-  box-shadow: 0 0 0 1px var(--archive-line) inset !important;
+  border-radius: var(--ds-radius-control);
+  box-shadow: 0 0 0 1px var(--ds-line) inset !important;
 }
 
 .el-input__wrapper.is-focus,
 .el-select__wrapper.is-focused,
 .el-textarea__inner:focus {
-  box-shadow: 0 0 0 1px var(--archive-ink) inset !important;
+  box-shadow: 0 0 0 1px var(--ds-primary) inset !important;
 }
 
+.el-input__wrapper.is-error,
+.el-select__wrapper.is-error,
+.el-form-item.is-error .el-input__wrapper,
+.el-form-item.is-error .el-textarea__inner {
+  box-shadow: 0 0 0 1px var(--ds-danger) inset !important;
+}
+
+.el-input.is-disabled .el-input__wrapper,
+.el-select__wrapper.is-disabled {
+  background: #f9fafb;
+  box-shadow: 0 0 0 1px var(--ds-disabled) inset !important;
+}
+
+/* 3.1 展开态：选中项高亮为主色 */
+.el-select-dropdown__item.is-selected {
+  color: var(--ds-primary);
+  font-weight: 500;
+}
+/* 5. 表格：表头灰底、12px 加粗，正文 14px */
 .el-table {
-  --el-table-border-color: #ebe9e5;
-  --el-table-header-bg-color: #faf9f7;
-  --el-table-row-hover-bg-color: #f7f6f3;
-  color: #29292c;
-  font-size: 13px;
+  --el-table-border-color: var(--ds-line);
+  --el-table-header-bg-color: #f9fafb;
+  --el-table-row-hover-bg-color: #f9fafb;
+  color: var(--ds-text-secondary);
+  font-size: var(--ds-body-size);
 }
 
 .el-table th.el-table__cell {
-  height: 42px;
-  color: #55565a;
-  font-size: 12px;
+  height: 44px;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-caption-size);
   font-weight: 600;
 }
 
 .el-table td.el-table__cell {
-  padding: 10px 0;
+  padding: 11px 0;
 }
 
 .el-pagination {
   --el-pagination-button-bg-color: transparent;
+  --el-pagination-font-size: var(--ds-body-size);
 }
 
 .archive-status-tag {
   min-width: 64px;
   justify-content: center;
   border: 0 !important;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .archive-panel {
-  border: 1px solid var(--archive-line);
-  border-radius: 8px;
-  background: var(--archive-white);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-card);
 }
 
 .archive-empty {
-  color: var(--archive-muted);
+  color: var(--ds-text-muted);
 }
 
+/* 数字对齐：金额、计数、年份混排时不跳位 */
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
 :focus-visible {
-  outline: 2px solid var(--archive-gold);
+  outline: 2px solid var(--ds-primary);
   outline-offset: 2px;
 }
 

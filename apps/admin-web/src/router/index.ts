@@ -32,9 +32,11 @@ const router = createRouter({
         { path: 'dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
         { path: 'profiles', name: 'profiles', component: () => import('@/views/ProfilesView.vue') },
         {
+          // 详情改成了列表页上的右侧抽屉。这条路径保留给旧链接与书签，
+          // 直接翻译成抽屉的打开方式，不再维护第二份详情界面。
           path: 'profiles/:id',
           name: 'profile-detail',
-          component: () => import('@/views/ProfileDetailView.vue'),
+          redirect: (to) => ({ name: 'profiles', query: { profile: String(to.params.id) } }),
         },
         {
           path: 'payment-orders',

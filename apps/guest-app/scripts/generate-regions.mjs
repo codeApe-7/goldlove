@@ -136,7 +136,15 @@ ${body}
 ]
 `
 
-writeFileSync(new URL('../src/data/regions.data.ts', import.meta.url), file, 'utf8')
+// 两个前端都要这份数据（访客端填档案、后台按地区筛选），仓库里没有共享包，
+// 所以由生成脚本同时写两份——手动复制迟早会漂移。
+const targets = [
+  new URL('../src/data/regions.data.ts', import.meta.url),
+  new URL('../../admin-web/src/data/regions.data.ts', import.meta.url),
+]
+for (const target of targets) {
+  writeFileSync(target, file, 'utf8')
+}
 console.log(
-  `已生成 src/data/regions.data.ts：省级 ${counts.provinces}、地级 ${counts.cities}、县级 ${counts.districts}`,
+  `已生成 ${targets.length} 份 regions.data.ts：省级 ${counts.provinces}、地级 ${counts.cities}、县级 ${counts.districts}`,
 )

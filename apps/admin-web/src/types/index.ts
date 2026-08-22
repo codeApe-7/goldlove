@@ -23,6 +23,17 @@ export interface PageView<T> {
 
 export type MembershipTier = 'FREE' | 'VIP' | 'SVIP'
 
+/** 账号状态。停用是账号级别的动作，档案自身只有完成度。 */
+export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
+
+/** 列表排序。后端是白名单枚举，传别的值会被拒。 */
+export type ProfileSort =
+  | 'UPDATED_DESC'
+  | 'CREATED_DESC'
+  | 'CREATED_ASC'
+  | 'PHONE_ASC'
+  | 'PHONE_DESC'
+
 export interface ProfileFieldDefinitionView {
   id: number
   fieldCode: string
@@ -40,11 +51,28 @@ export interface ProfileFieldDefinitionView {
 export interface AdminProfileListItem {
   id: number
   profileNo: string
+  /** 停用 / 启用调的是账号接口，列表必须带上账号 ID。 */
+  accountId: number
   phone: string
   membershipTier: MembershipTier
+  accountStatus: AccountStatus
   /** DRAFT / COMPLETED —— 没有审核环节，保存即可见。 */
   status: string
+  gender: string | null
+  /** 年龄由前端从出生日期算，服务端不下发年龄。 */
+  birthDate: string | null
+  city: string | null
+  createdAt: string
   updatedAt: string
+}
+
+/** 档案列表各 tab 的数量。统计忽略 tab 自身的条件，只吃筛选条上的条件。 */
+export interface AdminProfileCounts {
+  total: number
+  draft: number
+  completed: number
+  suspended: number
+  paid: number
 }
 
 export interface AdminProfileFieldValue {
@@ -65,9 +93,11 @@ export interface AdminProfilePhoto {
 export interface AdminProfileDetail {
   id: number
   profileNo: string
+  accountId: number
   phone: string
   membershipTier: MembershipTier
   membershipCreditMinor: number
+  accountStatus: AccountStatus
   status: string
   createdAt: string
   updatedAt: string
@@ -84,6 +114,12 @@ export interface AdminProfileDetail {
   douyinProfileUrl: string | null
   dynamicFields: AdminProfileFieldValue[]
   photos: AdminProfilePhoto[]
+}
+
+/** 停用 / 启用接口的返回值。 */
+export interface AccountStatusView {
+  accountId: number
+  status: AccountStatus
 }
 
 export interface AdminPaymentOrderItem {

@@ -1,8 +1,10 @@
 import { http, unwrap } from './http'
 import type {
+  AccountStatusView,
   AdminActivationCodeItem,
   AdminDashboardStats,
   AdminPaymentOrderItem,
+  AdminProfileCounts,
   AdminProfileDetail,
   AdminProfileListItem,
   AdminSession,
@@ -24,14 +26,86 @@ export function dashboardStats(): Promise<AdminDashboardStats> {
 
 // ---- 档案 ----
 
+export type ProfileQuery = Record<string, string | number | boolean | undefined>
+
 export function listProfiles(
-  params: Record<string, string | number | undefined>,
+  params: ProfileQuery,
 ): Promise<PageView<AdminProfileListItem>> {
   return unwrap(http.get('/admin/profiles', { params }))
 }
 
+/** tab 上的数量。只吃筛选条上的条件，status / accountStatus / paidOnly 会被后端忽略。 */
+export function profileCounts(params: ProfileQuery): Promise<AdminProfileCounts> {
+  return unwrap(http.get('/admin/profiles/counts', { params }))
+}
+
 export function profileDetail(profileId: number): Promise<AdminProfileDetail> {
   return unwrap(http.get(`/admin/profiles/${profileId}`))
+}
+
+/**
+ * 导出 CSV。传 ids 就只导这些行，不传则导当前筛选的全量（后端有 5000 条上限）。
+ *
+ * ids 用逗号串而不是数组：axios 默认把数组序列化成 `ids[]=1&ids[]=2`，
+ * Spring 的 `List<Long>` 收不到，而逗号串它会自己拆开。
+ */
+export async function exportProfiles(
+  params: ProfileQuery,
+  ids: number[] = [],
+): Promise<Blob> {
+  const query = ids.length > 0 ? { ...params, ids: ids.join(',') } : params
+  try {
+    const response = await http.get('/admin/profiles/export', {
+      params: query,
+      responseType: 'blob',
+    })
+    return response.data as Blob
+  } catch (error) {
+    // 失败时响应体也是 blob，直接抛出去只会得到「[object Blob]」。
+    throw new Error(await readBlobErrorMessage(error))
+  }
+}
+
+async function readBlobErrorMessage(error: unknown): Promise<string> {
+  const body = (error as { response?: { data?: unknown } })?.response?.data
+  if (body instanceof Blob) {
+    try {
+      const parsed = JSON.parse(await blobText(body)) as { message?: string }
+      if (parsed.message) {
+        return parsed.message
+      }
+    } catch {
+      // 不是 JSON 就走下面的兜底文案
+    }
+  }
+  return error instanceof Error ? error.message : '导出失败'
+}
+
+/**
+ * 读 Blob 文本。优先用 Blob.text()，退回 FileReader——
+ * jsdom 的 Blob 没有 text()，只走 text() 的话这段错误处理在测试里根本跑不到。
+ */
+function blobText(blob: Blob): Promise<string> {
+  if (typeof blob.text === 'function') {
+    return blob.text()
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(reader.error ?? new Error('读取响应失败'))
+    reader.readAsText(blob)
+  })
+}
+
+// ---- 账号状态 ----
+
+/** 停用账号：该手机号下一次调接口就会被挡住，后台仍能查看档案。 */
+export function suspendAccount(accountId: number, reason: string | null): Promise<AccountStatusView> {
+  return unwrap(http.post(`/admin/accounts/${accountId}/suspend`, { reason }))
+}
+
+export function activateAccount(accountId: number, reason: string | null): Promise<AccountStatusView> {
+  return unwrap(http.post(`/admin/accounts/${accountId}/activate`, { reason }))
 }
 
 // ---- 字段定义 ----

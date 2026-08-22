@@ -19,5 +19,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // 打开 CSS 处理，否则 `import x from './tokens.css?raw'` 会被 CSS 桩替换成空串。
+    css: true,
   },
 })

@@ -32,7 +32,7 @@ onMounted(async () => {
 
 <template>
   <div class="dashboard-page">
-    <PageHeader title="工作台" description="欢迎使用婚恋智能档案库管理后台，实时掌握注册、建档与会员情况。" />
+    <PageHeader title="工作台" subtitle="欢迎使用婚恋智能档案库管理后台，实时掌握注册、建档与会员情况。" />
     <div v-loading="loading" class="stats-grid">
       <article v-for="card in cards" :key="card.key" class="stat-card">
         <span class="stat-label">{{ card.label }}</span>
@@ -81,26 +81,27 @@ onMounted(async () => {
   padding: 17px 18px;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--archive-line);
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-card);
 }
 .stat-value {
   margin-top: 14px;
-  color: var(--archive-ink);
-  font-size: 30px;
+  color: var(--ds-text);
+  font-size: var(--ds-h1-size);
   line-height: 1;
-  font-weight: 600;
+  font-weight: var(--ds-h1-weight);
 }
 .stat-label {
-  color: #3f4044;
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--ds-text-secondary);
+  font-size: var(--ds-body-size);
+  font-weight: 500;
 }
 .stat-hint {
   margin-top: auto;
-  color: #949599;
-  font-size: 11px;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-caption-size);
 }
 .dashboard-lower {
   margin-top: 16px;
@@ -120,16 +121,17 @@ onMounted(async () => {
 }
 .panel-header h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--ds-h3-size);
+  font-weight: var(--ds-h3-weight);
 }
 .panel-header p {
   margin: 6px 0 0;
-  color: var(--archive-muted);
-  font-size: 11px;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-caption-size);
 }
 .live-dot {
-  color: var(--archive-success);
-  font-size: 11px;
+  color: var(--ds-success);
+  font-size: var(--ds-caption-size);
 }
 .workflow-row {
   height: 150px;
@@ -146,18 +148,18 @@ onMounted(async () => {
   display: block;
 }
 .workflow-row strong {
-  font-size: 28px;
-  font-weight: 600;
+  font-size: var(--ds-h1-size);
+  font-weight: var(--ds-h1-weight);
 }
 .workflow-row span {
-  margin-top: 8px;
-  color: var(--archive-muted);
-  font-size: 12px;
+  margin-top: var(--ds-space-2);
+  color: var(--ds-text-muted);
+  font-size: var(--ds-caption-size);
 }
 .workflow-row i {
   width: 64px;
   height: 1px;
-  background: var(--archive-line);
+  background: var(--ds-line);
 }
 .sla-panel {
   display: flex;
@@ -167,18 +169,18 @@ onMounted(async () => {
   text-align: center;
 }
 .sla-eyebrow {
-  color: var(--archive-muted);
-  font-size: 12px;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-caption-size);
 }
 .sla-panel strong {
   margin-top: 12px;
   font-size: 42px;
-  font-weight: 600;
+  font-weight: var(--ds-h1-weight);
 }
 .sla-panel p {
   margin: 6px 0 18px;
-  color: var(--archive-muted);
-  font-size: 12px;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-caption-size);
 }
 @media (max-width: 1100px) {
   .stats-grid {
