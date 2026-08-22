@@ -70,7 +70,7 @@ function confirm(): void {
       <text class="value" :class="{ placeholder: modelValue === '' }">
         {{ modelValue === '' ? placeholder : modelValue }}
       </text>
-      <AppIcon name="clock" :size="18" class="arrow" />
+      <AppIcon name="calendar" :size="18" class="arrow" />
     </view>
     <text v-if="message" class="message">{{ message }}</text>
 

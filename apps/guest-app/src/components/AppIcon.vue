@@ -48,6 +48,10 @@ withDefaults(defineProps<{ name: string; size?: number }>(), { size: 18 })
       <template v-else-if="name === 'clock'">
         <circle cx="12" cy="12" r="9" /><path d="M12 7.25v5.25l3.5 2" />
       </template>
+      <template v-else-if="name === 'calendar'">
+        <rect x="3.75" y="5.25" width="16.5" height="15" rx="2.2" />
+        <path d="M3.75 10h16.5M8.25 3.5v3.5M15.75 3.5v3.5" />
+      </template>
       <template v-else-if="name === 'camera'">
         <path d="M4 7.5h3l1.35-2h7.3l1.35 2h3v11H4z" /><circle cx="12" cy="13" r="3.3" />
       </template>
