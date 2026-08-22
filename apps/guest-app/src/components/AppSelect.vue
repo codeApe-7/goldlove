@@ -211,7 +211,9 @@ function onSearch(event: Event): void {
 }
 
 .options {
-  max-height: 460rpx;
+  // 规范 3.2 的面板是把选项一次列全的。按 88rpx 一行给到 8 行，
+  // 学历（6 项）与行业档（7 项）都不用滚；更长的列表（职业）才滚动，配合搜索用。
+  max-height: 704rpx;
 }
 
 .option {

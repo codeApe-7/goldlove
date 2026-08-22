@@ -326,18 +326,18 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
     @Test
     void acceptsEducationAndOccupationOptionsFromTheCoreDefinition() {
         GuestProfileDraftView saved = service.save(
-                accountId, withEducationAndOccupation(null, "硕士研究生", "金融 / 投资"), REQUEST_ID);
+                accountId, withEducationAndOccupation(null, "硕士研究生", "数据分析师"), REQUEST_ID);
 
         assertThat(saved.education()).isEqualTo("硕士研究生")
                 .describedAs("学历改为固定选项后仍要能正常保存合法取值");
-        assertThat(saved.occupation()).isEqualTo("金融 / 投资");
+        assertThat(saved.occupation()).isEqualTo("数据分析师");
     }
 
     @Test
     void rejectsFreeTextEducation() {
         // V2 把学历改成固定选项集，自由文本不再合法——这是本次「后端字段适配」的核心行为。
         assertCode(() -> service.save(
-                        accountId, withEducationAndOccupation(null, "本科", "互联网 / IT"), REQUEST_ID),
+                        accountId, withEducationAndOccupation(null, "本科", "产品经理"), REQUEST_ID),
                 "FIELD_VALUE_INVALID");
     }
 
@@ -446,7 +446,7 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
                 LocalDate.of(1995, 5, 20),
                 178,
                 "大学本科",
-                "互联网 / IT",
+                "产品经理",
                 "20万-30万",
                 "杭州",
                 "wx-private-123",

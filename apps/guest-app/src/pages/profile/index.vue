@@ -39,6 +39,8 @@ const store = useProfileStore()
 const definitions = ref<GuestFieldDefinition[]>([])
 const values = reactive<Record<string, string | number | boolean | null>>({})
 const saving = ref(false)
+// 表单是否已用服务端草稿填充过。onShow 会重复触发，只认第一次。
+const hydrated = ref(false)
 // 上传中的进度按分类记录，用于渲染进度环；上传结束即删除。
 const uploadProgress = reactive<Record<string, number>>({})
 
@@ -89,8 +91,14 @@ const lifeItems = computed<UploaderItem[]>(() => {
 
 onShow(async () => {
   await Promise.all([loadDefinitions(), store.load()])
-  if (store.draft) {
-    Object.assign(values, draftToProfileValues(store.draft))
+  // 只在首次进入时用服务端草稿填充表单。onShow 会被重复触发——H5 选图打开系统文件框
+  // 再回来算一次页面显示，切到「我的」再切回来也算一次——那时用服务端数据覆盖
+  // 会把用户还没保存的输入整片清空（draftToProfileValues 对缺失字段返回 ''）。
+  if (!hydrated.value) {
+    if (store.draft) {
+      Object.assign(values, draftToProfileValues(store.draft))
+    }
+    hydrated.value = true
   }
 })
 
@@ -200,6 +208,7 @@ async function save(): Promise<void> {
       :key="group.key"
       :title="group.title"
       :meta="`${group.items.filter(isFilled).length}/${group.items.length}`"
+      :clip="false"
     >
       <view class="form-body">
         <AppFormRow

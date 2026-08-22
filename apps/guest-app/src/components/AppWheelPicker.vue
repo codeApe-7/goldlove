@@ -24,8 +24,17 @@ function onChange(event: Event): void {
     mask-class="wheel-mask"
     @change="onChange"
   >
-    <picker-view-column v-for="(column, index) in columns" :key="index">
-      <view v-for="item in column" :key="item" class="wheel-item">{{ item }}</view>
+    <picker-view-column v-for="(column, columnIndex) in columns" :key="columnIndex">
+      <!--
+        picker-view 无法用 CSS 选中「居中那一项」，只能拿 value 里的下标自己标记。
+        规范 3.7 的居中项是品牌黑且字号更大，上下未选中项是淡灰。
+      -->
+      <view
+        v-for="(item, itemIndex) in column"
+        :key="item"
+        class="wheel-item"
+        :class="{ 'is-active': itemIndex === value[columnIndex] }"
+      >{{ item }}</view>
     </picker-view-column>
   </picker-view>
 </template>
@@ -43,9 +52,16 @@ function onChange(event: Event): void {
   display: flex;
   align-items: center;
   justify-content: center;
-  @include ds-body-1;
+  @include ds-body-2;
   @include ds-tabular;
-  color: $ds-graphite;
+  color: $ds-placeholder;
+  transition: color $ds-transition;
+}
+
+.wheel-item.is-active {
+  @include ds-body-1;
+  color: $ds-ink;
+  font-weight: 500;
 }
 </style>
 
@@ -57,11 +73,11 @@ function onChange(event: Event): void {
   height: $ds-sheet-row-height;
   border-top: $ds-hairline solid $ds-line;
   border-bottom: $ds-hairline solid $ds-line;
-  background: rgba(14, 15, 18, 0.03);
 }
 
+// 未选中项已经是淡灰，遮罩只做很轻的淡出，避免整列糊成一片白。
 .wheel-mask {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.55)),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.55));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0)),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0));
 }
 </style>
