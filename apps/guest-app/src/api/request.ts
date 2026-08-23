@@ -107,6 +107,19 @@ export function request<T>(options: UniApp.RequestOptions): Promise<T> {
             envelope?.code ?? ''))
           return
         }
+        // 不是我们的响应壳就当失败，绝不能 resolve。
+        //
+        // 踩过的坑：只判 `success === false` 会把「根本不是响应壳」的响应放过去——
+        // nginx 在后端重启窗口里返回的是它自带的 502 HTML 页，`response.data` 是个字符串，
+        // 字符串的 `.success` 是 undefined（不等于 false），于是走到 resolve(envelope.data)
+        // 把 undefined 当成功值交给调用方，调用方再 `result.status` 就炸
+        // 「Cannot read properties of undefined」——错误信息完全指不到真正的原因。
+        // 同理适用于任何非 JSON 或缺 data 字段的响应（网关错误页、代理超时页）。
+        if (typeof envelope !== 'object' || envelope.success !== true) {
+          reject(new ApiError(
+            FALLBACK_BY_STATUS[status] || `服务返回了无法识别的响应（${status}）`, status, ''))
+          return
+        }
         resolve(envelope.data)
       },
       fail: (error) => reject(new Error(error.errMsg || '连不上服务器，请检查网络后重试')),

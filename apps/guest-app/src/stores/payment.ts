@@ -76,12 +76,20 @@ export const useVipPaymentStore = defineStore('guest-vip-payment', {
     async refreshStatus(outTradeNo?: string): Promise<OnlineOrderStatus> {
       const target = outTradeNo || this.order?.outTradeNo || pendingOrderStore.read()
       if (!target) throw new Error('缺少商户订单号')
-      this.status = await api.vipOrderStatus(target)
-      if (this.status.status === 'PAID') {
+      const result = await api.vipOrderStatus(target)
+      // 钱相关的路径上不裸读字段。传输层现在会把「不是响应壳」的响应挡在外面，
+      // 但万一后端返回了一个合法响应壳却没带 data，这里也要给一句人话，
+      // 而不是让调用方吃一个「Cannot read properties of undefined」——
+      // 那种报错指不到真实原因，线上排查过一次。
+      if (!result || typeof result.status !== 'string') {
+        throw new Error('没拿到支付状态，请稍后重新查询')
+      }
+      this.status = result
+      if (result.status === 'PAID') {
         pendingOrderStore.clear()
         await this.loadMembership()
       }
-      return this.status
+      return result
     },
 
     /** 用激活码升级，成功后直接拿到新的会员状态。 */

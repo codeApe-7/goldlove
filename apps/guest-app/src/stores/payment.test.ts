@@ -157,3 +157,23 @@ describe('guest VIP payment store', () => {
     expect(api.createVipOrder).not.toHaveBeenCalled()
   })
 })
+
+describe('查单拿不到状态时的兜底', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('响应壳合法但没带 data 时给人话，而不是 TypeError', async () => {
+    // 传输层已经会挡掉「不是响应壳」的响应；这一条防的是「壳合法但 data 缺失」。
+    vi.mocked(api.vipOrderStatus).mockResolvedValue(undefined as never)
+    const store = useVipPaymentStore()
+    await expect(store.refreshStatus('OTN-1')).rejects.toThrow('没拿到支付状态，请稍后重新查询')
+  })
+
+  it('status 不是字符串也当异常处理', async () => {
+    vi.mocked(api.vipOrderStatus).mockResolvedValue({ outTradeNo: 'OTN-1' } as never)
+    const store = useVipPaymentStore()
+    await expect(store.refreshStatus('OTN-1')).rejects.toThrow('没拿到支付状态')
+  })
+})

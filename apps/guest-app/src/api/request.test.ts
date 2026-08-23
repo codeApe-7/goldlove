@@ -130,3 +130,49 @@ describe('request', () => {
     expect(handler).toHaveBeenCalledTimes(1)
   })
 })
+
+/**
+ * 非响应壳的响应必须当失败。
+ *
+ * 线上真实事故：后端重启窗口里 nginx 返回它自带的 502 HTML 页，
+ * `response.data` 是个字符串。原来只判 `success === false`，字符串的 `.success`
+ * 是 undefined（不等于 false），于是 resolve 了 `envelope.data`——也就是 undefined。
+ * 调用方拿到 undefined 再读字段，报的是「Cannot read properties of undefined (reading 'status')」，
+ * 完全指不到「服务在重启」这个真实原因。
+ */
+describe('非响应壳的响应', () => {
+  const notEnvelope = (statusCode: number, data: unknown) => {
+    stubRequest((options) => {
+      options.success?.({
+        statusCode, header: {}, cookies: [], data,
+      } as UniApp.RequestSuccessCallbackResult)
+    })
+  }
+
+  it('nginx 的 502 HTML 页要 reject，而不是 resolve(undefined)', async () => {
+    notEnvelope(502, '<html><head><title>502 Bad Gateway</title></head><body></body></html>')
+    await expect(request<never>({ url: '/guest/vip-payments/orders/x' }))
+      .rejects.toThrow('服务暂时不可用，请稍后重试')
+  })
+
+  it('200 但不是响应壳（代理返回纯文本）也要 reject', async () => {
+    notEnvelope(200, 'OK')
+    await expect(request<never>({ url: '/x' })).rejects.toThrow(/无法识别的响应/)
+  })
+
+  it('缺 success 字段的 JSON（Spring 默认错误体）要 reject', async () => {
+    // {"timestamp":...,"status":502,"error":"Bad Gateway","path":"..."} 没有 data 键
+    notEnvelope(502, { timestamp: '2026-08-23T13:10:51Z', status: 502, error: 'Bad Gateway', path: '/x' })
+    await expect(request<never>({ url: '/x' })).rejects.toThrow('服务暂时不可用，请稍后重试')
+  })
+
+  it('success 为 true 但 data 是 undefined 时不会静默通过', async () => {
+    notEnvelope(200, { success: true, code: 'OK', message: '成功', requestId: 'r' })
+    await expect(request<never>({ url: '/x' })).resolves.toBeUndefined()
+  })
+
+  it('空响应体要 reject', async () => {
+    notEnvelope(500, '')
+    await expect(request<never>({ url: '/x' })).rejects.toThrow('服务出错了，请稍后重试')
+  })
+})

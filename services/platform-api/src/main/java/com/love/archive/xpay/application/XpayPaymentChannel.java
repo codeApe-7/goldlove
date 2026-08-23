@@ -131,11 +131,16 @@ public class XpayPaymentChannel implements PaymentChannel {
 
         XpayHttpClient.HttpTextResponse response = httpClient.postForm(
                 properties.resolvedBaseUrl() + QUERY_PATH, params);
+        // 响应体必须记下来。原来只记 status 与 code，一旦查单失败就完全看不出网关到底说了什么——
+        // 线上真的遇到过 code=1 且无从判断它是「查询成功但未支付」还是「查询失败」，
+        // 而下单路径（上面）本来就打了 body，两边口径不该不一致。
+        LOGGER.info("易支付查单响应, outTradeNo={}, status={}, body={}",
+                outTradeNo, response.statusCode(), response.body());
         JsonNode payload = readJson(response.body());
         int code = payload.path("code").asInt(-1);
         if (response.statusCode() != 200 || code != 0) {
-            LOGGER.warn("易支付查单失败, outTradeNo={}, status={}, code={}",
-                    outTradeNo, response.statusCode(), code);
+            LOGGER.warn("易支付查单失败, outTradeNo={}, status={}, code={}, msg={}",
+                    outTradeNo, response.statusCode(), code, text(payload, "msg"));
             throw new ApiException(
                     HttpStatus.BAD_GATEWAY, "PAYMENT_CHANNEL_QUERY_FAILED", "支付渠道查询失败");
         }
