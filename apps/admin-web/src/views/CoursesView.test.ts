@@ -57,6 +57,18 @@ describe('课程管理页', () => {
     expect(coursesSource).toContain('videoUpload.cancel()')
   })
 
+  it('上传完能就地回放确认，不用先保存再回头检查', () => {
+    // 后端在 complete 时一并签了回放地址；新传的与已保存课程的视频走同一个播放器。
+    expect(coursesSource).toContain('form.videoPreviewUrl = uploaded.previewUrl')
+    expect(coursesSource).toContain('<video')
+    expect(coursesSource).toContain('preview-player')
+  })
+
+  it('签名地址会过期，界面要说清而不是留个放不出来的播放器', () => {
+    expect(coursesSource).toContain('预览地址有效期约 30 分钟')
+    expect(coursesSource).toContain('这条视频暂时无法预览')
+  })
+
   it('删除前说清会连带删掉文件', () => {
     expect(coursesSource).toContain('封面与视频文件会一起删除')
   })

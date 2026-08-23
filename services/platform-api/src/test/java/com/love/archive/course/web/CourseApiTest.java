@@ -389,7 +389,11 @@ class CourseApiTest extends ApiIntegrationTest {
                         .content("{\"parts\":[{\"partNumber\":1,\"etag\":\"etag-1\"}]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.sizeBytes").value(12_582_912L))
-                .andExpect(jsonPath("$.data.contentType").value("video/mp4"));
+                .andExpect(jsonPath("$.data.contentType").value("video/mp4"))
+                // 合并完就给回放地址：管理员要在保存课程之前确认传对了文件，
+                // 否则唯一的验证方式是先保存再重新打开抽屉，传错了得连课程一起返工。
+                .andExpect(jsonPath("$.data.previewUrl")
+                        .value(org.hamcrest.Matchers.containsString("cos.test")));
     }
 
     @Test

@@ -91,7 +91,7 @@ function retry(): void {
 </script>
 
 <template>
-  <view class="detail-page">
+  <view class="archive-page detail-page">
     <view class="topbar">
       <view class="back" @tap="back">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
@@ -163,14 +163,21 @@ function retry(): void {
 <style lang="scss" scoped>
 @use '@/styles/tokens.scss' as *;
 
+/*
+ * 同列表页：布局交给全局 .archive-page（居中 + 桌面 max-width + 阴影），
+ * 这里只覆盖本页的差异——正文页是白底（阅读面），且顶部有自绘返回栏所以不留上内边距。
+ * 底部也不用给 tabBar 留位（详情页不在 tabBar 里）。
+ */
 .detail-page {
-  min-height: 100vh;
-  padding: 0 $ds-space-4 $ds-space-8;
+  padding-top: 0;
+  padding-bottom: calc(#{$ds-space-8} + env(safe-area-inset-bottom));
   background: $ds-white;
 }
 
 .topbar {
+  /* navigationStyle: custom，所以要自己给状态栏留位——会员页同样做法 */
   height: 96rpx;
+  padding-top: env(safe-area-inset-top);
   display: flex;
   align-items: center;
 }

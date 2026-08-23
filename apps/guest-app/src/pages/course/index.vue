@@ -31,7 +31,7 @@ function openCourse(item: GuestCourseListItem): void {
 </script>
 
 <template>
-  <view class="course-page">
+  <view class="archive-page course-page">
     <!-- 不再放页内大标题：档案页与我的页都靠原生导航栏的标题，这里保持一致，
          只留一句说明本页规则的副标题。 -->
     <view class="page-head">
@@ -119,11 +119,12 @@ function openCourse(item: GuestCourseListItem): void {
 <style lang="scss" scoped>
 @use '@/styles/tokens.scss' as *;
 
-.course-page {
-  min-height: 100vh;
-  padding: $ds-space-4 $ds-space-4 $ds-space-9;
-  background: $ds-porcelain;
-}
+/*
+ * 布局全部交给全局 .archive-page（theme.scss）：它给的是 margin: 0 auto、
+ * 桌面宽度下的 max-width + 阴影，以及给 tabBar 留位的下内边距。
+ * 档案页、我的页、会员页都用它——这里自己写一套 padding 与 background 就会
+ * 在桌面上铺满整屏，和 tabBar 那条居中的 430px 对不上。本页只补自己的差异。
+ */
 
 .page-head {
   padding: $ds-space-3 0 $ds-space-4;
@@ -134,15 +135,22 @@ function openCourse(item: GuestCourseListItem): void {
   @include ds-caption;
 }
 
+/*
+ * 合集筛选条要贴着屏幕边缘滚动，而 .archive-page 有左右内边距。
+ * 用负 margin 抵掉再把 padding 加回来，是「在有内边距的容器里做通栏滚动」的常规做法——
+ * 比把整页内边距清零、再给每个兄弟节点补一遍要稳，也不会被后面的 padding 简写覆盖掉。
+ */
 .collection-bar {
-  width: 100%;
-  margin-bottom: $ds-space-4;
+  width: auto;
+  margin: 0 (-$ds-space-4) $ds-space-4;
+  padding: 0 $ds-space-4;
   white-space: nowrap;
 }
 .collection-row {
   display: inline-flex;
   gap: $ds-space-2;
-  padding-bottom: $ds-space-1;
+  /* 滚到最右端时最后一个标签不要贴着屏幕边 */
+  padding: 0 $ds-space-4 $ds-space-1 0;
 }
 .collection-chip {
   padding: 0 $ds-space-3;

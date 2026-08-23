@@ -266,6 +266,8 @@ export interface CourseVideoAsset {
   objectKey: string
   sizeBytes: number
   contentType: string
+  /** 短时签名地址，让管理员保存前就能回放确认传对了文件。不落库，刷新后会变。 */
+  previewUrl: string
 }
 
 /** 课程表单里的视频字段。时长可为空，不参与任何校验。 */

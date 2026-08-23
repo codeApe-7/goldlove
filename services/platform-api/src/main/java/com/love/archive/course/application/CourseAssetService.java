@@ -152,7 +152,11 @@ public class CourseAssetService {
         uploadMapper.updateById(session);
 
         return new VideoUploadResultView(
-                stored.objectKey(), stored.sizeBytes(), stored.contentType());
+                stored.objectKey(),
+                stored.sizeBytes(),
+                stored.contentType(),
+                // 让管理员保存之前就能回放确认传对了文件，而不是先存再回头检查。
+                storageService.signDownloadUrl(stored.objectKey(), PREVIEW_TTL));
     }
 
     @Transactional

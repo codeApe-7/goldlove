@@ -19,6 +19,7 @@ vi.mock('@/api/admin', () => ({
     objectKey: 'course/video/api.mp4',
     sizeBytes: 12,
     contentType: 'video/mp4',
+    previewUrl: 'https://cos.test/api.mp4?sign=1',
   })),
   abortCourseVideoUpload: vi.fn(async () => null),
 }))
@@ -63,7 +64,10 @@ function fakeDeps(overrides: Partial<CourseVideoUploadDeps> = {}): {
     }),
     complete: vi.fn(async (_uploadId: string, parts: Array<{ partNumber: number; etag: string }>) => {
       recorder.completed.push(parts.map((part) => ({ ...part })))
-      return { objectKey: 'course/video/1.mp4', sizeBytes: 20, contentType: 'video/mp4' }
+      return {
+        objectKey: 'course/video/1.mp4', sizeBytes: 20, contentType: 'video/mp4',
+        previewUrl: 'https://cos.test/1.mp4?sign=1',
+      }
     }),
     abort: vi.fn(async (uploadId) => {
       recorder.aborted.push(uploadId)
@@ -106,6 +110,8 @@ describe('useCourseVideoUpload', () => {
       contentType: 'video/mp4',
       durationSeconds: 725,
       filename: '第一课.mp4',
+      // 保存前就要能回放确认传对了文件，所以 complete 的签名地址必须带回表单。
+      previewUrl: 'https://cos.test/1.mp4?sign=1',
     })
     expect(upload.phase.value).toBe('done')
     expect(upload.percent.value).toBe(100)
@@ -193,7 +199,10 @@ describe('useCourseVideoUpload', () => {
     const { deps, recorder } = fakeDeps()
     vi.mocked(deps.complete)
       .mockRejectedValueOnce(new Error('服务出错了，请稍后重试'))
-      .mockResolvedValueOnce({ objectKey: 'course/video/1.mp4', sizeBytes: 20, contentType: 'video/mp4' })
+      .mockResolvedValueOnce({
+        objectKey: 'course/video/1.mp4', sizeBytes: 20, contentType: 'video/mp4',
+        previewUrl: 'https://cos.test/1.mp4?sign=1',
+      })
     const upload = useCourseVideoUpload(deps)
 
     await upload.upload(videoFile(20))

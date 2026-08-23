@@ -28,6 +28,8 @@ export interface CourseVideoUploadResult {
   contentType: string
   durationSeconds: number | null
   filename: string
+  /** 签名回放地址，供保存前预览。后端在 complete 时一并签发。 */
+  previewUrl: string
 }
 
 /**
@@ -278,6 +280,7 @@ export function useCourseVideoUpload(deps: CourseVideoUploadDeps = defaultDeps) 
         contentType: asset.contentType,
         durationSeconds,
         filename: current.name,
+        previewUrl: asset.previewUrl,
       }
       result.value = value
       phase.value = 'done'

@@ -264,7 +264,8 @@ async function pickVideo(event: Event): Promise<void> {
     form.videoSizeBytes = uploaded.sizeBytes
     form.videoContentType = uploaded.contentType
     form.videoDurationSeconds = uploaded.durationSeconds
-    form.videoPreviewUrl = null
+    // 后端在 complete 时一并签了回放地址，保存前就能确认传对了文件。
+    form.videoPreviewUrl = uploaded.previewUrl
   }
 }
 
@@ -583,6 +584,30 @@ onMounted(async () => {
               <span class="tabular">{{ fileSizeLabel(form.videoSizeBytes) }}</span>
               <span class="tabular">时长 {{ durationLabel(form.videoDurationSeconds) }}</span>
             </div>
+
+            <!--
+              回放预览。新传完的视频与已保存课程的视频都走这里：前者的地址由后端在
+              complete 时签发，后者来自课程详情的 videoPreviewUrl。
+              两者都是短时签名地址，抽屉开太久会过期——所以给一句提示而不是让人对着
+              一个放不出来的播放器猜。
+            -->
+            <div v-if="form.videoPreviewUrl" class="video-preview">
+              <video
+                :src="form.videoPreviewUrl"
+                controls
+                preload="metadata"
+                class="preview-player"
+              />
+              <span class="hint">预览地址有效期约 30 分钟，过期后重新打开本页即可刷新</span>
+            </div>
+            <el-alert
+              v-else-if="form.videoObjectKey"
+              type="info"
+              :closable="false"
+              show-icon
+              title="这条视频暂时无法预览"
+              description="对象已在存储里，但没有拿到可回放的地址。重新打开本页会重新签发；若仍不行，检查后端对象存储配置。"
+            />
           </div>
         </el-form-item>
 
@@ -678,6 +703,18 @@ onMounted(async () => {
   gap: var(--ds-space-4);
   color: var(--ds-text-secondary);
   font-size: var(--ds-caption-size);
+}
+.video-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+}
+.preview-player {
+  width: 100%;
+  max-width: 420px;
+  max-height: 260px;
+  border-radius: var(--ds-radius-control);
+  background: #000;
 }
 .editor-wrap {
   width: 100%;
