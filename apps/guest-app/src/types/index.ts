@@ -99,3 +99,48 @@ export interface OnlineOrderStatus {
   /** 该笔付款是否已计入会员额度。 */
   membershipGranted: boolean
 }
+
+/** 后端 `common.web.PageView`：1 起页码。 */
+export interface PageView<T> {
+  items: T[]
+  page: number
+  size: number
+  total: number
+}
+
+/** 课程类型：图文 / 视频 / 纯文本。 */
+export type CourseContentType = 'ARTICLE' | 'VIDEO' | 'TEXT'
+
+/** 合集只统计已发布的课，未发布的草稿访客侧看不到。 */
+export interface GuestCourseCollectionView {
+  id: number
+  name: string
+  description: string | null
+  courseCount: number
+}
+
+/**
+ * 列表项**不含正文与视频地址**——列表可见、内容加锁是后端的门禁口径。
+ * `locked` 表示当前账号不是付费会员，卡片据此显示锁标。
+ * 不要用 `stores/auth.ts` 的 `tier` 判断：那是登录时的会话快照，兑码或支付后不刷新就是旧值。
+ */
+export interface GuestCourseListItem {
+  id: number
+  collectionId: number
+  collectionName: string
+  title: string
+  subtitle: string | null
+  summary: string | null
+  contentType: CourseContentType
+  authorName: string | null
+  videoDurationSeconds: number | null
+  coverPreviewUrl: string | null
+  publishedAt: string | null
+  locked: boolean
+}
+
+/** 详情要 VIP/SVIP，免费账号取会拿到 403 `COURSE_VIP_REQUIRED`。`videoUrl` 是 2 小时签名地址。 */
+export interface GuestCourseDetail extends GuestCourseListItem {
+  contentMarkdown: string | null
+  videoUrl: string | null
+}

@@ -1,6 +1,9 @@
 import { request, uploadPhoto } from './request'
 import type {
   AuthorizationDocumentView,
+  GuestCourseCollectionView,
+  GuestCourseDetail,
+  GuestCourseListItem,
   GuestFieldDefinition,
   GuestProfileDraft,
   GuestSession,
@@ -8,6 +11,7 @@ import type {
   OnlineOrder,
   OnlineOrderStatus,
   OnlinePaymentSettings,
+  PageView,
   PhotoUploadResult,
   ProfilePhotoView,
 } from '@/types'
@@ -113,6 +117,41 @@ export function vipOrderStatus(outTradeNo: string) {
   return request<OnlineOrderStatus>({
     url: `/guest/vip-payments/orders/${encodeURIComponent(outTradeNo)}`,
   })
+}
+
+// ---- 课程 ----
+
+export function courseCollections() {
+  return request<GuestCourseCollectionView[]>({ url: '/guest/courses/collections' })
+}
+
+export interface CourseListQuery {
+  /** null / undefined 都表示不筛合集——别把字符串 "null" 拼进 query。 */
+  collectionId?: number | null
+  page?: number
+  size?: number
+}
+
+/**
+ * 已发布课程的分页列表。免费账号也能调，返回的是元数据：
+ * **后端不会在这里下发正文与视频地址**，所以前端也拿不到、不必藏。
+ */
+export function courses(query: CourseListQuery = {}) {
+  const search = new URLSearchParams()
+  if (query.collectionId !== null && query.collectionId !== undefined) {
+    search.set('collectionId', String(query.collectionId))
+  }
+  search.set('page', String(query.page ?? 1))
+  search.set('size', String(query.size ?? 10))
+  return request<PageView<GuestCourseListItem>>({ url: `/guest/courses?${search.toString()}` })
+}
+
+/**
+ * 课程详情。需要付费会员，免费账号会拿到 403 `COURSE_VIP_REQUIRED`——
+ * 那不是会话失效，调用方要用 `apiErrorCode()` 认出来并落到升级引导，不要当错误弹窗。
+ */
+export function courseDetail(courseId: number) {
+  return request<GuestCourseDetail>({ url: `/guest/courses/${courseId}` })
 }
 
 export type { PhotoUploadResult }

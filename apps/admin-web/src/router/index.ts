@@ -49,6 +49,16 @@ const router = createRouter({
           component: () => import('@/views/ActivationCodesView.vue'),
         },
         {
+          path: 'courses',
+          name: 'courses',
+          component: () => import('@/views/CoursesView.vue'),
+        },
+        {
+          path: 'course-collections',
+          name: 'course-collections',
+          component: () => import('@/views/CourseCollectionsView.vue'),
+        },
+        {
           path: 'field-definitions',
           name: 'field-definitions',
           component: () => import('@/views/FieldDefinitionsView.vue'),

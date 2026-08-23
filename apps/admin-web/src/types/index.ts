@@ -162,3 +162,118 @@ export interface PaymentSettingView {
   minAmountMinor: number
   maxAmountMinor: number
 }
+
+// ---- 课程模块 ----
+
+/** 图文 / 视频 / 纯文本。图文与纯文本的正文存库，视频存 COS。 */
+export type CourseContentType = 'ARTICLE' | 'VIDEO' | 'TEXT'
+
+export type CourseStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
+
+/** 合集只有显示与隐藏两态——它下面挂着课程，后端不给 DELETE。 */
+export type CourseCollectionStatus = 'ACTIVE' | 'HIDDEN'
+
+export interface AdminCourseCollectionView {
+  id: number
+  name: string
+  description: string | null
+  sortOrder: number
+  status: CourseCollectionStatus
+  courseCount: number
+  publishedCourseCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminCourseListItem {
+  id: number
+  collectionId: number
+  collectionName: string
+  /** 教材名称。 */
+  title: string
+  subtitle: string | null
+  contentType: CourseContentType
+  status: CourseStatus
+  /** 讲师。 */
+  authorName: string | null
+  /** 只登记不校验，允许为空。 */
+  videoDurationSeconds: number | null
+  sortOrder: number
+  publishedAt: string | null
+  updatedAt: string
+  /** 乐观锁版本，PUT 时要原样回传。 */
+  version: number
+}
+
+/** coverPreviewUrl / videoPreviewUrl 都是签名地址，不落库，刷新后会变。 */
+export interface AdminCourseDetail extends AdminCourseListItem {
+  summary: string | null
+  contentMarkdown: string | null
+  coverObjectKey: string | null
+  coverPreviewUrl: string | null
+  videoObjectKey: string | null
+  videoPreviewUrl: string | null
+  videoSizeBytes: number | null
+  videoContentType: string | null
+  createdAt: string
+}
+
+/** 新建与修改共用一个请求体；`expectedVersion` 只有修改时带。 */
+export interface SaveCoursePayload {
+  collectionId: number
+  title: string
+  subtitle?: string | null
+  summary?: string | null
+  authorName?: string | null
+  contentType: CourseContentType
+  contentMarkdown?: string | null
+  coverObjectKey?: string | null
+  videoObjectKey?: string | null
+  videoDurationSeconds?: number | null
+  videoSizeBytes?: number | null
+  videoContentType?: string | null
+  sortOrder?: number
+  expectedVersion?: number
+}
+
+/** 正文里的插图。previewUrl 是签名地址，编辑器把它插进 markdown。 */
+export interface CourseImageAsset {
+  objectKey: string
+  previewUrl: string
+  sizeBytes: number
+  contentType: string
+}
+
+/** `.md` 上传的回执：只把文本读回来，不落库。 */
+export interface CourseMarkdownAsset {
+  content: string
+  sizeBytes: number
+}
+
+/** 分块上传会话。`partSizeBytes` 由后端决定，前端照它切片。 */
+export interface CourseVideoUploadSession {
+  uploadId: string
+  objectKey: string
+  partSizeBytes: number
+}
+
+export interface CourseVideoPartResult {
+  partNumber: number
+  etag: string
+}
+
+export interface CourseVideoAsset {
+  objectKey: string
+  sizeBytes: number
+  contentType: string
+}
+
+/** 课程表单里的视频字段。时长可为空，不参与任何校验。 */
+export interface CourseVideoBinding {
+  objectKey: string | null
+  sizeBytes: number | null
+  contentType: string | null
+  durationSeconds: number | null
+  /** 已保存课程回显用的签名地址，新上传的视频没有。 */
+  previewUrl?: string | null
+}

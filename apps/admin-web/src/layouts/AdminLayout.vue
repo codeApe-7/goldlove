@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Bell, Coin, CreditCard, DataBoard, Folder, Key, Tickets } from '@element-plus/icons-vue'
+import { Bell, Coin, Collection, CreditCard, DataBoard, Folder, Key, Reading, Tickets } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import BrandMark from '@/components/BrandMark.vue'
 
@@ -23,6 +23,8 @@ const menuGroups = [
   {
     title: '运营',
     items: [
+      { path: '/courses', label: '课程管理', icon: Reading },
+      { path: '/course-collections', label: '课程合集', icon: Collection },
       { path: '/payment-orders', label: '支付订单', icon: CreditCard },
       { path: '/activation-codes', label: '激活码', icon: Key },
     ],

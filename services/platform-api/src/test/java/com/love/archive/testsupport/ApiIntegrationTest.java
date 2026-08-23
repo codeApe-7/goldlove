@@ -109,7 +109,8 @@ public abstract class ApiIntegrationTest {
             statement.execute("""
                     TRUNCATE TABLE audit_log, profile_photo, profile_field_value,
                         guest_profile, authorization_record, activation_code,
-                        payment_order, payment_record, payment_setting, user_account,
+                        payment_order, payment_record, payment_setting,
+                        course_video_upload, course, course_collection, user_account,
                         admin_user RESTART IDENTITY CASCADE
                     """);
             // 授权书由迁移种下，TRUNCATE 没有清它；这里只保证测试拿到确定的一版。
@@ -123,6 +124,16 @@ public abstract class ApiIntegrationTest {
                         encode(digest(convert_to('测试授权书内容', 'UTF8'), 'sha256'), 'hex'),
                         'ACTIVE', CURRENT_TIMESTAMP
                     )
+                    """);
+            // 合集是 V6 种下的，上面那句 TRUNCATE ... RESTART IDENTITY 会把它们连 id 一起清掉。
+            // 课程相关用例都要挂在某个合集下，所以这里重新种一遍，
+            // 并且因为 id 已重置，第一个合集的 id 稳定是 1，用例可以直接依赖这一点。
+            statement.execute("""
+                    INSERT INTO course_collection (name, description, sort_order) VALUES
+                        ('情绪与认知', '识别情绪与认知偏差，先把自己看清楚', 10),
+                        ('择偶与筛选', '把标准说清楚，把人看明白', 20),
+                        ('恋爱关系', '关系里的相处、沟通与经营', 30),
+                        ('形象与状态', '外在形象与内在状态的日常管理', 40)
                     """);
         } catch (SQLException exception) {
             throw new IllegalStateException("测试数据库清理失败", exception);

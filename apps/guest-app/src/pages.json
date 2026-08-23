@@ -1,6 +1,8 @@
 {
   "pages": [
     { "path": "pages/profile/index", "style": { "navigationBarTitleText": "我的档案" } },
+    { "path": "pages/course/index", "style": { "navigationBarTitleText": "课程" } },
+    { "path": "pages/course/detail", "style": { "navigationBarTitleText": "课程详情 · gold 智能档案库", "navigationStyle": "custom" } },
     { "path": "pages/mine/index", "style": { "navigationBarTitleText": "我的" } },
     { "path": "pages/auth/index", "style": { "navigationBarTitleText": "gold 智能档案库", "navigationStyle": "custom" } },
     { "path": "pages/register/index", "style": { "navigationBarTitleText": "注册 · gold 智能档案库", "navigationStyle": "custom" } },
@@ -14,6 +16,7 @@
     "borderStyle": "black",
     "list": [
       { "pagePath": "pages/profile/index", "text": "档案" },
+      { "pagePath": "pages/course/index", "text": "课程" },
       { "pagePath": "pages/mine/index", "text": "我的" }
     ]
   },

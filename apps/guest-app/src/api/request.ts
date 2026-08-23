@@ -42,6 +42,30 @@ export function setUnauthorizedHandler(handler: () => void): void {
   unauthorizedHandler = handler
 }
 
+/**
+ * 带后端错误码的请求失败。
+ *
+ * <p>只抛 message 的话，调用方就只能靠字符串匹配去区分「这节课要会员」和「网络断了」。
+ * 课程门禁尤其需要：403 `COURSE_VIP_REQUIRED` 要落到升级引导态，而不是弹一个红色错误框。</p>
+ */
+export class ApiError extends Error {
+
+  readonly status: number
+  readonly code: string
+
+  constructor(message: string, status: number, code: string) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+  }
+}
+
+/** 取错误码。不是 {@link ApiError} 就给空串，调用方不必自己做类型判断。 */
+export function apiErrorCode(error: unknown): string {
+  return error instanceof ApiError ? error.code : ''
+}
+
 function bearerHeader(): Record<string, string> {
   const raw = sessionStorage.getItem('guest-session')
   if (!raw) return {}
@@ -67,18 +91,20 @@ export function request<T>(options: UniApp.RequestOptions): Promise<T> {
 
         if (status === 401 && !isCredentialCheck) {
           unauthorizedHandler()
-          reject(new Error(envelope?.message || '登录已过期，请重新登录'))
+          reject(new ApiError(
+            envelope?.message || '登录已过期，请重新登录', status, envelope?.code ?? ''))
           return
         }
         if (status === 403 && envelope?.code === 'AUTH_ACCOUNT_INACTIVE') {
           unauthorizedHandler()
-          reject(new Error(envelope.message || '账号已停用'))
+          reject(new ApiError(envelope.message || '账号已停用', status, envelope.code))
           return
         }
         if (!envelope || envelope.success === false) {
-          reject(new Error(
+          reject(new ApiError(
             envelope?.message || FALLBACK_BY_STATUS[status] || `请求失败（${status}）`,
-          ))
+            status,
+            envelope?.code ?? ''))
           return
         }
         resolve(envelope.data)

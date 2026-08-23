@@ -129,3 +129,65 @@ export function minuteLabel(value: string | null): string {
   return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`
     + ` ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
 }
+
+/** 课程上下架状态。ARCHIVED 是下架而非删除，所以用中性色而不是危险色。 */
+export function courseStatusMeta(status: string): { label: string; tone: Tone } {
+  switch (status) {
+    case 'PUBLISHED':
+      return { label: '已发布', tone: 'success' }
+    case 'ARCHIVED':
+      return { label: '已下架', tone: 'neutral' }
+    default:
+      return { label: '草稿', tone: 'warning' }
+  }
+}
+
+export function courseContentTypeLabel(contentType: string): string {
+  switch (contentType) {
+    case 'ARTICLE':
+      return '图文'
+    case 'VIDEO':
+      return '视频'
+    case 'TEXT':
+      return '纯文本'
+    default:
+      return contentType
+  }
+}
+
+export function courseCollectionStatusMeta(status: string): { label: string; tone: Tone } {
+  return status === 'HIDDEN'
+    ? { label: '已隐藏', tone: 'neutral' }
+    : { label: '显示中', tone: 'success' };
+}
+
+/**
+ * 秒 → 「12:30」。
+ *
+ * 时长是纯展示项：后端只登记不校验，允许为空，所以这里也不对时长做任何区间判断，
+ * 空值就是一个破折号。
+ */
+export function durationLabel(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds) || seconds <= 0) {
+    return '—'
+  }
+  const whole = Math.round(seconds)
+  const minutes = Math.floor(whole / 60)
+  const rest = whole % 60
+  return `${minutes}:${String(rest).padStart(2, '0')}`
+}
+
+/** 字节 → 人能读的大小。视频动辄上百 MB，表格里显示字节数没人看得懂。 */
+export function fileSizeLabel(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined || !Number.isFinite(bytes) || bytes <= 0) {
+    return '—'
+  }
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = bytes
+  let unit = 0
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024
+    unit += 1
+  }
+  return `${unit === 0 ? value : value.toFixed(1)} ${units[unit]}`
+}
