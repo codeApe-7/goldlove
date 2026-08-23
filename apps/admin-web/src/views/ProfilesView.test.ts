@@ -69,7 +69,7 @@ describe('字段配置页', () => {
 })
 
 describe('侧边栏', () => {
-  it('五个真实页面分成三组', () => {
+  it('六个真实页面分成三组', () => {
     expect(layoutSource).toContain("title: '数据'")
     expect(layoutSource).toContain("title: '运营'")
     expect(layoutSource).toContain("title: '配置'")
