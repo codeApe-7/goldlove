@@ -79,8 +79,84 @@ class XpayPaymentChannelTest {
         assertThat(result.payParameters().jumpUrl()).isEqualTo("https://cashier.example/pay?order=1");
     }
 
+    /**
+     * 查单响应的业务字段包在 {@code data} 里——这是 {@code XPAY-API.md}「查询订单」
+     * 给的真实形状。原来的实现把根节点直接交给解析函数，于是 out_trade_no / status / money
+     * 全取不到，查单成功也会解析成「未支付」，补偿查单这条安全网形同不存在。
+     */
     @Test
-    void queriesPaidOrderAndMapsYuanToMinor() {
+    void queriesPaidOrderFromTheDataEnvelope() {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.enqueue(200, """
+                {"code":0,"msg":"success","data":{
+                  "pid":10192,"type":"alipay","out_trade_no":"OTN-Q-1",
+                  "trade_no":"20260819205920933269","api_trade_no":"20260819205920933269",
+                  "money":"0.01","status":"1","buyer":"buyer-1","trade_status":"TRADE_SUCCESS"}}
+                """);
+        XpayPaymentChannel channel = configuredChannel(httpClient);
+
+        Optional<PaymentResult> result = channel.queryByOutTradeNo("OTN-Q-1");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().paid()).isTrue();
+        assertThat(result.get().outTradeNo()).isEqualTo("OTN-Q-1");
+        assertThat(result.get().transactionId()).isEqualTo("20260819205920933269");
+        assertThat(result.get().totalAmountMinor()).isEqualTo(1L);
+        assertThat(result.get().payer()).isEqualTo("buyer-1");
+        assertThat(result.get().successTime()).isNotNull();
+    }
+
+    /** data 里只有 trade_status 没有 status 时也要认出已支付（文档写的是「或」）。 */
+    @Test
+    void treatsTradeSuccessAsPaidEvenWithoutStatusField() {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.enqueue(200, """
+                {"code":0,"msg":"success","data":{
+                  "out_trade_no":"OTN-Q-2","trade_no":"T2","money":"99.00",
+                  "trade_status":"TRADE_SUCCESS"}}
+                """);
+        XpayPaymentChannel channel = configuredChannel(httpClient);
+
+        Optional<PaymentResult> result = channel.queryByOutTradeNo("OTN-Q-2");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().paid()).isTrue();
+        assertThat(result.get().totalAmountMinor()).isEqualTo(9900L);
+    }
+
+    /** 未支付的订单必须解析成 paid=false，绝不能因为查单成功就当成已付。 */
+    @Test
+    void queriesUnpaidOrderAsNotPaid() {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.enqueue(200, """
+                {"code":0,"msg":"success","data":{
+                  "out_trade_no":"OTN-Q-3","money":"99.00","status":"0","trade_status":"WAIT_BUYER_PAY"}}
+                """);
+        XpayPaymentChannel channel = configuredChannel(httpClient);
+
+        Optional<PaymentResult> result = channel.queryByOutTradeNo("OTN-Q-3");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().paid()).isFalse();
+        assertThat(result.get().successTime()).isNull();
+    }
+
+    /** code 非 0 即失败（文档：code=0 / msg=success）。不能把失败当查询成功。 */
+    @Test
+    void rejectsNonZeroCode() {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.enqueue(200, "{\"code\":1,\"msg\":\"订单不存在\"}");
+        XpayPaymentChannel channel = configuredChannel(httpClient);
+
+        assertThatThrownBy(() -> channel.queryByOutTradeNo("OTN-MISSING"))
+                .isInstanceOf(ApiException.class)
+                .satisfies(exception -> assertThat(((ApiException) exception).code())
+                        .isEqualTo("PAYMENT_CHANNEL_QUERY_FAILED"));
+    }
+
+    /** 网关若把字段平铺回来（老形状）也要继续能解析，不至于一次改版就全线失效。 */
+    @Test
+    void stillParsesTheFlatShape() {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         httpClient.enqueue(200, """
                 {"code":0,"msg":"success","trade_no":"2026081100002","out_trade_no":"OTN-Q-1",
@@ -93,9 +169,7 @@ class XpayPaymentChannelTest {
         assertThat(result).isPresent();
         assertThat(result.get().paid()).isTrue();
         assertThat(result.get().outTradeNo()).isEqualTo("OTN-Q-1");
-        assertThat(result.get().transactionId()).isEqualTo("2026081100002");
         assertThat(result.get().totalAmountMinor()).isEqualTo(100L);
-        assertThat(result.get().payer()).isEqualTo("buyer-1");
     }
 
     @Test

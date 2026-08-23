@@ -144,7 +144,23 @@ public class XpayPaymentChannel implements PaymentChannel {
             throw new ApiException(
                     HttpStatus.BAD_GATEWAY, "PAYMENT_CHANNEL_QUERY_FAILED", "支付渠道查询失败");
         }
-        return Optional.of(toPaymentResult(payload));
+        return Optional.of(toPaymentResult(queryDetail(payload)));
+    }
+
+    /**
+     * 查单的业务字段包在 {@code data} 里，而下单与回调是平铺的
+     * （见 {@code XPAY-API.md} 的「查询订单」响应示例）。
+     *
+     * <p>原来这里把整个根节点交给 {@link #toPaymentResult}，于是 {@code out_trade_no} /
+     * {@code status} / {@code money} 全取不到——查单即使成功也会解析成「未支付、订单号为空」，
+     * <b>补偿查单这条安全网等于不存在</b>：回调丢了就再也补不回来，订单永远停在 CREATED。
+     * 而单测当时用的是平铺的假响应，所以一直没发现。</p>
+     *
+     * <p>{@code data} 不是对象时退回根节点：万一网关某天改成平铺，不至于整条链路失效。</p>
+     */
+    private static JsonNode queryDetail(JsonNode payload) {
+        JsonNode data = payload.path("data");
+        return data.isObject() ? data : payload;
     }
 
     @Override
