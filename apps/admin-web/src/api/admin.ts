@@ -9,6 +9,7 @@ import type {
   AdminProfileListItem,
   AdminSession,
   PageView,
+  PaymentSettingView,
   ProfileFieldDefinitionView,
 } from '@/types'
 
@@ -118,4 +119,18 @@ export function generateActivationCode(payload: {
 
 export function revokeActivationCode(codeId: number): Promise<null> {
   return unwrap(http.post(`/admin/activation-codes/${codeId}/revoke`))
+}
+
+// ---- 支付设置 ----
+
+export function paymentSetting(): Promise<PaymentSettingView> {
+  return unwrap(http.get('/admin/payment-settings'))
+}
+
+/**
+ * 改 VIP 升级金额。金额以「分」传输，与后端和渠道一致；界面按元录入后换算。
+ * 只影响之后创建的订单，已创建的订单保留下单时的金额。
+ */
+export function updatePaymentSetting(vipUpgradeAmountMinor: number): Promise<PaymentSettingView> {
+  return unwrap(http.put('/admin/payment-settings', { vipUpgradeAmountMinor }))
 }

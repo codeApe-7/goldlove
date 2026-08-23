@@ -17,7 +17,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * VIP 升级支付编排：生成商户订单号 → 落订单 → 渠道下单，以及回调验签后的幂等结算。
- * 金额永远取服务端配置，绝不信任前端传入；付款人一定是已登录账号。
+ * 金额永远取服务端的当前设置（后台值优先，其次配置），绝不信任前端传入；
+ * 付款人一定是已登录账号。
  */
 @Service
 @RequiredArgsConstructor
@@ -30,6 +31,7 @@ public class OnlinePaymentService {
     private final PaymentRecordMapper paymentRecordMapper;
     private final MembershipGrantPort membershipGrantPort;
     private final OnlinePaymentProperties properties;
+    private final PaymentSettingService paymentSettingService;
     private final SecureRandom secureRandom;
 
     /** 渠道类型与升级金额，供前端展示。 */
@@ -37,14 +39,14 @@ public class OnlinePaymentService {
         PaymentChannel channel = activeChannel();
         return new OnlinePaymentSettingsView(
                 channel.kind(),
-                properties.getVipUpgradeAmountMinor(),
+                paymentSettingService.vipUpgradeAmountMinor(),
                 properties.getOrderDescription());
     }
 
     /** 为当前登录账号创建一笔 VIP 升级订单并向渠道下单。 */
     public OnlineOrderView createOrder(long accountId) {
         PaymentChannel channel = activeChannel();
-        long amountMinor = properties.getVipUpgradeAmountMinor();
+        long amountMinor = paymentSettingService.vipUpgradeAmountMinor();
         String description = properties.getOrderDescription();
         String outTradeNo = generateOutTradeNo();
 

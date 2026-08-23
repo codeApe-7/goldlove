@@ -7,10 +7,12 @@ import {
   listActivationCodes,
   listPaymentOrders,
   listProfiles,
+  paymentSetting,
   profileCounts,
   profileDetail,
   revokeActivationCode,
   suspendAccount,
+  updatePaymentSetting,
 } from './admin'
 
 describe('admin api', () => {
@@ -120,5 +122,25 @@ describe('admin api', () => {
 
     await activateAccount(3, null)
     expect(http.post).toHaveBeenCalledWith('/admin/accounts/3/activate', { reason: null })
+  })
+
+  it('paymentSetting reads the current amount', async () => {
+    vi.spyOn(http, 'get').mockResolvedValue(
+      ok({ vipUpgradeAmountMinor: 12_800, managedInAdmin: true }),
+    )
+
+    await expect(paymentSetting()).resolves.toMatchObject({ vipUpgradeAmountMinor: 12_800 })
+    expect(http.get).toHaveBeenCalledWith('/admin/payment-settings')
+  })
+
+  it('updatePaymentSetting puts the amount in minor units', async () => {
+    vi.spyOn(http, 'put').mockResolvedValue(ok({ vipUpgradeAmountMinor: 12_800 }))
+
+    await expect(updatePaymentSetting(12_800)).resolves.toMatchObject({
+      vipUpgradeAmountMinor: 12_800,
+    })
+    expect(http.put).toHaveBeenCalledWith('/admin/payment-settings', {
+      vipUpgradeAmountMinor: 12_800,
+    })
   })
 })

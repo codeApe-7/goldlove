@@ -53,6 +53,11 @@ const router = createRouter({
           name: 'field-definitions',
           component: () => import('@/views/FieldDefinitionsView.vue'),
         },
+        {
+          path: 'payment-settings',
+          name: 'payment-settings',
+          component: () => import('@/views/PaymentSettingsView.vue'),
+        },
       ],
     },
   ],

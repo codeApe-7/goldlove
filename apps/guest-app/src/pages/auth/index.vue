@@ -56,7 +56,7 @@ function goRegister(): void {
         <AppButton block :disabled="loading" @tap="submit">
           {{ loading ? '登录中' : '登录' }}
         </AppButton>
-        <text class="register-entry" @tap="goRegister">还没有账号？免费注册建档</text>
+        <text class="register-entry" @tap="goRegister">还没有账号？注册建档</text>
       </view>
       <view class="privacy-note"><AppIcon name="lock" :size="16" /><view><strong>我们将严格保护您的隐私与数据安全</strong><text>所有信息仅用于档案匹配，经授权后方可使用。</text></view></view>
     </view>

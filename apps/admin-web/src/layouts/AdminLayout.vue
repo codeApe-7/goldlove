@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Bell, CreditCard, DataBoard, Folder, Key, Tickets } from '@element-plus/icons-vue'
+import { Bell, Coin, CreditCard, DataBoard, Folder, Key, Tickets } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import BrandMark from '@/components/BrandMark.vue'
 
@@ -29,7 +29,10 @@ const menuGroups = [
   },
   {
     title: '配置',
-    items: [{ path: '/field-definitions', label: '字段配置', icon: Tickets }],
+    items: [
+      { path: '/field-definitions', label: '字段配置', icon: Tickets },
+      { path: '/payment-settings', label: '支付设置', icon: Coin },
+    ],
   },
 ]
 

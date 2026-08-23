@@ -109,7 +109,7 @@ public abstract class ApiIntegrationTest {
             statement.execute("""
                     TRUNCATE TABLE audit_log, profile_photo, profile_field_value,
                         guest_profile, authorization_record, activation_code,
-                        payment_order, payment_record, user_account,
+                        payment_order, payment_record, payment_setting, user_account,
                         admin_user RESTART IDENTITY CASCADE
                     """);
             // 授权书由迁移种下，TRUNCATE 没有清它；这里只保证测试拿到确定的一版。

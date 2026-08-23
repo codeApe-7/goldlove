@@ -80,6 +80,8 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | GET | `/api/v1/admin/profile-field-definitions` | 管理员 | 分页查询档案字段定义 |
 | POST | `/api/v1/admin/profile-field-definitions` | 管理员 | 新增动态字段定义 |
 | PATCH | `/api/v1/admin/profile-field-definitions/{id}` | 管理员 | 更新字段定义（受保护属性不可修改） |
+| GET | `/api/v1/admin/payment-settings` | 管理员 | 读取 VIP 升级金额（含配置回落值与上下限） |
+| PUT | `/api/v1/admin/payment-settings` | 管理员 | 修改 VIP 升级金额（写审计，仅对新订单生效） |
 
 所有响应统一包含 `success`、`code`、`message`、`data` 和 `requestId`。客户端可以传入安全格式的
 `X-Request-ID`，否则服务端自动生成。
@@ -116,10 +118,16 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 
 ## 支付
 
-金额只取服务端配置 `VIP_UPGRADE_AMOUNT_MINOR`，回调金额与订单金额不一致时拒绝结算
+金额只取服务端，回调金额与订单金额不一致时拒绝结算
 （`PAYMENT_AMOUNT_MISMATCH`）。`out_trade_no` 由服务端用 24 字节随机数生成（Base64URL，32 字符），
 全局唯一并作为幂等锚点。回调用平台公钥做 RSA2 验签，验签失败返回 401，结算冲突返回 500 让渠道重试。
 重复回调幂等，不会重复写付款记录。查单接口只允许查询本人的订单。
+
+**金额由管理后台维护**：`payment_setting` 表里那一行覆盖环境变量——
+后台在「支付设置」保存过就用库里的值，从未保存过则回落到 `VIP_UPGRADE_AMOUNT_MINOR`。
+改价只影响之后创建的订单，已创建的订单保留下单时写入 `payment_order.amount_minor` 的金额。
+允许范围 1 ~ 10000000 分（¥0.01 ~ ¥100000），库里有同名 CHECK 兜着，每次修改写一条
+`PAYMENT_AMOUNT_UPDATED` 审计。
 
 | 环境变量 | 说明 |
 |---|---|
@@ -129,8 +137,9 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | `XPAY_RETURN_URL` | 支付完成后同步跳转地址（回 guest-app 会员页） |
 | `XPAY_BASE_URL` | 渠道网关地址，**必填**（刻意不设默认值，服务商域名属于部署配置） |
 | `ONLINE_PAYMENT_PROVIDER` | 启用的渠道；留空则取唯一已配置渠道 |
-| `VIP_UPGRADE_AMOUNT_MINOR` | VIP 升级金额（分），默认 `100`（¥1，便于联调） |
-| `MEMBERSHIP_SVIP_THRESHOLD_MINOR` | 升 SVIP 的累计付费额度（分），默认 `59900` |
+| `VIP_UPGRADE_AMOUNT_MINOR` | VIP 升级金额（分）的**回落值**，默认 `100`；后台设过金额后不再生效 |
+| `VIP_UPGRADE_DESCRIPTION` | 下单商品描述，仅环境变量可改（后台只读展示） |
+| `MEMBERSHIP_SVIP_THRESHOLD_MINOR` | 升 SVIP 的累计付费额度（分），默认 `59900`，仅环境变量可改 |
 
 上述五项凭据齐全时才装配渠道客户端；缺任何一项，支付接口返回 `PAYMENT_CHANNEL_NOT_CONFIGURED`（503），
 其余功能不受影响。
@@ -159,6 +168,7 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | `PAYMENT_ORDER_NOT_FOUND` | 404 | 订单不存在或不属于当前账号 |
 | `PAYMENT_ORDER_STATE_CONFLICT` | 409 | 订单状态并发变化，请重试 |
 | `PAYMENT_AMOUNT_MISMATCH` | 409 | 支付金额与服务端订单金额不一致 |
+| `PAYMENT_AMOUNT_INVALID` | 400 | 后台设置的 VIP 升级金额超出 ¥0.01 ~ ¥100000 |
 | `PAYMENT_NOTIFY_SIGNATURE_INVALID` | 400 | 回调验签失败（回调端点对外返回 401） |
 | `PROFILE_VERSION_CONFLICT` | 409 | 档案版本已变化，请刷新后重试 |
 | `PROFILE_NOT_FOUND` | 404 | 档案不存在 |

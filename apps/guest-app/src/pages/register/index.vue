@@ -2,7 +2,6 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import * as api from '@/api'
-import AppIcon from '@/components/AppIcon.vue'
 import BrandMark from '@/components/BrandMark.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppInput from '@/components/AppInput.vue'
@@ -70,7 +69,7 @@ function backToLogin(): void {
     <view class="brand-hero">
       <BrandMark light />
       <text class="brand-title">创建账号</text>
-      <text class="brand-sub">免费注册 · 免费建档</text>
+      <text class="brand-sub">注册 · 建档</text>
     </view>
 
     <view class="surface">
@@ -106,17 +105,9 @@ function backToLogin(): void {
       <text v-if="error" class="error">{{ error }}</text>
 
       <AppButton block :disabled="!canSubmit" @tap="submit">
-        {{ loading ? '正在创建账号' : '免费注册' }}
+        {{ loading ? '正在创建账号' : '注册' }}
       </AppButton>
       <text class="back" @tap="backToLogin">已有账号？返回登录</text>
-
-      <view class="notice">
-        <AppIcon name="lock" :size="16" />
-        <view>
-          <strong>注册与建档均免费</strong>
-          <text>资料仅用于档案匹配；会员为可选的增值服务，可随时在「我的」中升级。</text>
-        </view>
-      </view>
     </view>
   </view>
 </template>
@@ -206,23 +197,6 @@ function backToLogin(): void {
   color: $ds-gray;
   text-align: center;
   text-decoration: underline;
-}
-.notice {
-  margin-top: $ds-space-4;
-  padding: $ds-space-3;
-  display: flex;
-  gap: $ds-space-2;
-  border: $ds-hairline solid $ds-line;
-  border-radius: $ds-radius-sm;
-}
-.notice strong,
-.notice text { display: block; }
-.notice strong { @include ds-body-2; }
-.notice text {
-  margin-top: $ds-space-1;
-  @include ds-caption;
-  color: $ds-gray;
-  line-height: 34rpx;
 }
 @media screen and (min-width: 431px) {
   .register-page { max-width: $ds-viewport-max; }

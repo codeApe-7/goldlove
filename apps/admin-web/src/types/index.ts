@@ -146,3 +146,19 @@ export interface AdminActivationCodeItem {
   redeemedAt: string | null
   redeemedPhone: string | null
 }
+
+/**
+ * 支付设置。金额有两个来源：后台设过就用后台的（`managedInAdmin` 为 true），
+ * 没设过则回落到服务端配置 `configuredAmountMinor`，所以两个值都下发。
+ * 上下限也由后端给，前端不再抄一份。
+ */
+export interface PaymentSettingView {
+  vipUpgradeAmountMinor: number
+  configuredAmountMinor: number
+  managedInAdmin: boolean
+  updatedAt: string | null
+  /** 下单商品描述，只读——仍由服务端环境变量决定。 */
+  orderDescription: string
+  minAmountMinor: number
+  maxAmountMinor: number
+}
