@@ -113,6 +113,22 @@ class VipUpgradePaymentApiTest extends ApiIntegrationTest {
     }
 
     /**
+     * 下单拿到的是带平台标记的订单号，不是一串 Base64。
+     *
+     * <p>这里走的是完整装配（真的 {@code OutTradeNoGenerator} bean），确保它真被接上了——
+     * 形状本身由 {@code OutTradeNoGeneratorTest} 逐条钉住。</p>
+     */
+    @Test
+    void newOrderNumbersCarryThePlatformPrefix() throws Exception {
+        String outTradeNo = createOrder();
+
+        assertThat(outTradeNo)
+                .startsWith("GOLD-")
+                .matches("GOLD-\\d{8}-\\d{6}-[23456789ABCDEFGHJKMNPQRSTVWXYZ]{6}");
+        assertThat(findOrder(outTradeNo)).isNotNull();
+    }
+
+    /**
      * 下单即写截止时间，前端与关单逻辑都靠它判断「还能不能继续付」。
      *
      * <p>默认 5 分钟，对齐易支付收银台自己的超时。这个数字被钉在这里是有意的：

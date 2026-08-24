@@ -214,7 +214,13 @@ class PaymentOrderStore {
         return order;
     }
 
-    /** 商户订单号形如 Base64URL，超长或含非法字符时不必查库。 */
+    /**
+     * 超长或含非法字符时不必查库。
+     *
+     * <p>刻意保持宽松：现在生成的是 {@code GOLD-20260824-103512-K7Q3F9}，
+     * 但存量订单还是早期的 Base64URL（可能以 {@code -}/{@code _} 开头、混大小写）。
+     * 收紧成新格式会让那些老单子查不到——它们在渠道那边仍然是活的。</p>
+     */
     private static boolean plausibleOutTradeNo(String outTradeNo) {
         return outTradeNo != null && OUT_TRADE_NO.matcher(outTradeNo).matches();
     }

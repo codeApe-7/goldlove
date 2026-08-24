@@ -7,9 +7,7 @@ import com.love.archive.payment.domain.PaymentOrderStatus;
 import com.love.archive.payment.persistence.PaymentOrderEntity;
 import com.love.archive.payment.persistence.PaymentRecordEntity;
 import com.love.archive.payment.persistence.PaymentRecordMapper;
-import java.security.SecureRandom;
 import java.time.OffsetDateTime;
-import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +23,6 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class OnlinePaymentService {
 
-    private static final int OUT_TRADE_NO_RANDOM_BYTES = 24;
     /** 「我的订单」最多回多少条。会员订单本就零星，够看全历史，也不必分页。 */
     private static final int MAX_LISTED_ORDERS = 50;
 
@@ -35,7 +32,7 @@ public class OnlinePaymentService {
     private final MembershipGrantPort membershipGrantPort;
     private final OnlinePaymentProperties properties;
     private final PaymentSettingService paymentSettingService;
-    private final SecureRandom secureRandom;
+    private final OutTradeNoGenerator outTradeNoGenerator;
 
     /** 渠道类型与升级金额，供前端展示。 */
     public OnlinePaymentSettingsView settings() {
@@ -51,7 +48,7 @@ public class OnlinePaymentService {
         PaymentChannel channel = activeChannel();
         long amountMinor = paymentSettingService.vipUpgradeAmountMinor();
         String description = properties.getOrderDescription();
-        String outTradeNo = generateOutTradeNo();
+        String outTradeNo = outTradeNoGenerator.generate();
 
         orderStore.insertCreated(new NewOnlineOrder(
                 outTradeNo, accountId, channel.kind(), amountMinor, expiryFromNow()));
@@ -193,12 +190,6 @@ public class OnlinePaymentService {
     private OffsetDateTime expiryFromNow() {
         long minutes = properties.getOrderExpiryMinutes();
         return minutes <= 0 ? null : OffsetDateTime.now().plusMinutes(minutes);
-    }
-
-    private String generateOutTradeNo() {
-        byte[] random = new byte[OUT_TRADE_NO_RANDOM_BYTES];
-        secureRandom.nextBytes(random);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
     }
 
     private static ApiException orderNotFound() {
