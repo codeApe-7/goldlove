@@ -42,8 +42,7 @@ const fields = computed(() => {
   if (!value) return []
   return [
     { label: '性别', value: orDash(value.gender) },
-    { label: '年龄', value: ageLabel(value.birthDate) },
-    { label: '出生日期', value: orDash(value.birthDate) },
+    { label: '年龄', value: ageLabel(value.age) },
     { label: '所在地区', value: orDash(value.city) },
     { label: '学历', value: orDash(value.education) },
     { label: '职业', value: orDash(value.occupation) },
@@ -51,8 +50,6 @@ const fields = computed(() => {
     { label: '身高', value: value.heightCm ? `${value.heightCm} cm` : '—' },
     { label: '微信号', value: orDash(value.wechatId) },
     { label: '抖音号', value: orDash(value.douyinId) },
-    { label: '抖音昵称', value: orDash(value.douyinNickname) },
-    { label: '抖音主页', value: orDash(value.douyinProfileUrl) },
     { label: '累计付费', value: amountLabel(value.membershipCreditMinor) },
     { label: '创建时间', value: minuteLabel(value.createdAt) },
     { label: '更新时间', value: minuteLabel(value.updatedAt) },

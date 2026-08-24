@@ -28,7 +28,7 @@ class SchemaInvariantsTest extends PostgresIntegrationTest {
         assertThat(jdbc.sql("SELECT count(*) FROM authorization_document WHERE status = 'ACTIVE'")
                 .query(Integer.class).single()).isEqualTo(1);
         assertThat(jdbc.sql("SELECT count(*) FROM profile_field_definition WHERE storage_kind = 'CORE'")
-                .query(Integer.class).single()).isEqualTo(11);
+                .query(Integer.class).single()).isEqualTo(9);
         assertThat(jdbc.sql("""
                         SELECT data_type FROM profile_field_definition WHERE field_code = 'income_range'
                         """)
@@ -66,6 +66,49 @@ class SchemaInvariantsTest extends PostgresIntegrationTest {
                 .query(Integer.class).single()).isZero();
     }
 
+    /**
+     * V8 把档案收窄：只收年龄，不收出生日期；抖音只留账号本身。
+     *
+     * <p>三列都是「能直接指认到人」的信息，而档案实际用到的只有「多大」和「怎么联系」。
+     * 断言列**不存在**而不只是断言不再读它：留着列，下一个人加个 SELECT * 就又把它捡回来了。</p>
+     */
+    @Test
+    void theProfileOnlyKeepsAgeAndTheDouyinAccountItself() {
+        assertThat(columnExists("guest_profile", "age")).isTrue();
+        assertThat(columnExists("guest_profile", "birth_date")).isFalse();
+        assertThat(columnExists("guest_profile", "douyin_id")).isTrue();
+        assertThat(columnExists("guest_profile", "douyin_nickname")).isFalse();
+        assertThat(columnExists("guest_profile", "douyin_profile_url")).isFalse();
+
+        assertThat(dataTypeOf("age")).isEqualTo("INTEGER");
+        assertThat(jdbc.sql("""
+                        SELECT count(*) FROM profile_field_definition
+                        WHERE field_code IN ('birth_date', 'douyin_nickname', 'douyin_profile_url')
+                        """)
+                .query(Integer.class).single()).isZero();
+    }
+
+    /** 年龄的区间兜底在库里。应用层也拦，但库是最后一道，绕过接口写进来的也得挡住。 */
+    @Test
+    void theDatabaseRefusesImpossibleAges() throws Exception {
+        try (Connection owner = ownerConnection()) {
+            long accountId = insertAccount(owner, "13800138777");
+            long profileId = insertProfile(owner, accountId);
+
+            // 草稿允许还没填年龄。
+            execute(owner, "UPDATE guest_profile SET age = NULL WHERE id = " + profileId);
+            execute(owner, "UPDATE guest_profile SET age = 18 WHERE id = " + profileId);
+            execute(owner, "UPDATE guest_profile SET age = 100 WHERE id = " + profileId);
+
+            assertSqlRejected(
+                    () -> execute(owner, "UPDATE guest_profile SET age = 17 WHERE id = " + profileId),
+                    "ck_guest_profile_age");
+            assertSqlRejected(
+                    () -> execute(owner, "UPDATE guest_profile SET age = 101 WHERE id = " + profileId),
+                    "ck_guest_profile_age");
+        }
+    }
+
     @Test
     void reviewAndManualPathTablesAreGone() {
         for (String table : new String[] {
@@ -87,6 +130,64 @@ class SchemaInvariantsTest extends PostgresIntegrationTest {
         assertThat(columnExists("guest_profile", "wechat_id_ciphertext")).isFalse();
         assertThat(columnExists("payment_record", "transaction_id")).isTrue();
         assertThat(columnExists("payment_record", "transaction_id_ciphertext")).isFalse();
+    }
+
+    /**
+     * 订单要能对账：渠道侧订单号从下单起就有位置存，而且两笔订单不能声称是同一笔渠道单。
+     *
+     * <p>它与 {@code transaction_id} 是两列而不是一列：后者是「这笔钱」的流水号，
+     * 结算才有；前者是「这笔单子」在渠道那边的编号，下单就有。合成一列会让
+     * {@code ck_payment_order_paid_shape} 依赖的「transaction_id 非空 ⇒ 已付」变成谎话。</p>
+     */
+    @Test
+    void paymentOrderCanBeReconciledAgainstTheChannel() throws SQLException {
+        assertThat(columnExists("payment_order", "channel_trade_no")).isTrue();
+        assertThat(columnExists("payment_order", "expires_at")).isTrue();
+
+        try (Connection owner = ownerConnection()) {
+            long accountId = insertAccount(owner, "13800138201");
+            execute(owner, """
+                    INSERT INTO payment_order (out_trade_no, user_account_id, channel, amount_minor,
+                                               status, channel_trade_no)
+                    VALUES ('OTN-RECON-1', %d, 'XPAY_ALIPAY', 100, 'CREATED', '20260823225910918724')
+                    """.formatted(accountId));
+
+            assertSqlRejected(
+                    () -> execute(owner, """
+                            INSERT INTO payment_order (out_trade_no, user_account_id, channel,
+                                                       amount_minor, status, channel_trade_no)
+                            VALUES ('OTN-RECON-2', %d, 'XPAY_ALIPAY', 100, 'CREATED',
+                                    '20260823225910918724')
+                            """.formatted(accountId)),
+                    "uq_payment_order_channel_trade_no");
+
+            // 未支付的订单可以有渠道单号而没有流水号——这正是当初缺的那个抓手。
+            assertThat(queryBoolean(owner, """
+                    SELECT channel_trade_no IS NOT NULL AND transaction_id IS NULL
+                      FROM payment_order WHERE out_trade_no = 'OTN-RECON-1'
+                    """)).isTrue();
+        }
+    }
+
+    /** CLOSED 一直在 CHECK 里，但直到订单过期关单才真的被写进去。 */
+    @Test
+    void paymentOrderStatusAllowsClosed() throws SQLException {
+        try (Connection owner = ownerConnection()) {
+            long accountId = insertAccount(owner, "13800138202");
+            execute(owner, """
+                    INSERT INTO payment_order (out_trade_no, user_account_id, channel, amount_minor,
+                                               status, expires_at)
+                    VALUES ('OTN-CLOSED-1', %d, 'XPAY_ALIPAY', 100, 'CLOSED',
+                            CURRENT_TIMESTAMP - INTERVAL '1 minute')
+                    """.formatted(accountId));
+
+            assertSqlRejected(
+                    () -> execute(owner, """
+                            UPDATE payment_order SET status = 'EXPIRED'
+                             WHERE out_trade_no = 'OTN-CLOSED-1'
+                            """),
+                    "ck_payment_order_status");
+        }
     }
 
     @Test

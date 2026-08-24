@@ -6,7 +6,6 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
 import com.love.archive.guest.domain.ProfileStatus;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import lombok.Getter;
@@ -26,8 +25,8 @@ public class GuestProfileEntity {
     private Long userAccountId;
     @TableField("gender")
     private String gender;
-    @TableField("birth_date")
-    private LocalDate birthDate;
+    @TableField("age")
+    private Integer age;
     @TableField("height_cm")
     private Integer heightCm;
     @TableField("education")
@@ -42,10 +41,6 @@ public class GuestProfileEntity {
     private String wechatId;
     @TableField("douyin_id")
     private String douyinId;
-    @TableField("douyin_nickname")
-    private String douyinNickname;
-    @TableField("douyin_profile_url")
-    private String douyinProfileUrl;
     @TableField("status")
     private ProfileStatus status;
     @Version

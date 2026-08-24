@@ -70,7 +70,7 @@ public class AdminProfileQueryService {
                 row.getAccountStatus(),
                 row.getStatus(),
                 row.getGender(),
-                row.getBirthDate(),
+                row.getAge(),
                 row.getCity(),
                 row.getCreatedAt(),
                 row.getUpdatedAt());
@@ -98,7 +98,7 @@ public class AdminProfileQueryService {
                 row.getCreatedAt(),
                 row.getUpdatedAt(),
                 row.getGender(),
-                row.getBirthDate(),
+                row.getAge(),
                 row.getHeightCm(),
                 row.getEducation(),
                 row.getOccupation(),
@@ -106,8 +106,6 @@ public class AdminProfileQueryService {
                 row.getCity(),
                 row.getWechatId(),
                 row.getDouyinId(),
-                row.getDouyinNickname(),
-                row.getDouyinProfileUrl(),
                 dynamicFields(profileId),
                 photos(profileId));
     }

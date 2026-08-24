@@ -32,8 +32,8 @@ class MybatisPaginationTest extends ApiIntegrationTest {
                 Wrappers.<ProfileFieldDefinitionEntity>lambdaQuery()
                         .orderByAsc(ProfileFieldDefinitionEntity::getSortOrder));
 
-        // 迁移种下 11 个核心字段定义。
-        assertThat(page.getTotal()).isEqualTo(11L);
+        // 迁移种下 9 个核心字段定义（V8 去掉出生日期与两个抖音字段、加回年龄）。
+        assertThat(page.getTotal()).isEqualTo(9L);
         assertThat(page.getRecords()).hasSize(3);
         assertThat(page.getRecords().getFirst().getFieldCode()).isEqualTo("gender");
     }
@@ -46,7 +46,7 @@ class MybatisPaginationTest extends ApiIntegrationTest {
                         .orderByAsc(ProfileFieldDefinitionEntity::getSortOrder));
 
         assertThat(page.getRecords()).hasSize(3);
-        // sort_order 10..110，第 2 页（每页 3 条）是 education/occupation/income_range。
+        // sort_order 10..90，第 2 页（每页 3 条）是 education/occupation/income_range。
         assertThat(page.getRecords().getFirst().getFieldCode()).isEqualTo("education");
     }
 }

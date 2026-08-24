@@ -1,13 +1,11 @@
 package com.love.archive.guest.application;
 
-import java.net.URI;
-import java.time.LocalDate;
 import java.util.List;
 
 public record SaveGuestProfileCommand(
         Long expectedVersion,
         String gender,
-        LocalDate birthDate,
+        Integer age,
         Integer heightCm,
         String education,
         String occupation,
@@ -15,8 +13,6 @@ public record SaveGuestProfileCommand(
         String city,
         String wechatId,
         String douyinId,
-        String douyinNickname,
-        URI douyinProfileUrl,
         List<ProfileFieldInput> dynamicFields,
         ProfilePhotoTarget photos) {
 
@@ -28,7 +24,7 @@ public record SaveGuestProfileCommand(
     public SaveGuestProfileCommand(
             Long expectedVersion,
             String gender,
-            LocalDate birthDate,
+            Integer age,
             Integer heightCm,
             String education,
             String occupation,
@@ -36,11 +32,9 @@ public record SaveGuestProfileCommand(
             String city,
             String wechatId,
             String douyinId,
-            String douyinNickname,
-            URI douyinProfileUrl,
             List<ProfileFieldInput> dynamicFields) {
-        this(expectedVersion, gender, birthDate, heightCm, education, occupation,
-                incomeRange, city, wechatId, douyinId, douyinNickname,
-                douyinProfileUrl, dynamicFields, ProfilePhotoTarget.empty());
+        this(expectedVersion, gender, age, heightCm, education, occupation,
+                incomeRange, city, wechatId, douyinId, dynamicFields,
+                ProfilePhotoTarget.empty());
     }
 }

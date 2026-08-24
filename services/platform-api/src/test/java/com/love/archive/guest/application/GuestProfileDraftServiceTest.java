@@ -24,7 +24,6 @@ import com.love.archive.identity.persistence.UserAccountEntity;
 import com.love.archive.identity.persistence.UserAccountMapper;
 import com.love.archive.testsupport.ApiIntegrationTest;
 import java.math.BigDecimal;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -122,10 +121,10 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
     void reportsEveryMissingCoreFieldAndStaysDraft() {
         service.save(accountId, new SaveGuestProfileCommand(
                 null, null, null, null, null, null, null, null,
-                null, null, null, null, List.of()), REQUEST_ID);
+                null, null, List.of()), REQUEST_ID);
 
         assertThat(service.get(accountId).missingRequiredFieldCodes())
-                .contains("gender", "birth_date", "height_cm", "education",
+                .contains("gender", "age", "height_cm", "education",
                         "occupation", "income_range", "city");
         assertThat(service.get(accountId).status()).isEqualTo("DRAFT");
     }
@@ -323,22 +322,36 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
                 "FIELD_VALUE_INVALID");
     }
 
+    /**
+     * 年龄取代出生日期后，区间校验要顶在库的 CHECK 前面。
+     *
+     * <p>两边用的是同一个区间（18–100）。应用层先拦，是为了给出「年龄范围不正确」这种
+     * 说得清的报错，而不是让 CHECK 抛一个 DataIntegrityViolationException 变成 500。</p>
+     */
     @Test
-    void treatsBlankDouyinUrlAsAbsentInsteadOfMalformed() {
-        // 抖音主页链接是选填的，但 Jackson 把 JSON 空串反序列化成 URI.create("")
-        // 而不是 null，曾导致「未填写选填字段」被当成格式错误，整份档案存不下去。
-        GuestProfileDraftView saved = service.save(
-                accountId, withDouyinProfileUrl(null, URI.create("")), REQUEST_ID);
-
-        assertThat(saved.douyinProfileUrl()).isNull();
+    void rejectsAgesOutsideTheAllowedRange() {
+        assertCode(() -> service.save(accountId, withAge(null, 17), REQUEST_ID),
+                "FIELD_VALUE_INVALID");
+        assertCode(() -> service.save(accountId, withAge(null, 101), REQUEST_ID),
+                "FIELD_VALUE_INVALID");
     }
 
     @Test
-    void stillRejectsDouyinUrlWithoutHttpScheme() {
-        assertCode(() -> service.save(
-                        accountId, withDouyinProfileUrl(null, URI.create("douyin.com/user/x")),
-                        REQUEST_ID),
-                "FIELD_VALUE_INVALID");
+    void acceptsAgesAtBothEndsOfTheRange() {
+        assertThat(service.save(accountId, withAge(null, 18), REQUEST_ID).age()).isEqualTo(18);
+        long version = service.get(accountId).version();
+        assertThat(service.save(accountId, withAge(version, 100), REQUEST_ID).age())
+                .isEqualTo(100);
+    }
+
+    /** 年龄没填照样存得下去——草稿允许残缺，只是不会升到 COMPLETED。 */
+    @Test
+    void keepsTheDraftSavableWhileTheAgeIsStillBlank() {
+        GuestProfileDraftView saved = service.save(accountId, withAge(null, null), REQUEST_ID);
+
+        assertThat(saved.age()).isNull();
+        assertThat(saved.status()).isEqualTo("DRAFT");
+        assertThat(saved.missingRequiredFieldCodes()).contains("age");
     }
 
     @Test
@@ -461,7 +474,7 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
         return new SaveGuestProfileCommand(
                 expectedVersion,
                 "男",
-                LocalDate.of(1995, 5, 20),
+                31,
                 178,
                 "大学本科",
                 "互联网 / IT",
@@ -469,55 +482,48 @@ class GuestProfileDraftServiceTest extends ApiIntegrationTest {
                 "杭州",
                 "wx-private-123",
                 "dy-private-456",
-                "private nickname",
-                URI.create("https://www.douyin.com/user/private"),
                 List.of());
     }
 
     private SaveGuestProfileCommand withDynamicFields(Long version, List<ProfileFieldInput> fields) {
         SaveGuestProfileCommand base = validCommand(version);
         return new SaveGuestProfileCommand(
-                base.expectedVersion(), base.gender(), base.birthDate(), base.heightCm(),
+                base.expectedVersion(), base.gender(), base.age(), base.heightCm(),
                 base.education(), base.occupation(), base.incomeRange(), base.city(),
-                base.wechatId(), base.douyinId(), base.douyinNickname(),
-                base.douyinProfileUrl(), fields);
+                base.wechatId(), base.douyinId(), fields);
     }
 
     private SaveGuestProfileCommand withGender(Long version, String gender) {
         SaveGuestProfileCommand base = validCommand(version);
         return new SaveGuestProfileCommand(
-                base.expectedVersion(), gender, base.birthDate(), base.heightCm(),
+                base.expectedVersion(), gender, base.age(), base.heightCm(),
                 base.education(), base.occupation(), base.incomeRange(), base.city(),
-                base.wechatId(), base.douyinId(), base.douyinNickname(),
-                base.douyinProfileUrl(), base.dynamicFields());
+                base.wechatId(), base.douyinId(), base.dynamicFields());
     }
 
     private SaveGuestProfileCommand withIncomeRange(Long version, String incomeRange) {
         SaveGuestProfileCommand base = validCommand(version);
         return new SaveGuestProfileCommand(
-                base.expectedVersion(), base.gender(), base.birthDate(), base.heightCm(),
+                base.expectedVersion(), base.gender(), base.age(), base.heightCm(),
                 base.education(), base.occupation(), incomeRange, base.city(),
-                base.wechatId(), base.douyinId(), base.douyinNickname(),
-                base.douyinProfileUrl(), base.dynamicFields());
+                base.wechatId(), base.douyinId(), base.dynamicFields());
     }
 
     private SaveGuestProfileCommand withEducationAndOccupation(
             Long version, String education, String occupation) {
         SaveGuestProfileCommand base = validCommand(version);
         return new SaveGuestProfileCommand(
-                base.expectedVersion(), base.gender(), base.birthDate(), base.heightCm(),
+                base.expectedVersion(), base.gender(), base.age(), base.heightCm(),
                 education, occupation, base.incomeRange(), base.city(),
-                base.wechatId(), base.douyinId(), base.douyinNickname(),
-                base.douyinProfileUrl(), base.dynamicFields());
+                base.wechatId(), base.douyinId(), base.dynamicFields());
     }
 
-    private SaveGuestProfileCommand withDouyinProfileUrl(Long version, URI profileUrl) {
+    private SaveGuestProfileCommand withAge(Long version, Integer age) {
         SaveGuestProfileCommand base = validCommand(version);
         return new SaveGuestProfileCommand(
-                base.expectedVersion(), base.gender(), base.birthDate(), base.heightCm(),
+                base.expectedVersion(), base.gender(), age, base.heightCm(),
                 base.education(), base.occupation(), base.incomeRange(), base.city(),
-                base.wechatId(), base.douyinId(), base.douyinNickname(),
-                profileUrl, base.dynamicFields());
+                base.wechatId(), base.douyinId(), base.dynamicFields());
     }
 
     private void updateGenderOptions(List<String> options) {

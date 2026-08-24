@@ -1,6 +1,5 @@
 package com.love.archive.admin.persistence.query;
 
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import lombok.Getter;
 import lombok.Setter;
@@ -14,7 +13,7 @@ public class AdminProfileListRow {
     private String profileNo;
     private String status;
     private String gender;
-    private LocalDate birthDate;
+    private Integer age;
     private String city;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;

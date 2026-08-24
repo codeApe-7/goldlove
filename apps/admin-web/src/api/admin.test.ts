@@ -161,7 +161,7 @@ describe('admin api', () => {
   })
 })
 
-describe('课程合集接口', () => {
+describe('课程目录接口', () => {
   afterEach(() => vi.restoreAllMocks())
 
   function ok(data: unknown): never {
@@ -177,7 +177,7 @@ describe('课程合集接口', () => {
     expect(http.get).toHaveBeenCalledWith('/admin/course-collections')
   })
 
-  it('新增合集 POST 到集合路径', async () => {
+  it('新增目录 POST 到集合路径', async () => {
     vi.spyOn(http, 'post').mockResolvedValue(ok({ id: 5, name: '形象与状态' }))
 
     await createCourseCollection({ name: '形象与状态', description: '穿搭与状态', sortOrder: 40 })
@@ -189,13 +189,13 @@ describe('课程合集接口', () => {
     })
   })
 
-  it('改合集用 PATCH，隐藏也是改 status', async () => {
+  it('改目录用 PATCH，隐藏也是改 status', async () => {
     vi.spyOn(http, 'patch').mockResolvedValue(ok({ id: 5, status: 'HIDDEN' }))
 
     await expect(updateCourseCollection(5, { status: 'HIDDEN' })).resolves.toMatchObject({
       status: 'HIDDEN',
     })
-    // 合集没有 DELETE：下面挂着课程，删了会留孤儿，隐藏走 status。
+    // 目录没有 DELETE：下面挂着课程，删了会留孤儿，隐藏走 status。
     expect(http.patch).toHaveBeenCalledWith('/admin/course-collections/5', { status: 'HIDDEN' })
   })
 })

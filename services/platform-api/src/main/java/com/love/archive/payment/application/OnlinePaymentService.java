@@ -8,6 +8,7 @@ import com.love.archive.payment.persistence.PaymentOrderEntity;
 import com.love.archive.payment.persistence.PaymentRecordEntity;
 import com.love.archive.payment.persistence.PaymentRecordMapper;
 import java.security.SecureRandom;
+import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +26,8 @@ import org.springframework.stereotype.Service;
 public class OnlinePaymentService {
 
     private static final int OUT_TRADE_NO_RANDOM_BYTES = 24;
+    /** 「我的订单」最多回多少条。会员订单本就零星，够看全历史，也不必分页。 */
+    private static final int MAX_LISTED_ORDERS = 50;
 
     private final List<PaymentChannel> channels;
     private final PaymentOrderStore orderStore;
@@ -50,10 +53,29 @@ public class OnlinePaymentService {
         String description = properties.getOrderDescription();
         String outTradeNo = generateOutTradeNo();
 
-        orderStore.insertCreated(new NewOnlineOrder(outTradeNo, accountId, channel.kind(), amountMinor));
+        orderStore.insertCreated(new NewOnlineOrder(
+                outTradeNo, accountId, channel.kind(), amountMinor, expiryFromNow()));
         CreateOrderResult channelResult = channel.createOrder(
                 new CreateOrderCommand(outTradeNo, description, amountMinor, null));
+        // 渠道单号一拿到就落库。它原本被丢在这里：CreateOrderResult 带着它，
+        // 却没有任何地方读——于是一笔没付成的订单在库里没有任何能拿去渠道后台对账的编号。
+        orderStore.recordChannelTradeNo(outTradeNo, channelResult.channelReference());
         return new OnlineOrderView(outTradeNo, amountMinor, channelResult.payParameters());
+    }
+
+    /** 本人的订单列表。返回前先把已过期仍未支付的订单关掉，界面才分得清能不能继续付。 */
+    public List<OnlineOrderListItem> listOrders(long accountId) {
+        orderStore.closeExpired(accountId);
+        return orderStore.listByAccount(accountId, MAX_LISTED_ORDERS).stream()
+                .map(order -> new OnlineOrderListItem(
+                        order.getOutTradeNo(),
+                        order.getStatus(),
+                        order.getAmountMinor(),
+                        order.getChannelTradeNo(),
+                        order.getCreatedAt(),
+                        order.getPaidAt(),
+                        order.getExpiresAt()))
+                .toList();
     }
 
     /**
@@ -71,17 +93,30 @@ public class OnlinePaymentService {
     }
 
     /**
-     * 查询订单状态。回调可能晚到或丢失，因此本地仍为 CREATED 时主动向渠道查单补偿。
+     * 查询订单状态。回调可能晚到或丢失，因此本地还不是 PAID 时主动向渠道查单补偿。
      * 只允许查询本人的订单。
+     *
+     * <p>已经 CLOSED 的订单也照样查一次：关单用的是我们自己的时钟，
+     * 万一用户在最后一刻付成了，这里得能把它捞回来。</p>
      */
     public OnlineOrderStatusView status(long accountId, String outTradeNo) {
         PaymentOrderEntity order = requireOwnOrder(accountId, outTradeNo);
-        if (order.getStatus() == PaymentOrderStatus.CREATED) {
-            Optional<PaymentResult> channelResult = activeChannel().queryByOutTradeNo(outTradeNo);
-            if (channelResult.isPresent() && channelResult.get().paid()) {
+        if (order.getStatus() == PaymentOrderStatus.PAID) {
+            return toStatusView(order);
+        }
+        Optional<PaymentResult> channelResult = activeChannel().queryByOutTradeNo(outTradeNo);
+        if (channelResult.isPresent()) {
+            // 未支付的查单响应里也带 trade_no，顺手补上——这往往是我们唯一能拿到它的时机。
+            orderStore.recordChannelTradeNo(outTradeNo, channelResult.get().transactionId());
+            if (channelResult.get().paid()) {
                 settleAndGrant(channelResult.get());
                 return toStatusView(requireOwnOrder(accountId, outTradeNo));
             }
+        }
+        // 渠道说没付（或已经查不到这笔单子）：本地过期的就关掉，界面才能说「重新下单」
+        // 而不是让用户对着一笔永远不会变的「待支付」反复点查询。
+        if (orderStore.closeExpired(accountId) > 0) {
+            return toStatusView(requireOwnOrder(accountId, outTradeNo));
         }
         return toStatusView(order);
     }
@@ -150,7 +185,14 @@ public class OnlinePaymentService {
                     && payment.getMembershipCreditMinor() > 0;
         }
         return new OnlineOrderStatusView(
-                order.getOutTradeNo(), order.getStatus(), order.getAmountMinor(), granted);
+                order.getOutTradeNo(), order.getStatus(), order.getAmountMinor(), granted,
+                order.getChannelTradeNo(), order.getExpiresAt());
+    }
+
+    /** 配置成非正数即视为不过期——免得一个手滑的 0 让每笔新订单当场作废。 */
+    private OffsetDateTime expiryFromNow() {
+        long minutes = properties.getOrderExpiryMinutes();
+        return minutes <= 0 ? null : OffsetDateTime.now().plusMinutes(minutes);
     }
 
     private String generateOutTradeNo() {

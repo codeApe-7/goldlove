@@ -72,17 +72,21 @@ class GuestProfileFieldDefinitionsApiTest extends ApiIntegrationTest {
                 .andExpect(jsonPath("$.data[0].dataType").value("SINGLE_OPTION"))
                 .andExpect(jsonPath("$.data[0].required").value(true))
                 .andExpect(jsonPath("$.data[0].options[0]").value("男"))
-                .andExpect(jsonPath("$.data.length()").value(11))
+                .andExpect(jsonPath("$.data.length()").value(9))
                 .andExpect(jsonPath("$.data[?(@.fieldCode == 'wechat_id')].label")
                         .value("微信号"))
                 .andExpect(jsonPath("$.data[?(@.fieldCode == 'wechat_id')].required")
                         .value(true))
                 .andExpect(jsonPath("$.data[?(@.fieldCode == 'douyin_id')].required")
                         .value(false))
-                .andExpect(jsonPath("$.data[?(@.fieldCode == 'douyin_nickname')].required")
-                        .value(false))
-                .andExpect(jsonPath("$.data[?(@.fieldCode == 'douyin_profile_url')].required")
-                        .value(false))
+                // 年龄取代出生日期：只收「多大」，不收精确到天的生日。
+                .andExpect(jsonPath("$.data[1].fieldCode").value("age"))
+                .andExpect(jsonPath("$.data[1].dataType").value("INTEGER"))
+                .andExpect(jsonPath("$.data[1].required").value(true))
+                .andExpect(jsonPath("$.data[?(@.fieldCode == 'birth_date')]").isEmpty())
+                // 抖音昵称与主页链接已下线，抖音号留着。
+                .andExpect(jsonPath("$.data[?(@.fieldCode == 'douyin_nickname')]").isEmpty())
+                .andExpect(jsonPath("$.data[?(@.fieldCode == 'douyin_profile_url')]").isEmpty())
                 .andExpect(jsonPath("$.data[?(@.fieldCode == 'hidden_field')]").isEmpty());
     }
 

@@ -93,6 +93,6 @@ describe('课程路由与菜单', () => {
 
   it('课程落在运营组里', () => {
     expect(layoutSource).toContain("{ path: '/courses', label: '课程管理', icon: Reading }")
-    expect(layoutSource).toContain("{ path: '/course-collections', label: '课程合集', icon: Collection }")
+    expect(layoutSource).toContain("{ path: '/course-collections', label: '课程目录', icon: Collection }")
   })
 })

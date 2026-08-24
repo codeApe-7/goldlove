@@ -126,9 +126,31 @@ class GuestProfilePhotoSaveTest extends ApiIntegrationTest {
                         null, List.of(avatarKey("a")))), REQUEST_ID),
                 "PHOTO_REFERENCE_INVALID");
         assertCode(() -> draftService.save(accountId, command(null, target(
-                        null, java.util.stream.IntStream.range(0, 7)
-                                .mapToObj(i -> lifeKey("x" + i)).toList())), REQUEST_ID),
+                        null, lifeKeys(4))), REQUEST_ID),
                 "PHOTO_COUNT_LIMIT_EXCEEDED");
+    }
+
+    /**
+     * 生活照上限 3 张，第 4 张就拒。
+     *
+     * <p>上限同时写在三处（这里、请求体的 {@code @Size}、前端的 {@code MAX_LIFE_PHOTOS}），
+     * 只有这一处是真正拦得住的——前端那个只管有没有「＋」按钮，绕过它只需要直接发请求。</p>
+     */
+    @Test
+    void acceptsThreeLifePhotosAndRefusesTheFourth() {
+        draftService.save(accountId, command(null, target(avatarKey("a"), lifeKeys(3))), REQUEST_ID);
+
+        assertThat(photoMapper.selectList(Wrappers.lambdaQuery())).hasSize(4);
+        assertCode(() -> draftService.save(
+                        accountId, command(currentVersion(), target(avatarKey("a"), lifeKeys(4))),
+                        REQUEST_ID),
+                "PHOTO_COUNT_LIMIT_EXCEEDED");
+    }
+
+    private List<String> lifeKeys(int count) {
+        return java.util.stream.IntStream.range(0, count)
+                .mapToObj(index -> lifeKey("x" + index))
+                .toList();
     }
 
     @Test
@@ -174,7 +196,7 @@ class GuestProfilePhotoSaveTest extends ApiIntegrationTest {
     private static SaveGuestProfileCommand command(Long expectedVersion, ProfilePhotoTarget photos) {
         return new SaveGuestProfileCommand(
                 expectedVersion, "男", null, null, null, null, null, null,
-                null, null, null, null, List.of(), photos);
+                null, null, List.of(), photos);
     }
 
     private static void assertCode(Operation operation, String expectedCode) {

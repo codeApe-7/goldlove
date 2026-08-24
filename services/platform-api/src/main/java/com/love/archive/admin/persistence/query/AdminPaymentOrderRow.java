@@ -13,6 +13,7 @@ public class AdminPaymentOrderRow {
     private String channel;
     private Long amountMinor;
     private String status;
+    private String channelTradeNo;
     private OffsetDateTime paidAt;
     private OffsetDateTime createdAt;
     private Long userAccountId;

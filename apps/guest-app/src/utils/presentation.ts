@@ -14,7 +14,7 @@ export function isPrivateValue(value: unknown): boolean {
 
 const FIELD_GROUPS: Record<string, ProfileGroup> = {
   gender: 'basic',
-  birth_date: 'basic',
+  age: 'basic',
   height_cm: 'basic',
   education: 'basic',
   city: 'basic',
@@ -22,8 +22,6 @@ const FIELD_GROUPS: Record<string, ProfileGroup> = {
   income_range: 'career',
   wechat_id: 'social',
   douyin_id: 'social',
-  douyin_nickname: 'social',
-  douyin_profile_url: 'social',
 }
 
 export function profileGroup(fieldCode: string): ProfileGroup {
@@ -40,10 +38,16 @@ export function profileCompletion(
   return total === 0 ? 0 : Math.round(((completedFields + Number(hasAvatar)) / total) * 100)
 }
 
+/** 生活照上限 3 张。真正拦得住的是后端，这里只决定还显不显示「＋」。 */
+export const MAX_LIFE_PHOTOS = 3
+
 export function remainingLifePhotoSlots(
   photos: ReadonlyArray<{ category: string }>,
 ): number {
-  return Math.max(0, 6 - photos.filter(({ category }) => category === 'LIFE').length)
+  return Math.max(
+    0,
+    MAX_LIFE_PHOTOS - photos.filter(({ category }) => category === 'LIFE').length,
+  )
 }
 
 function isFilled(value: unknown): boolean {

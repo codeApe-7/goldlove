@@ -9,6 +9,7 @@ import type {
   GuestSession,
   MembershipView,
   OnlineOrder,
+  OnlineOrderListItem,
   OnlineOrderStatus,
   OnlinePaymentSettings,
   PageView,
@@ -117,6 +118,16 @@ export function vipOrderStatus(outTradeNo: string) {
   return request<OnlineOrderStatus>({
     url: `/guest/vip-payments/orders/${encodeURIComponent(outTradeNo)}`,
   })
+}
+
+/**
+ * 本人的订单列表，新的在前。
+ *
+ * 这是把订单找回来的唯一途径：订单号原本只存在 `sessionStorage`，换标签页或重新登录就丢，
+ * 而查单接口要求已经知道订单号。
+ */
+export function vipOrders() {
+  return request<OnlineOrderListItem[]>({ url: '/guest/vip-payments/orders' })
 }
 
 // ---- 课程 ----

@@ -50,7 +50,10 @@ onMounted(load)
 
 <template>
   <div class="payment-orders-view">
-    <PageHeader title="支付订单" subtitle="VIP 升级订单；金额一律以服务端配置为准" />
+    <PageHeader
+      title="支付订单"
+      subtitle="VIP 升级订单；金额一律以服务端配置为准。对账时用「支付平台单号」去渠道后台查这笔单子" />
+
 
     <FilterBar :loading="loading" @search="search" @reset="reset">
       <template #fields>
@@ -92,6 +95,12 @@ onMounted(load)
           <template #default="{ row }"><StatusTag v-bind="paymentOrderStatusMeta(row.status)" /></template>
         </el-table-column>
         <el-table-column prop="channel" label="渠道" width="140" />
+        <el-table-column label="支付平台单号" min-width="200">
+          <template #default="{ row }">
+            <span v-if="row.channelTradeNo" class="mono">{{ row.channelTradeNo }}</span>
+            <span v-else class="muted">—</span>
+          </template>
+        </el-table-column>
         <el-table-column label="支付时间" width="150">
           <template #default="{ row }">{{ minuteLabel(row.paidAt) }}</template>
         </el-table-column>
@@ -128,5 +137,8 @@ onMounted(load)
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--ds-caption-size);
+}
+.muted {
+  color: var(--ds-neutral);
 }
 </style>

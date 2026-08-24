@@ -72,6 +72,8 @@ class VipUpgradePaymentApiTest extends ApiIntegrationTest {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(post("/api/v1/guest/vip-payments/orders"))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/guest/vip-payments/orders"))
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/v1/guest/vip-payments/orders/anything"))
                 .andExpect(status().isUnauthorized());
     }
@@ -89,12 +91,43 @@ class VipUpgradePaymentApiTest extends ApiIntegrationTest {
     void ordersAreBoundToTheLoggedInAccountAtTheConfiguredAmount() throws Exception {
         String outTradeNo = createOrder();
 
-        PaymentOrderEntity order = orderMapper.selectOne(
-                Wrappers.<PaymentOrderEntity>lambdaQuery()
-                        .eq(PaymentOrderEntity::getOutTradeNo, outTradeNo));
+        PaymentOrderEntity order = findOrder(outTradeNo);
         assertThat(order.getAmountMinor()).isEqualTo(9900L);
         assertThat(order.getUserAccountId()).isEqualTo(accountId());
         assertThat(order.getStatus().name()).isEqualTo("CREATED");
+    }
+
+    /**
+     * 渠道侧订单号在下单当场就要落库。它原本被丢掉了：{@code CreateOrderResult} 带着它，
+     * 却没有任何地方读——于是一笔没付成的订单在库里没有任何能拿去渠道后台对账的编号。
+     */
+    @Test
+    void theChannelTradeNoIsRecordedWhenTheOrderIsCreated() throws Exception {
+        String outTradeNo = createOrder();
+
+        assertThat(findOrder(outTradeNo).getChannelTradeNo()).isEqualTo("STUB-" + outTradeNo);
+        mockMvc.perform(get("/api/v1/guest/vip-payments/orders/" + outTradeNo)
+                        .header("Authorization", "Bearer " + guestToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.channelTradeNo").value("STUB-" + outTradeNo));
+    }
+
+    /**
+     * 下单即写截止时间，前端与关单逻辑都靠它判断「还能不能继续付」。
+     *
+     * <p>默认 5 分钟，对齐易支付收银台自己的超时。这个数字被钉在这里是有意的：
+     * 配得比渠道长，界面上就会说「还能付」而点过去是一个已经死掉的收银台。</p>
+     */
+    @Test
+    void newOrdersExpireInFiveMinutesToMatchTheChannelCashier() throws Exception {
+        OffsetDateTime before = OffsetDateTime.now();
+
+        OffsetDateTime expiresAt = findOrder(createOrder()).getExpiresAt();
+
+        assertThat(expiresAt).isNotNull();
+        assertThat(expiresAt)
+                .isAfter(before.plusMinutes(4))
+                .isBefore(before.plusMinutes(6));
     }
 
     @Test
@@ -122,7 +155,7 @@ class VipUpgradePaymentApiTest extends ApiIntegrationTest {
     }
 
     @Test
-    void rejectsUnverifiedNotificationsAndAmountMismatches() throws Exception {
+    void rejectsUnverifiedNotificationsAndUnderpayments() throws Exception {
         String outTradeNo = createOrder();
 
         // 没有可验签的回执：按微信/易支付惯例返回 401，不给渠道重试的余地。
@@ -130,7 +163,7 @@ class VipUpgradePaymentApiTest extends ApiIntegrationTest {
                         .param("out_trade_no", outTradeNo))
                 .andExpect(status().isUnauthorized());
 
-        // 验签通过但金额与服务端订单不符：500 让渠道重试，绝不结算。
+        // 验签通过但**少付**：500 让渠道重试，绝不结算。这是唯一真会亏钱的方向。
         stubChannel.nextNotify(new PaymentResult(
                 outTradeNo, "TXN-CHEAP", true, 100L, 100L, null, OffsetDateTime.now()));
         mockMvc.perform(post("/api/v1/public/payment-notifications/xpay")
@@ -140,6 +173,26 @@ class VipUpgradePaymentApiTest extends ApiIntegrationTest {
         assertThat(paymentRecordMapper.selectCount(Wrappers.<PaymentRecordEntity>lambdaQuery()))
                 .isZero();
         assertThat(reloadAccount().getMembershipTier().name()).isEqualTo("FREE");
+    }
+
+    /**
+     * 多付照常结算，并按**实付**计入会员额度。
+     *
+     * <p>这不是纵容，是易支付的正常行为：它会为了区分同额订单把金额往上加分。
+     * 线上实测两笔都发 {@code money=0.01}，网关记成了 0.01 与 0.02。原来这里要求金额
+     * <b>严格相等</b>，于是一笔真实付款被判成 {@code PAYMENT_AMOUNT_MISMATCH}，
+     * 回调端点又把它映射成 500，网关无限重试——用户付了钱，订单永远停在待支付。</p>
+     */
+    @Test
+    void settlesWhenTheChannelChargedMoreThanTheOrderAmount() throws Exception {
+        String outTradeNo = createOrder();
+
+        notifyPaid(outTradeNo, 9901L, "TXN-BUMPED");
+
+        assertThat(findOrder(outTradeNo).getStatus().name()).isEqualTo("PAID");
+        assertThat(reloadAccount().getMembershipTier().name()).isEqualTo("VIP");
+        // 额度记的是真金白银，网关加的那一分也算进去。
+        assertThat(reloadAccount().getMembershipCreditMinor()).isEqualTo(9901L);
     }
 
     @Test
@@ -166,6 +219,113 @@ class VipUpgradePaymentApiTest extends ApiIntegrationTest {
                         .header("Authorization", "Bearer " + otherToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("PAYMENT_ORDER_NOT_FOUND"));
+    }
+
+    /**
+     * 订单列表是「把订单找回来」的唯一途径。
+     *
+     * <p>原来订单号只活在前端的会话存储里，换个标签页或重新登录就丢，而查单接口要求
+     * 调用方**已经知道订单号**——两下一凑，一笔没付成的订单就永久失联了。</p>
+     */
+    @Test
+    void listsMyOrdersNewestFirst() throws Exception {
+        String first = createOrder();
+        String second = createOrder();
+
+        mockMvc.perform(get("/api/v1/guest/vip-payments/orders")
+                        .header("Authorization", "Bearer " + guestToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].outTradeNo").value(second))
+                .andExpect(jsonPath("$.data[1].outTradeNo").value(first))
+                .andExpect(jsonPath("$.data[0].status").value("CREATED"))
+                .andExpect(jsonPath("$.data[0].amountMinor").value(9900))
+                .andExpect(jsonPath("$.data[0].channelTradeNo").value("STUB-" + second))
+                .andExpect(jsonPath("$.data[0].expiresAt").isNotEmpty());
+    }
+
+    /** 别人的订单绝不出现在我的列表里。 */
+    @Test
+    void theOrderListNeverLeaksAnotherAccountsOrders() throws Exception {
+        String mine = createOrder();
+        String otherToken = registerGuest(mockMvc, "13900139000", PASSWORD);
+
+        mockMvc.perform(get("/api/v1/guest/vip-payments/orders")
+                        .header("Authorization", "Bearer " + otherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
+
+        mockMvc.perform(get("/api/v1/guest/vip-payments/orders")
+                        .header("Authorization", "Bearer " + guestToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].outTradeNo").value(mine));
+    }
+
+    /**
+     * 过期未付的订单转 CLOSED，界面才分得清「还能付」和「已经死了，重新下一笔」。
+     * 在此之前 CLOSED 只存在于枚举和 CHECK 里，全仓库没有一处写它，订单永远停在 CREATED。
+     */
+    @Test
+    void expiredOrdersAreClosedWhenLookedAt() throws Exception {
+        String outTradeNo = createOrder();
+        expire(outTradeNo);
+
+        mockMvc.perform(get("/api/v1/guest/vip-payments/orders")
+                        .header("Authorization", "Bearer " + guestToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("CLOSED"));
+        assertThat(findOrder(outTradeNo).getStatus().name()).isEqualTo("CLOSED");
+    }
+
+    /**
+     * 关单之后才付成也必须认账。
+     *
+     * <p>过期判定用的是我们自己的时钟，网关的失效窗口未知。如果结算只接受 CREATED，
+     * 那么「我们提前关单 + 用户最后一刻付款」就会变成用户付了钱、系统拒收：
+     * 回调撞上 {@code PAYMENT_ORDER_STATE_CONFLICT} → 500 → 网关无限重试 → 永远不到账。</p>
+     */
+    @Test
+    void aLatePaymentStillSettlesAClosedOrder() throws Exception {
+        String outTradeNo = createOrder();
+        expire(outTradeNo);
+        mockMvc.perform(get("/api/v1/guest/vip-payments/orders")
+                        .header("Authorization", "Bearer " + guestToken))
+                .andExpect(status().isOk());
+        assertThat(findOrder(outTradeNo).getStatus().name()).isEqualTo("CLOSED");
+
+        notifyPaid(outTradeNo, 9900L, "TXN-LATE-CLOSED");
+
+        assertThat(findOrder(outTradeNo).getStatus().name()).isEqualTo("PAID");
+        assertThat(reloadAccount().getMembershipTier().name()).isEqualTo("VIP");
+    }
+
+    /**
+     * 渠道查不到这笔单子（线上实测 {@code code=1 / 没有找到订单信息}）时，
+     * 查单接口要给出本地状态，而不是把 502「支付渠道查询失败」摔给用户。
+     */
+    @Test
+    void statusFallsBackToTheLocalStateWhenTheChannelLostTheOrder() throws Exception {
+        String outTradeNo = createOrder();
+        expire(outTradeNo);
+        stubChannel.nextQuery(null);
+
+        mockMvc.perform(get("/api/v1/guest/vip-payments/orders/" + outTradeNo)
+                        .header("Authorization", "Bearer " + guestToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CLOSED"))
+                .andExpect(jsonPath("$.data.membershipGranted").value(false));
+    }
+
+    /** 把订单的截止时间挪到过去，模拟「放了一晚没付」。 */
+    private void expire(String outTradeNo) {
+        PaymentOrderEntity order = findOrder(outTradeNo);
+        order.setExpiresAt(OffsetDateTime.now().minusMinutes(1));
+        orderMapper.updateById(order);
+    }
+
+    private PaymentOrderEntity findOrder(String outTradeNo) {
+        return orderMapper.selectOne(Wrappers.<PaymentOrderEntity>lambdaQuery()
+                .eq(PaymentOrderEntity::getOutTradeNo, outTradeNo));
     }
 
     private String createOrder() throws Exception {

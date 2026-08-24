@@ -89,6 +89,34 @@ class AdminPaymentOrderQueryApiTest extends ApiIntegrationTest {
                 .andExpect(jsonPath("$.data.items[0].phone").value(OTHER_PHONE));
     }
 
+    /**
+     * 台账要带上渠道侧订单号，未支付的订单也要带。
+     *
+     * <p>这一列是对账的唯一抓手：线上真的遇到过一笔订单在渠道那边查不到，
+     * 而库里当时没有任何能拿去渠道后台查的编号，只能靠时间和金额瞎猜。
+     * 未支付时 `transaction_id` 还是空的，所以不能靠它。</p>
+     */
+    @Test
+    void carriesTheChannelTradeNoForReconciliation() throws Exception {
+        insertOrder("OTN-RECON-1", PHONE, 9900L, "CREATED", "20260824000620000000");
+        insertOrder("OTN-NORECON-1", OTHER_PHONE, 9900L, "CREATED");
+
+        mockMvc.perform(get("/api/v1/admin/payment-orders")
+                        .cookie(adminCookie)
+                        .param("phone", "138"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].outTradeNo").value("OTN-RECON-1"))
+                .andExpect(jsonPath("$.data.items[0].channelTradeNo")
+                        .value("20260824000620000000"));
+
+        // 没有渠道单号的订单回 null，而不是漏掉这个字段——前端靠它决定显示占位符。
+        mockMvc.perform(get("/api/v1/admin/payment-orders")
+                        .cookie(adminCookie)
+                        .param("phone", "139"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].channelTradeNo").isEmpty());
+    }
+
     @Test
     void paginates() throws Exception {
         for (int i = 0; i < 5; i++) {
@@ -107,6 +135,12 @@ class AdminPaymentOrderQueryApiTest extends ApiIntegrationTest {
 
     private void insertOrder(String outTradeNo, String phone, long amountMinor, String status)
             throws SQLException {
+        insertOrder(outTradeNo, phone, amountMinor, status, null);
+    }
+
+    private void insertOrder(
+            String outTradeNo, String phone, long amountMinor, String status, String channelTradeNo)
+            throws SQLException {
         Long paymentRecordId = null;
         if ("PAID".equals(status)) {
             paymentRecordId = insertPaymentRecord(outTradeNo, phone, amountMinor);
@@ -115,8 +149,8 @@ class AdminPaymentOrderQueryApiTest extends ApiIntegrationTest {
                 PreparedStatement insert = owner.prepareStatement("""
                         INSERT INTO payment_order (
                             out_trade_no, user_account_id, channel, amount_minor, status,
-                            transaction_id, paid_at, payment_record_id)
-                        SELECT ?, ua.id, 'XPAY_ALIPAY', ?, ?, ?, ?, ?
+                            transaction_id, paid_at, payment_record_id, channel_trade_no)
+                        SELECT ?, ua.id, 'XPAY_ALIPAY', ?, ?, ?, ?, ?, ?
                         FROM user_account ua WHERE ua.phone = ?
                         """)) {
             insert.setString(1, outTradeNo);
@@ -125,7 +159,8 @@ class AdminPaymentOrderQueryApiTest extends ApiIntegrationTest {
             insert.setString(4, paymentRecordId == null ? null : "TXN-" + outTradeNo);
             insert.setObject(5, paymentRecordId == null ? null : OffsetDateTime.now());
             insert.setObject(6, paymentRecordId);
-            insert.setString(7, phone);
+            insert.setString(7, channelTradeNo);
+            insert.setString(8, phone);
             insert.executeUpdate();
         }
     }

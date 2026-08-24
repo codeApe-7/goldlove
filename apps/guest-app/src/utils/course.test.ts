@@ -58,11 +58,11 @@ describe('formatCourseDuration', () => {
 })
 
 describe('courseEmptyMessage', () => {
-  it('筛了合集就说清是这个合集没课，并指路换一个', () => {
-    expect(courseEmptyMessage('情绪与认知')).toBe('「情绪与认知」这个合集还没有上架的课程，换个合集看看')
+  it('筛了目录就说清是这个目录没课，并指路换一个', () => {
+    expect(courseEmptyMessage('情绪与认知')).toBe('「情绪与认知」这个目录还没有上架的课程，换个目录看看')
   })
 
-  it('没筛合集就说明整体还没上架，而不是只说「暂无数据」', () => {
+  it('没筛目录就说明整体还没上架，而不是只说「暂无数据」', () => {
     expect(courseEmptyMessage(null)).toBe('课程还在筹备中，上架后会出现在这里')
     expect(courseEmptyMessage('')).toBe('课程还在筹备中，上架后会出现在这里')
   })

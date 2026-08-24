@@ -82,6 +82,7 @@ app:
       provider: ${ONLINE_PAYMENT_PROVIDER:}
       vip-upgrade-amount-minor: ${VIP_UPGRADE_AMOUNT_MINOR:100}
       order-description: ${VIP_UPGRADE_DESCRIPTION:gold 智能档案库 VIP 会员}
+      order-expiry-minutes: ${VIP_ORDER_EXPIRY_MINUTES:5}
   storage:
     cos:
       secret-id: ${COS_SECRET_ID:}

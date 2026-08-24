@@ -59,8 +59,8 @@ export interface AdminProfileListItem {
   /** DRAFT / COMPLETED —— 没有审核环节，保存即可见。 */
   status: string
   gender: string | null
-  /** 年龄由前端从出生日期算，服务端不下发年龄。 */
-  birthDate: string | null
+  /** 访客自己填的周岁。出生日期已不再收集。 */
+  age: number | null
   city: string | null
   createdAt: string
   updatedAt: string
@@ -102,7 +102,7 @@ export interface AdminProfileDetail {
   createdAt: string
   updatedAt: string
   gender: string | null
-  birthDate: string | null
+  age: number | null
   heightCm: number | null
   education: string | null
   occupation: string | null
@@ -110,8 +110,6 @@ export interface AdminProfileDetail {
   city: string | null
   wechatId: string | null
   douyinId: string | null
-  douyinNickname: string | null
-  douyinProfileUrl: string | null
   dynamicFields: AdminProfileFieldValue[]
   photos: AdminProfilePhoto[]
 }
@@ -129,6 +127,11 @@ export interface AdminPaymentOrderItem {
   channel: string
   amountMinor: number
   status: 'CREATED' | 'PAID' | 'CLOSED'
+  /**
+   * 渠道侧订单号（易支付 trade_no），下单成功即有——**未支付也有**。
+   * 对账时拿它去渠道后台找这笔单子；没有它就只能靠时间和金额瞎猜。
+   */
+  channelTradeNo: string | null
   paidAt: string | null
   createdAt: string
 }
@@ -170,7 +173,7 @@ export type CourseContentType = 'ARTICLE' | 'VIDEO' | 'TEXT'
 
 export type CourseStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
 
-/** 合集只有显示与隐藏两态——它下面挂着课程，后端不给 DELETE。 */
+/** 目录只有显示与隐藏两态——它下面挂着课程，后端不给 DELETE。 */
 export type CourseCollectionStatus = 'ACTIVE' | 'HIDDEN'
 
 export interface AdminCourseCollectionView {

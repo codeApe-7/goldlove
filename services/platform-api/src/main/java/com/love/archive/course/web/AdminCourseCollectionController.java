@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 后台维护课程合集。
+ * 后台维护课程目录（表与接口路径仍叫 collection，只有文案改成「目录」）。
  *
  * <p>控制器放在 course 模块——合集是这个模块的数据，与激活码在 identity、
  * 字段定义在 guest 是同一套做法：写操作在数据所属模块，只读的跨表列表才在 admin。</p>

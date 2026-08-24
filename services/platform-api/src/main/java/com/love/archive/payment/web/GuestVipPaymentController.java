@@ -3,11 +3,13 @@ package com.love.archive.payment.web;
 import com.love.archive.common.security.GuestAccountIdentity;
 import com.love.archive.common.web.ApiResponse;
 import com.love.archive.common.web.RequestIdFilter;
+import com.love.archive.payment.application.OnlineOrderListItem;
 import com.love.archive.payment.application.OnlineOrderStatusView;
 import com.love.archive.payment.application.OnlineOrderView;
 import com.love.archive.payment.application.OnlinePaymentService;
 import com.love.archive.payment.application.OnlinePaymentSettingsView;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,6 +40,19 @@ public class GuestVipPaymentController {
         OnlineOrderView order = onlinePaymentService.createOrder(
                 guestIdentity.currentGuestAccountId());
         return ApiResponse.success(order, RequestIdFilter.current(request));
+    }
+
+    /**
+     * 本人的订单列表。
+     *
+     * <p>没有它的时候，订单号只活在前端会话存储里，换标签页或重新登录就丢，
+     * 而查单接口要求调用方已经知道订单号——一笔没付成的订单于是永久失联。</p>
+     */
+    @GetMapping("/orders")
+    public ApiResponse<List<OnlineOrderListItem>> orders(HttpServletRequest request) {
+        List<OnlineOrderListItem> orders = onlinePaymentService.listOrders(
+                guestIdentity.currentGuestAccountId());
+        return ApiResponse.success(orders, RequestIdFilter.current(request));
     }
 
     @GetMapping("/orders/{outTradeNo}")

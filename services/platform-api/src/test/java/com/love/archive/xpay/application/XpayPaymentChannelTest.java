@@ -57,7 +57,7 @@ class XpayPaymentChannelTest {
     @Test
     void createsSubmitOrderAndReturnsCashierLocation() {
         RecordingHttpClient httpClient = new RecordingHttpClient();
-        httpClient.enqueueRedirect("https://cashier.example/pay?order=1");
+        httpClient.enqueueRedirect("https://xpay.example.test/pay/20260823225910918724");
         XpayPaymentChannel channel = configuredChannel(httpClient);
 
         CreateOrderResult result = channel.createOrder(
@@ -74,8 +74,41 @@ class XpayPaymentChannelTest {
         assertThat(form).containsKey("timestamp").containsKey("sign");
         assertThat(verifyMerchantSignature(form)).isTrue();
 
-        assertThat(result.channelReference()).isNull();
         assertThat(result.payParameters().channelType()).isEqualTo(PaymentChannelType.XPAY_ALIPAY);
+        assertThat(result.payParameters().jumpUrl())
+                .isEqualTo("https://xpay.example.test/pay/20260823225910918724");
+    }
+
+    /**
+     * 收银台地址的末段就是渠道侧订单号，而页面支付的 302 没有响应体——这是下单当场
+     * 唯一能拿到它的地方。拿不到就意味着一笔没付成的订单在库里没有任何可对账的编号。
+     */
+    @Test
+    void picksUpTheChannelTradeNoFromTheCashierLocation() {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.enqueueRedirect("/pay/20260823225910918724");
+        XpayPaymentChannel channel = configuredChannel(httpClient);
+
+        CreateOrderResult result = channel.createOrder(
+                new CreateOrderCommand("OTN-CREATE-2", "建档服务", 100L, null));
+
+        assertThat(result.channelReference()).isEqualTo("20260823225910918724");
+        // 相对路径要补上站点 origin 才是能跳的完整地址。
+        assertThat(result.payParameters().jumpUrl())
+                .isEqualTo("https://xpay.example.test/pay/20260823225910918724");
+    }
+
+    /** 末段不是单号形状时宁可留空，也不要把 /pay、/cashier 这类路径片段当订单号存进去。 */
+    @Test
+    void leavesTheChannelTradeNoEmptyWhenTheLocationCarriesNone() {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.enqueueRedirect("https://cashier.example/pay?order=1");
+        XpayPaymentChannel channel = configuredChannel(httpClient);
+
+        CreateOrderResult result = channel.createOrder(
+                new CreateOrderCommand("OTN-CREATE-3", "建档服务", 100L, null));
+
+        assertThat(result.channelReference()).isNull();
         assertThat(result.payParameters().jumpUrl()).isEqualTo("https://cashier.example/pay?order=1");
     }
 
@@ -141,20 +174,46 @@ class XpayPaymentChannelTest {
         assertThat(result.get().successTime()).isNull();
     }
 
-    /** code 非 0 即失败（文档：code=0 / msg=success）。不能把失败当查询成功。 */
+    /**
+     * 订单在网关那边过期后查单回的是 {@code code=1 / 没有找到订单信息}（线上实测）。
+     * 这不该冒成 502「支付渠道查询失败」——那句话会让用户以为系统坏了，而真实答案是
+     * 「这笔单子已经没了，重新下一笔」。返回空，让本地的过期状态去回答。
+     */
     @Test
-    void rejectsNonZeroCode() {
+    void reportsNoResultWhenTheGatewayLostTheOrder() {
         RecordingHttpClient httpClient = new RecordingHttpClient();
-        httpClient.enqueue(200, "{\"code\":1,\"msg\":\"订单不存在\"}");
+        httpClient.enqueue(200, "{\"code\":1,\"msg\":\"没有找到订单信息\",\"status\":0}");
         XpayPaymentChannel channel = configuredChannel(httpClient);
 
-        assertThatThrownBy(() -> channel.queryByOutTradeNo("OTN-MISSING"))
-                .isInstanceOf(ApiException.class)
-                .satisfies(exception -> assertThat(((ApiException) exception).code())
-                        .isEqualTo("PAYMENT_CHANNEL_QUERY_FAILED"));
+        assertThat(channel.queryByOutTradeNo("OTN-MISSING")).isEmpty();
     }
 
-    /** 网关若把字段平铺回来（老形状）也要继续能解析，不至于一次改版就全线失效。 */
+    /** 网关自身拒绝时用的是 {@code message} 而不是 {@code msg}，同样只当「查不到」。 */
+    @Test
+    void reportsNoResultWhenTheGatewayRejectsTheRequest() {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.enqueue(200, "{\"code\":502,\"message\":\"必填sign\",\"data\":{},\"redirect\":\"\"}");
+        XpayPaymentChannel channel = configuredChannel(httpClient);
+
+        assertThat(channel.queryByOutTradeNo("OTN-REJECTED")).isEmpty();
+    }
+
+    /** 响应体压根不是 JSON 时仍要抛——那是真的坏了，不能和「订单不存在」混为一谈。 */
+    @Test
+    void stillFailsLoudlyWhenTheResponseIsNotJson() {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.enqueue(502, "<html><body>Bad Gateway</body></html>");
+        XpayPaymentChannel channel = configuredChannel(httpClient);
+
+        assertThatThrownBy(() -> channel.queryByOutTradeNo("OTN-BROKEN"))
+                .isInstanceOfSatisfying(ApiException.class, exception ->
+                        assertThat(exception.code()).isEqualTo("PAYMENT_CHANNEL_RESPONSE_INVALID"));
+    }
+
+    /**
+     * 网关**实测**回的是平铺形状（文档写的是包在 data 里），而且未支付时也带 trade_no——
+     * 那往往是我们唯一能拿到渠道订单号的时机，必须解析得出来。
+     */
     @Test
     void stillParsesTheFlatShape() {
         RecordingHttpClient httpClient = new RecordingHttpClient();
@@ -170,6 +229,24 @@ class XpayPaymentChannelTest {
         assertThat(result.get().paid()).isTrue();
         assertThat(result.get().outTradeNo()).isEqualTo("OTN-Q-1");
         assertThat(result.get().totalAmountMinor()).isEqualTo(100L);
+    }
+
+    /** 平铺形状 + 未支付：拿不到 paid，但 trade_no 要拿得到。 */
+    @Test
+    void carriesTheChannelTradeNoEvenWhenUnpaid() {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.enqueue(200, """
+                {"code":0,"msg":"success","trade_no":"20260823225914438191",
+                 "out_trade_no":"OTN-Q-4","type":"alipay","status":0,"money":"0.02",
+                 "addtime":"2026-08-23 22:59:14"}
+                """);
+        XpayPaymentChannel channel = configuredChannel(httpClient);
+
+        Optional<PaymentResult> result = channel.queryByOutTradeNo("OTN-Q-4");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().paid()).isFalse();
+        assertThat(result.get().transactionId()).isEqualTo("20260823225914438191");
     }
 
     @Test

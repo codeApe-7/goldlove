@@ -25,7 +25,7 @@ const props = withDefaults(
   }>(),
   {
     mode: 'grid',
-    max: 6,
+    max: 3,
     removable: true,
     emptyLabel: '上传头像',
     addLabel: '添加照片',

@@ -35,10 +35,10 @@ function openCourse(item: GuestCourseListItem): void {
     <!-- 不再放页内大标题：档案页与我的页都靠原生导航栏的标题，这里保持一致，
          只留一句说明本页规则的副标题。 -->
     <view class="page-head">
-      <text class="page-subtitle">按合集循序渐进，会员可看全部正文与视频</text>
+      <text class="page-subtitle">按目录循序渐进，会员可看全部正文与视频</text>
     </view>
 
-    <!-- 合集筛选：横向滚动，第一项是「全部」 -->
+    <!-- 目录筛选：横向滚动，第一项是「全部」 -->
     <scroll-view class="collection-bar" scroll-x :show-scrollbar="false">
       <view class="collection-row">
         <view
@@ -136,7 +136,7 @@ function openCourse(item: GuestCourseListItem): void {
 }
 
 /*
- * 合集筛选条要贴着屏幕边缘滚动，而 .archive-page 有左右内边距。
+ * 目录筛选条要贴着屏幕边缘滚动，而 .archive-page 有左右内边距。
  * 用负 margin 抵掉再把 padding 加回来，是「在有内边距的容器里做通栏滚动」的常规做法——
  * 比把整页内边距清零、再给每个兄弟节点补一遍要稳，也不会被后面的 padding 简写覆盖掉。
  */

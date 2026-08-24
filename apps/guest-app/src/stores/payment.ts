@@ -4,6 +4,7 @@ import { requestPayment, type ChannelPaymentOutcome } from '@/adapters/payment'
 import type {
   MembershipView,
   OnlineOrder,
+  OnlineOrderListItem,
   OnlineOrderStatus,
   OnlinePaymentSettings,
 } from '@/types'
@@ -32,6 +33,7 @@ export const useVipPaymentStore = defineStore('guest-vip-payment', {
     membership: null as MembershipView | null,
     order: null as OnlineOrder | null,
     status: null as OnlineOrderStatus | null,
+    orders: [] as OnlineOrderListItem[],
     lastOutcome: null as ChannelPaymentOutcome | null,
   }),
   getters: {
@@ -40,6 +42,8 @@ export const useVipPaymentStore = defineStore('guest-vip-payment', {
     tier: (state) => state.membership?.tier ?? 'FREE',
     isVip: (state) => state.membership?.tier === 'VIP' || state.membership?.tier === 'SVIP',
     paid: (state) => state.status?.status === 'PAID',
+    /** 还能继续付的订单。后端已把过期的转成 CLOSED，这里不必自己比时间。 */
+    payableOrders: (state) => state.orders.filter((order) => order.status === 'CREATED'),
   },
   actions: {
     async loadSettings(): Promise<OnlinePaymentSettings> {
@@ -50,6 +54,27 @@ export const useVipPaymentStore = defineStore('guest-vip-payment', {
     async loadMembership(): Promise<MembershipView> {
       this.membership = await api.membership()
       return this.membership
+    },
+
+    /** 本人的订单列表。 */
+    async loadOrders(): Promise<OnlineOrderListItem[]> {
+      const orders = await api.vipOrders()
+      this.orders = Array.isArray(orders) ? orders : []
+      return this.orders
+    },
+
+    /**
+     * 需要接续确认的订单号，没有则返回空串。
+     *
+     * 顺序是回跳参数 → 会话存储 → **服务端最近一笔未支付订单**。前两个都是一次性的、
+     * 单标签页的：关掉标签页或重新登录就没了。最后这个才是重新登录后还找得回来的来源，
+     * 也正是「上午下的单，晚上再进来就再也查不到」的补丁。
+     */
+    async resumeTarget(fromReturnUrl?: string | null): Promise<string> {
+      const local = fromReturnUrl || pendingOrderStore.read()
+      if (local) return local
+      const orders = await this.loadOrders()
+      return orders.find((order) => order.status === 'CREATED')?.outTradeNo ?? ''
     },
 
     /** 下单。金额与账号都由后端决定；订单号立刻落会话存储，整页跳转后才找得回来。 */
@@ -88,6 +113,9 @@ export const useVipPaymentStore = defineStore('guest-vip-payment', {
       if (result.status === 'PAID') {
         pendingOrderStore.clear()
         await this.loadMembership()
+      } else if (result.status === 'CLOSED') {
+        // 这笔已经付不了了：清掉句柄，别让它在每次进页面时都被重新查一遍。
+        pendingOrderStore.clear()
       }
       return result
     },

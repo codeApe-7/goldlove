@@ -43,7 +43,7 @@ public final class ProfileSubmissionReadinessValidator {
     private static boolean coreValuePresent(GuestProfileEntity profile, String fieldCode) {
         return switch (fieldCode) {
             case "gender" -> hasText(profile.getGender());
-            case "birth_date" -> profile.getBirthDate() != null;
+            case "age" -> profile.getAge() != null;
             case "height_cm" -> profile.getHeightCm() != null;
             case "education" -> hasText(profile.getEducation());
             case "occupation" -> hasText(profile.getOccupation());
@@ -51,8 +51,6 @@ public final class ProfileSubmissionReadinessValidator {
             case "city" -> hasText(profile.getCity());
             case "wechat_id" -> hasText(profile.getWechatId());
             case "douyin_id" -> hasText(profile.getDouyinId());
-            case "douyin_nickname" -> hasText(profile.getDouyinNickname());
-            case "douyin_profile_url" -> hasText(profile.getDouyinProfileUrl());
             default -> false;
         };
     }

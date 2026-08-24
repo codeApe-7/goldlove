@@ -35,6 +35,7 @@ public class AdminLedgerQueryService {
                         row.getChannel(),
                         row.getAmountMinor() == null ? 0L : row.getAmountMinor(),
                         row.getStatus(),
+                        row.getChannelTradeNo(),
                         row.getPaidAt(),
                         row.getCreatedAt()))
                 .toList();

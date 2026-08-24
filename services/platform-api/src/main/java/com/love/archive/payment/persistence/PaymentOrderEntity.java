@@ -22,9 +22,13 @@ public class PaymentOrderEntity {
     private PaymentChannelType channel;
     private Long amountMinor;
     private PaymentOrderStatus status;
+    /** 渠道侧订单号（易支付 trade_no），下单成功即可记录，与是否支付无关。 */
+    private String channelTradeNo;
     private String transactionId;
     private OffsetDateTime paidAt;
     private Long paymentRecordId;
+    /** 可支付截止时间；到点仍未支付则转 CLOSED。存量行为空，视为不过期。 */
+    private OffsetDateTime expiresAt;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     @Version

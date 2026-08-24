@@ -37,9 +37,8 @@ public interface AdminProfileQueryMapper {
     @Select("""
             SELECT p.id, p.profile_no::text AS profile_no, p.status,
                    p.created_at, p.updated_at,
-                   p.gender, p.birth_date, p.height_cm, p.education, p.occupation,
+                   p.gender, p.age, p.height_cm, p.education, p.occupation,
                    p.income_range, p.city, p.wechat_id, p.douyin_id,
-                   p.douyin_nickname, p.douyin_profile_url,
                    a.id AS user_account_id, a.phone, a.membership_tier,
                    a.membership_credit_minor, a.status AS account_status
               FROM guest_profile p

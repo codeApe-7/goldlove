@@ -10,7 +10,7 @@ export const VIP_REQUIRED_CODE = 'COURSE_VIP_REQUIRED'
 
 interface CourseState {
   collections: GuestCourseCollectionView[]
-  /** null = 全部合集。 */
+  /** null = 全部目录。 */
   activeCollectionId: number | null
   items: GuestCourseListItem[]
   page: number

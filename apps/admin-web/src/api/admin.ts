@@ -145,9 +145,9 @@ export function updatePaymentSetting(vipUpgradeAmountMinor: number): Promise<Pay
   return unwrap(http.put('/admin/payment-settings', { vipUpgradeAmountMinor }))
 }
 
-// ---- 课程合集 ----
+// ---- 课程目录 ----
 
-/** 合集不分页：只有固定的几个分类，后端直接给数组。 */
+/** 目录不分页：只有固定的几个分类，后端直接给数组。 */
 export function listCourseCollections(): Promise<AdminCourseCollectionView[]> {
   return unwrap(http.get('/admin/course-collections'))
 }
@@ -161,7 +161,7 @@ export function createCourseCollection(payload: {
 }
 
 /**
- * 改合集。隐藏 / 显示也走这里（`status`）——合集下面挂着课程，
+ * 改目录。隐藏 / 显示也走这里（`status`）——目录下面挂着课程，
  * 后端没给 DELETE 权限，删了会留下孤儿课程。
  */
 export function updateCourseCollection(

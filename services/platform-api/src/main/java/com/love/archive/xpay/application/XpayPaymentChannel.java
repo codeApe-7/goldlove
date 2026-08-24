@@ -89,7 +89,11 @@ public class XpayPaymentChannel implements PaymentChannel {
 
         XpayHttpClient.HttpTextResponse response = httpClient.postForm(
                 properties.resolvedBaseUrl() + SUBMIT_PATH, params);
-        LOGGER.info("易支付下单响应, status={}, body={}", response.statusCode(), response.body());
+        // 带上 outTradeNo 与 money。原来只记 status 与 body，而页面支付的 body 恒为 "Found"，
+        // 于是一行日志既认不出是哪笔订单，也看不出我们究竟报了多少钱——
+        // 排查「网关把 0.01 记成 0.02」时就是卡在这里。
+        LOGGER.info("易支付下单响应, outTradeNo={}, money={}, status={}, body={}",
+                command.outTradeNo(), params.get("money"), response.statusCode(), response.body());
         // 页面支付（submit）返回 302 重定向到收银台，跳转链接在 Location 头。
         if (response.statusCode() == 302) {
             String location = response.headers().get("location");
@@ -98,7 +102,8 @@ public class XpayPaymentChannel implements PaymentChannel {
                         HttpStatus.BAD_GATEWAY, "PAYMENT_CHANNEL_RESPONSE_INVALID", "支付渠道响应缺少跳转链接");
             }
             return new CreateOrderResult(
-                    null, new PayParameters(PaymentChannelType.XPAY_ALIPAY, resolveJumpUrl(location)));
+                    channelTradeNoFrom(location),
+                    new PayParameters(PaymentChannelType.XPAY_ALIPAY, resolveJumpUrl(location)));
         }
         JsonNode payload = readJson(response.body());
         int code = payload.path("code").asInt(-1);
@@ -139,28 +144,65 @@ public class XpayPaymentChannel implements PaymentChannel {
         JsonNode payload = readJson(response.body());
         int code = payload.path("code").asInt(-1);
         if (response.statusCode() != 200 || code != 0) {
-            LOGGER.warn("易支付查单失败, outTradeNo={}, status={}, code={}, msg={}",
-                    outTradeNo, response.statusCode(), code, text(payload, "msg"));
-            throw new ApiException(
-                    HttpStatus.BAD_GATEWAY, "PAYMENT_CHANNEL_QUERY_FAILED", "支付渠道查询失败");
+            // 业务层面查不到结果 → 空，而不是抛异常。
+            //
+            // 「没有找到订单信息」（code=1）是这里最常见的回答：订单在网关那边过期后就查不到了。
+            // 原来这种情况抛 502，于是用户点开一笔早已失效的订单，看到的是「支付渠道查询失败」，
+            // 而真实答案是「这笔单子已经没了，重新下一笔吧」——本地的过期状态才知道这件事。
+            //
+            // 安全性不受影响：结算只在 paid()==true 时发生，查不到永远不会把订单推成已支付。
+            // 传输失败与响应体无法解析仍然抛（在 postForm / readJson 里）。
+            LOGGER.warn("易支付查单未返回结果, outTradeNo={}, status={}, code={}, msg={}",
+                    outTradeNo, response.statusCode(), code, failureMessage(payload));
+            return Optional.empty();
         }
         return Optional.of(toPaymentResult(queryDetail(payload)));
     }
 
     /**
-     * 查单的业务字段包在 {@code data} 里，而下单与回调是平铺的
-     * （见 {@code XPAY-API.md} 的「查询订单」响应示例）。
+     * 网关有两种错误壳：业务响应用 {@code msg}（{@code {"code":1,"msg":"没有找到订单信息"}}），
+     * 网关自身拒绝时用 {@code message}（{@code {"code":502,"message":"必填sign"}}）。
+     * 只读一个就会把另一种记成 null，白丢一条本来就在手里的线索。
+     */
+    private static String failureMessage(JsonNode payload) {
+        String msg = text(payload, "msg");
+        return hasText(msg) ? msg : text(payload, "message");
+    }
+
+    /**
+     * 从收银台跳转地址里取出渠道侧订单号：{@code /pay/20260823225910918724} 的末段就是它。
      *
-     * <p>原来这里把整个根节点交给 {@link #toPaymentResult}，于是 {@code out_trade_no} /
-     * {@code status} / {@code money} 全取不到——查单即使成功也会解析成「未支付、订单号为空」，
-     * <b>补偿查单这条安全网等于不存在</b>：回调丢了就再也补不回来，订单永远停在 CREATED。
-     * 而单测当时用的是平铺的假响应，所以一直没发现。</p>
+     * <p>页面支付的 302 不带响应体，这是下单当场唯一能拿到渠道单号的地方。存下来才有对账的抓手——
+     * 没付成的订单在库里原本连一个能拿去渠道后台查的编号都没有。</p>
+     */
+    private static String channelTradeNoFrom(String location) {
+        String path = location;
+        int query = path.indexOf('?');
+        if (query >= 0) {
+            path = path.substring(0, query);
+        }
+        String candidate = path.substring(path.lastIndexOf('/') + 1);
+        // 只认纯数字的末段，避免把 /pay、/cashier 这类路径片段当成单号存进去。
+        return candidate.length() >= 6 && candidate.chars().allMatch(Character::isDigit)
+                ? candidate
+                : null;
+    }
+
+    /**
+     * 查单的业务字段可能包在 {@code data} 里，也可能平铺在根节点。
      *
-     * <p>{@code data} 不是对象时退回根节点：万一网关某天改成平铺，不至于整条链路失效。</p>
+     * <p>{@code XPAY-API.md} 的「查询订单」示例是包在 {@code data} 里的，
+     * 而**线上实测网关回的是平铺形状**：
+     * {@code {"code":0,"msg":"success","trade_no":"...","out_trade_no":"...","money":"0.01","status":0}}。
+     * 两种都得认——照文档只读 {@code data} 会在生产上全取不到，
+     * 照实测只读根节点又会在网关改回文档形状时全线失效。</p>
+     *
+     * <p>取错层级的后果不是报错而是静默错判：字段全取不到 → 解析成「未支付、订单号为空」，
+     * <b>补偿查单这条安全网等于不存在</b>，回调丢了就再也补不回来。</p>
      */
     private static JsonNode queryDetail(JsonNode payload) {
         JsonNode data = payload.path("data");
-        return data.isObject() ? data : payload;
+        return data.isObject() && data.has("out_trade_no") ? data : payload;
     }
 
     @Override

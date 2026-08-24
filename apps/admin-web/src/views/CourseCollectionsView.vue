@@ -22,14 +22,14 @@ const editingId = ref<number | null>(null)
 
 const form = reactive({ name: '', description: '', sortOrder: 0 })
 
-const drawerTitle = computed(() => (editingId.value === null ? '新增合集' : '编辑合集'))
+const drawerTitle = computed(() => (editingId.value === null ? '新增目录' : '编辑目录'))
 
 async function load(): Promise<void> {
   loading.value = true
   try {
     collections.value = await listCourseCollections()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '合集加载失败')
+    ElMessage.error(error instanceof Error ? error.message : '目录加载失败')
   } finally {
     loading.value = false
   }
@@ -39,7 +39,7 @@ function openCreate(): void {
   editingId.value = null
   form.name = ''
   form.description = ''
-  // 排在现有合集之后，运营不用自己想这个数字。
+  // 排在现有目录之后，运营不用自己想这个数字。
   form.sortOrder = collections.value.reduce((max, item) => Math.max(max, item.sortOrder), 0) + 10
   drawerOpen.value = true
 }
@@ -54,7 +54,7 @@ function openEdit(collection: AdminCourseCollectionView): void {
 
 async function save(): Promise<void> {
   if (!form.name.trim()) {
-    ElMessage.warning('请填写合集名称')
+    ElMessage.warning('请填写目录名称')
     return
   }
   saving.value = true
@@ -65,14 +65,14 @@ async function save(): Promise<void> {
         description: form.description.trim() || null,
         sortOrder: form.sortOrder,
       })
-      ElMessage.success('合集已创建')
+      ElMessage.success('目录已创建')
     } else {
       await updateCourseCollection(editingId.value, {
         name: form.name.trim(),
         description: form.description.trim() || null,
         sortOrder: form.sortOrder,
       })
-      ElMessage.success('合集已保存')
+      ElMessage.success('目录已保存')
     }
     drawerOpen.value = false
     await load()
@@ -84,14 +84,14 @@ async function save(): Promise<void> {
 }
 
 /**
- * 隐藏 / 显示。合集没有删除——它下面挂着课程，后端也没给运行账号 DELETE 权限，
+ * 隐藏 / 显示。目录没有删除——它下面挂着课程，后端也没给运行账号 DELETE 权限，
  * 所以这一页不提供删除入口，下线一律用隐藏。
  */
 async function toggleVisibility(collection: AdminCourseCollectionView): Promise<void> {
   const next = collection.status === 'ACTIVE' ? 'HIDDEN' : 'ACTIVE'
   try {
     await updateCourseCollection(collection.id, { status: next })
-    ElMessage.success(next === 'HIDDEN' ? '合集已隐藏，访客端不再展示' : '合集已恢复显示')
+    ElMessage.success(next === 'HIDDEN' ? '目录已隐藏，访客端不再展示' : '目录已恢复显示')
     await load()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '操作失败')
@@ -104,20 +104,20 @@ onMounted(load)
 <template>
   <div class="course-collections-page">
     <PageHeader
-      title="课程合集"
-      subtitle="课程按合集分类展示。隐藏后访客端不再出现这个合集及其课程，已有课程不受影响。"
+      title="课程目录"
+      subtitle="课程按目录分类展示。隐藏后访客端不再出现这个目录及其课程，已有课程不受影响。"
     />
 
     <TableToolbar :selected-count="0" @refresh="load">
-      <template #hint>共 {{ collections.length }} 个合集</template>
+      <template #hint>共 {{ collections.length }} 个目录</template>
       <template #actions>
-        <el-button type="primary" @click="openCreate">新增合集</el-button>
+        <el-button type="primary" @click="openCreate">新增目录</el-button>
       </template>
     </TableToolbar>
 
     <section v-loading="loading" class="archive-panel">
       <el-table v-if="collections.length > 0" :data="collections" row-key="id">
-        <el-table-column prop="name" label="合集名称" min-width="160" />
+        <el-table-column prop="name" label="目录名称" min-width="160" />
         <el-table-column prop="description" label="说明" min-width="240">
           <template #default="{ row }">{{ row.description || '—' }}</template>
         </el-table-column>
@@ -150,14 +150,14 @@ onMounted(load)
 
       <EmptyState
         v-else-if="!loading"
-        title="还没有合集"
-        hint="课程必须挂在某个合集下。迁移已经种了四个默认分类，如果这里是空的，说明数据被清过。"
+        title="还没有目录"
+        hint="课程必须挂在某个目录下。迁移已经种了四个默认分类，如果这里是空的，说明数据被清过。"
       />
     </section>
 
     <el-drawer v-model="drawerOpen" :title="drawerTitle" size="420px">
       <el-form label-position="top">
-        <el-form-item label="合集名称">
+        <el-form-item label="目录名称">
           <el-input v-model="form.name" maxlength="64" show-word-limit placeholder="例如：情绪与认知" />
         </el-form-item>
         <el-form-item label="说明">
@@ -167,7 +167,7 @@ onMounted(load)
             :rows="3"
             maxlength="255"
             show-word-limit
-            placeholder="一句话说清这个合集讲什么"
+            placeholder="一句话说清这个目录讲什么"
           />
         </el-form-item>
         <el-form-item label="排序">

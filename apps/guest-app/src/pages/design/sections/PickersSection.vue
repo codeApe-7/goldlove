@@ -18,7 +18,7 @@ const privateIncome = ref('保密')
 const education = ref('大学本科')
 const occupation = ref('互联网 / IT')
 const region = ref('北京市 / 东城区')
-const birthDate = ref('1992-03-30')
+const sampleDate = ref('1992-03-30')
 const gender = ref('男')
 const hobbies = ref(['健身', '旅行', '阅读', '摄影'])
 </script>
@@ -86,8 +86,8 @@ const hobbies = ref(['健身', '旅行', '阅读', '摄影'])
     </view>
 
     <view class="spec-group">
-      <text class="spec-group__title">3.9 日期选择器（出生日期）</text>
-      <AppDateField v-model="birthDate" />
+      <text class="spec-group__title">3.9 日期选择器</text>
+      <AppDateField v-model="sampleDate" />
       <text class="spec-note">日列跟随年月变化，闰年 2 月给到 29 日；从 31 天的月份滚到 2 月会自动收敛。</text>
     </view>
 

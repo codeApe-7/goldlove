@@ -50,7 +50,7 @@ function noop(): void {
     </view>
 
     <view class="spec-group">
-      <text class="spec-group__title">生活照（最多 6 张）</text>
+      <text class="spec-group__title">生活照（最多 3 张）</text>
       <AppUploader :items="LIFE_PHOTOS" :max="6" @add="noop" @remove="noop" />
     </view>
   </view>

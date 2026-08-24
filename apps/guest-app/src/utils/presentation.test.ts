@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   guestStatusMeta,
   isPrivateValue,
+  MAX_LIFE_PHOTOS,
   PRIVATE_FIELD_VALUES,
   profileCompletion,
   profileGroup,
@@ -11,12 +12,20 @@ import {
 describe('guest presentation helpers', () => {
   it('groups known fields and falls back to more', () => {
     expect(profileGroup('gender')).toBe('basic')
-    expect(profileGroup('birth_date')).toBe('basic')
+    expect(profileGroup('age')).toBe('basic')
     expect(profileGroup('occupation')).toBe('career')
     expect(profileGroup('income_range')).toBe('career')
     expect(profileGroup('wechat_id')).toBe('social')
-    expect(profileGroup('douyin_profile_url')).toBe('social')
+    expect(profileGroup('douyin_id')).toBe('social')
     expect(profileGroup('favoriteBook')).toBe('more')
+  })
+
+  // 下线的字段要落到 more，而不是继续占着 basic / social 的位置。
+  // 后端已经不下发它们，这里只是保证万一下发了也不会渲染进原来的分组。
+  it('已下线的字段不再有专属分组', () => {
+    expect(profileGroup('birth_date')).toBe('more')
+    expect(profileGroup('douyin_nickname')).toBe('more')
+    expect(profileGroup('douyin_profile_url')).toBe('more')
   })
 
   it('includes the required avatar in completion', () => {
@@ -36,9 +45,13 @@ describe('guest presentation helpers', () => {
     expect(guestStatusMeta('APPROVED').label).toBe('已通过')
   })
 
-  it('counts only life photos against the six-photo limit', () => {
-    expect(remainingLifePhotoSlots([{ category: 'AVATAR' }, { category: 'LIFE' }])).toBe(5)
-    expect(remainingLifePhotoSlots(Array.from({ length: 7 }, () => ({ category: 'LIFE' })))).toBe(0)
+  it('生活照上限 3 张，头像不占额度', () => {
+    expect(MAX_LIFE_PHOTOS).toBe(3)
+    expect(remainingLifePhotoSlots([{ category: 'AVATAR' }, { category: 'LIFE' }])).toBe(2)
+    expect(remainingLifePhotoSlots(Array.from({ length: 3 }, () => ({ category: 'LIFE' })))).toBe(0)
+    // 存量档案可能超过上限（上限是从 6 收下来的）——剩余额度不能变成负数，
+    // 否则 choosePhotos 会拿着负数去要图。
+    expect(remainingLifePhotoSlots(Array.from({ length: 6 }, () => ({ category: 'LIFE' })))).toBe(0)
   })
 })
 

@@ -119,7 +119,7 @@ async function loadCollections(): Promise<void> {
   try {
     collections.value = await listCourseCollections()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '合集加载失败')
+    ElMessage.error(error instanceof Error ? error.message : '目录加载失败')
   }
 }
 
@@ -271,7 +271,7 @@ async function pickVideo(event: Event): Promise<void> {
 
 async function save(): Promise<void> {
   if (form.collectionId === null) {
-    ElMessage.warning('请选择所属合集')
+    ElMessage.warning('请选择所属目录')
     return
   }
   if (!form.title.trim()) {
@@ -365,14 +365,14 @@ onMounted(async () => {
   <div class="courses-page">
     <PageHeader
       title="课程管理"
-      subtitle="课程按合集分类，发布后仅会员可查看正文与视频。草稿与已下架的课程访客端看不到。"
+      subtitle="课程按目录分类，发布后仅会员可查看正文与视频。草稿与已下架的课程访客端看不到。"
     />
 
     <FilterBar :loading="loading" @search="search" @reset="reset">
       <template #fields>
         <label class="field">
-          <span>合集</span>
-          <el-select v-model="query.collectionId" placeholder="全部合集" clearable>
+          <span>目录</span>
+          <el-select v-model="query.collectionId" placeholder="全部目录" clearable>
             <el-option
               v-for="item in collections"
               :key="item.id"
@@ -425,7 +425,7 @@ onMounted(async () => {
     <section v-loading="loading" class="archive-panel">
       <el-table v-if="courses.length > 0" :data="courses" row-key="id">
         <el-table-column prop="title" label="教材名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="collectionName" label="合集" width="130" />
+        <el-table-column prop="collectionName" label="目录" width="130" />
         <el-table-column label="类型" width="90">
           <template #default="{ row }">{{ courseContentTypeLabel(row.contentType) }}</template>
         </el-table-column>
@@ -479,7 +479,7 @@ onMounted(async () => {
     <el-drawer v-model="drawerOpen" :title="drawerTitle" size="820px">
       <el-form label-position="top">
         <div class="grid">
-          <el-form-item label="所属合集">
+          <el-form-item label="所属目录">
             <el-select v-model="form.collectionId" placeholder="请选择">
               <el-option
                 v-for="item in collections"

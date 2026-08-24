@@ -1,6 +1,5 @@
 package com.love.archive.admin.application;
 
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -16,7 +15,7 @@ public record AdminProfileDetail(
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
         String gender,
-        LocalDate birthDate,
+        Integer age,
         Integer heightCm,
         String education,
         String occupation,
@@ -24,8 +23,6 @@ public record AdminProfileDetail(
         String city,
         String wechatId,
         String douyinId,
-        String douyinNickname,
-        String douyinProfileUrl,
         List<AdminProfileFieldValue> dynamicFields,
         List<AdminProfilePhoto> photos) {
 

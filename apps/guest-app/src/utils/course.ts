@@ -43,6 +43,6 @@ export function formatCourseDuration(seconds: number | null | undefined): string
  */
 export function courseEmptyMessage(collectionName: string | null | undefined): string {
   return collectionName
-    ? `「${collectionName}」这个合集还没有上架的课程，换个合集看看`
+    ? `「${collectionName}」这个目录还没有上架的课程，换个目录看看`
     : '课程还在筹备中，上架后会出现在这里'
 }

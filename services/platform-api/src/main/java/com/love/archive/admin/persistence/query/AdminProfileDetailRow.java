@@ -1,6 +1,5 @@
 package com.love.archive.admin.persistence.query;
 
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import lombok.Getter;
 import lombok.Setter;
@@ -22,7 +21,7 @@ public class AdminProfileDetailRow {
     /** 账号状态（ACTIVE / SUSPENDED / CLOSED）——停用是账号级别的动作，档案自身没有停用位。 */
     private String accountStatus;
     private String gender;
-    private LocalDate birthDate;
+    private Integer age;
     private Integer heightCm;
     private String education;
     private String occupation;
@@ -30,6 +29,4 @@ public class AdminProfileDetailRow {
     private String city;
     private String wechatId;
     private String douyinId;
-    private String douyinNickname;
-    private String douyinProfileUrl;
 }

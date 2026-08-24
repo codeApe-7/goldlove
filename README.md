@@ -64,6 +64,7 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | GET | `/api/v1/guest/vip-payments/settings` | 访客 | 获取渠道类型与升级金额 |
 | POST | `/api/v1/guest/vip-payments/orders` | 访客 | 创建 VIP 升级订单（不传金额、不传账号） |
 | GET | `/api/v1/guest/vip-payments/orders/{outTradeNo}` | 访客 | 查询订单状态（本地仍未支付时主动向渠道查单补偿） |
+| GET | `/api/v1/guest/vip-payments/orders` | 访客 | 本人订单列表，新的在前；返回前先关掉已过期的订单 |
 | POST | `/api/v1/public/payment-notifications/xpay` | 验签 | 易支付结果通知，幂等结算 |
 | POST | `/api/v1/admin/auth/login` | 无 | 管理员登录 |
 | GET | `/api/v1/admin/dashboard/stats` | 管理员 | 工作台统计 |
@@ -118,10 +119,24 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 
 ## 支付
 
-金额只取服务端，回调金额与订单金额不一致时拒绝结算
-（`PAYMENT_AMOUNT_MISMATCH`）。`out_trade_no` 由服务端用 24 字节随机数生成（Base64URL，32 字符），
+金额只取服务端。`out_trade_no` 由服务端用 24 字节随机数生成（Base64URL，32 字符），
 全局唯一并作为幂等锚点。回调用平台公钥做 RSA2 验签，验签失败返回 401，结算冲突返回 500 让渠道重试。
-重复回调幂等，不会重复写付款记录。查单接口只允许查询本人的订单。
+重复回调幂等，不会重复写付款记录。查单与订单列表都只返回本人的订单。
+
+**结算的金额口径是「实付 ≥ 应付」，少付才拒**（`PAYMENT_AMOUNT_MISMATCH`）。
+原来要求严格相等，而易支付会为了区分同额订单把金额往上加分——实测两笔都发 `money=0.01`，
+网关记成 0.01 与 0.02。于是一笔真实付款被判成金额不一致 → 回调端点返 500 → 网关无限重试，
+**用户付了钱、订单永远停在待支付**。付款记录与会员额度按**实付**入账。
+
+**订单会过期**：下单时写 `payment_order.expires_at`（`VIP_ORDER_EXPIRY_MINUTES`，默认 **5 分钟**，
+对齐易支付收银台自己的超时），到点仍未支付则在本人下次查看订单时转 `CLOSED`，前端据此提示重新下单。
+渠道那边过期后查单返回 `code=1 / 没有找到订单信息`，此时**不再冒 502**，改为回落到本地状态。
+补偿查单是先问渠道、只有渠道说没付才关单；关单之后才付成的订单**依然会被结算**（`CLOSED → PAID`），
+不会因为我们提前关单而丢单。
+
+**渠道侧订单号**（易支付 `trade_no`）在下单当场就落 `payment_order.channel_trade_no`——
+来源是收银台跳转地址的末段（`/pay/20260823225910918724`），查单响应里未支付时也带。
+对账时用它去渠道后台找这笔单子；管理后台台账与访客端订单列表都展示它。
 
 **金额由管理后台维护**：`payment_setting` 表里那一行覆盖环境变量——
 后台在「支付设置」保存过就用库里的值，从未保存过则回落到 `VIP_UPGRADE_AMOUNT_MINOR`。
@@ -139,6 +154,7 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | `ONLINE_PAYMENT_PROVIDER` | 启用的渠道；留空则取唯一已配置渠道 |
 | `VIP_UPGRADE_AMOUNT_MINOR` | VIP 升级金额（分）的**回落值**，默认 `100`；后台设过金额后不再生效 |
 | `VIP_UPGRADE_DESCRIPTION` | 下单商品描述，仅环境变量可改（后台只读展示） |
+| `VIP_ORDER_EXPIRY_MINUTES` | 订单可支付时长（分钟），默认 `5`（对齐易支付收银台超时）；配成非正数即视为不过期 |
 | `MEMBERSHIP_SVIP_THRESHOLD_MINOR` | 升 SVIP 的累计付费额度（分），默认 `59900`，仅环境变量可改 |
 
 上述五项凭据齐全时才装配渠道客户端；缺任何一项，支付接口返回 `PAYMENT_CHANNEL_NOT_CONFIGURED`（503），
@@ -163,11 +179,11 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | `ACTIVATION_CODE_NOT_REVOCABLE` | 409 | 只有未使用的激活码可以作废 |
 | `PAYMENT_CHANNEL_NOT_CONFIGURED` | 503 | 渠道凭据未配置齐全 |
 | `PAYMENT_CHANNEL_UNAVAILABLE` | 502 | 渠道网络不可用 |
-| `PAYMENT_CHANNEL_ORDER_FAILED` / `PAYMENT_CHANNEL_QUERY_FAILED` | 502 | 渠道下单 / 查单失败 |
+| `PAYMENT_CHANNEL_ORDER_FAILED` | 502 | 渠道下单失败 |
 | `PAYMENT_CHANNEL_RESPONSE_INVALID` | 502 | 渠道响应无法解析或缺字段 |
 | `PAYMENT_ORDER_NOT_FOUND` | 404 | 订单不存在或不属于当前账号 |
 | `PAYMENT_ORDER_STATE_CONFLICT` | 409 | 订单状态并发变化，请重试 |
-| `PAYMENT_AMOUNT_MISMATCH` | 409 | 支付金额与服务端订单金额不一致 |
+| `PAYMENT_AMOUNT_MISMATCH` | 409 | 实付金额**少于**服务端订单金额（多付照常结算） |
 | `PAYMENT_AMOUNT_INVALID` | 400 | 后台设置的 VIP 升级金额超出 ¥0.01 ~ ¥100000 |
 | `PAYMENT_NOTIFY_SIGNATURE_INVALID` | 400 | 回调验签失败（回调端点对外返回 401） |
 | `PROFILE_VERSION_CONFLICT` | 409 | 档案版本已变化，请刷新后重试 |
@@ -199,7 +215,7 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 
 ## 照片上传
 
-- 限制：头像 1 张、生活照最多 6 张；单张 ≤ 10 MiB；仅 JPEG/PNG/WebP；
+- 限制：头像 1 张、生活照最多 3 张；单张 ≤ 10 MiB；仅 JPEG/PNG/WebP；
   服务端校验真实格式与最小 64×64 尺寸，不信任客户端声明的类型。
 - 对象键始终只保存在服务端；预览地址是 15 分钟短时签名 URL，从不落库。
 - 保存时从档案里移除的照片会在事务提交后直接删除 COS 对象（没有版本快照需要留档了）。

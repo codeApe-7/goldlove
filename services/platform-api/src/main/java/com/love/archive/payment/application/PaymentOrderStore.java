@@ -11,9 +11,12 @@ import com.love.archive.payment.persistence.PaymentOrderMapper;
 import com.love.archive.payment.persistence.PaymentRecordEntity;
 import com.love.archive.payment.persistence.PaymentRecordMapper;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 class PaymentOrderStore {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(PaymentOrderStore.class);
     private static final Pattern OUT_TRADE_NO = Pattern.compile("[A-Za-z0-9_-]{6,64}");
 
     private final PaymentOrderMapper orderMapper;
@@ -41,9 +45,54 @@ class PaymentOrderStore {
         order.setChannel(command.channel());
         order.setAmountMinor(command.amountMinor());
         order.setStatus(PaymentOrderStatus.CREATED);
+        order.setExpiresAt(command.expiresAt());
         order.setCreatedAt(now);
         order.setUpdatedAt(now);
         orderMapper.insert(order);
+    }
+
+    /**
+     * 记录渠道侧订单号。只在本地还没有时写，绝不覆盖——
+     * 同一笔订单在渠道那边只会有一个单号，若两次拿到的不一样，那是异常而不是更新，
+     * 覆盖只会把先前那个（很可能是对的）擦掉，让对账更难。
+     */
+    @Transactional
+    void recordChannelTradeNo(String outTradeNo, String channelTradeNo) {
+        if (!hasText(channelTradeNo) || !plausibleOutTradeNo(outTradeNo)) {
+            return;
+        }
+        orderMapper.update(Wrappers.<PaymentOrderEntity>lambdaUpdate()
+                .eq(PaymentOrderEntity::getOutTradeNo, outTradeNo)
+                .isNull(PaymentOrderEntity::getChannelTradeNo)
+                .set(PaymentOrderEntity::getChannelTradeNo, channelTradeNo)
+                .set(PaymentOrderEntity::getUpdatedAt, OffsetDateTime.now()));
+    }
+
+    /**
+     * 把该账号下已过期仍为 CREATED 的订单关掉，返回关掉的条数。
+     *
+     * <p>一条有界的 UPDATE，只碰调用者自己的行，幂等。刻意不做全表定时扫描：
+     * 关单纯粹是为了让「还能付」和「已经死了」在界面上分得开，
+     * 而会看到这个区别的时刻就是用户来看订单的时刻。</p>
+     */
+    @Transactional
+    int closeExpired(long accountId) {
+        return orderMapper.update(Wrappers.<PaymentOrderEntity>lambdaUpdate()
+                .eq(PaymentOrderEntity::getUserAccountId, accountId)
+                .eq(PaymentOrderEntity::getStatus, PaymentOrderStatus.CREATED)
+                .isNotNull(PaymentOrderEntity::getExpiresAt)
+                .lt(PaymentOrderEntity::getExpiresAt, OffsetDateTime.now())
+                .set(PaymentOrderEntity::getStatus, PaymentOrderStatus.CLOSED)
+                .set(PaymentOrderEntity::getUpdatedAt, OffsetDateTime.now()));
+    }
+
+    @Transactional(readOnly = true)
+    List<PaymentOrderEntity> listByAccount(long accountId, int limit) {
+        return orderMapper.selectList(Wrappers.<PaymentOrderEntity>lambdaQuery()
+                .eq(PaymentOrderEntity::getUserAccountId, accountId)
+                .orderByDesc(PaymentOrderEntity::getCreatedAt)
+                .orderByDesc(PaymentOrderEntity::getId)
+                .last("LIMIT " + limit));
     }
 
     /**
@@ -61,10 +110,7 @@ class PaymentOrderStore {
             return new SettlementOutcome(
                     order.getStatus(), order.getUserAccountId(), null, order.getAmountMinor(), false);
         }
-        if (result.totalAmountMinor() != order.getAmountMinor()) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT, "PAYMENT_AMOUNT_MISMATCH", "支付金额与订单金额不一致");
-        }
+        long settledAmountMinor = requireSufficientAmount(result, order);
         if (result.transactionId() == null || result.transactionId().isBlank()) {
             throw new ApiException(
                     HttpStatus.BAD_GATEWAY, "PAYMENT_CHANNEL_RESPONSE_INVALID", "支付渠道响应缺少交易号");
@@ -78,7 +124,8 @@ class PaymentOrderStore {
         payment.setOutTradeNo(order.getOutTradeNo());
         payment.setTransactionId(result.transactionId());
         payment.setChannel(order.getChannel());
-        payment.setAmountMinor(order.getAmountMinor());
+        // 记实付而不是下单金额：会员额度累计的是真金白银，网关加了分就该算进去。
+        payment.setAmountMinor(settledAmountMinor);
         payment.setCurrency("CNY");
         payment.setStatus(PaymentStatus.PAID);
         payment.setMembershipCreditMinor(0L);
@@ -86,9 +133,12 @@ class PaymentOrderStore {
         payment.setCreatedAt(now);
         paymentRecordMapper.insert(payment);
 
+        // CLOSED 也允许推进到 PAID。我们的过期判定用的是自己的时钟，网关的失效窗口未知，
+        // 真在我们关单之后付成了，钱照样得认——否则就成了「用户付了钱、系统拒收」。
         int updated = orderMapper.update(Wrappers.<PaymentOrderEntity>lambdaUpdate()
                 .eq(PaymentOrderEntity::getId, order.getId())
-                .eq(PaymentOrderEntity::getStatus, PaymentOrderStatus.CREATED)
+                .in(PaymentOrderEntity::getStatus,
+                        PaymentOrderStatus.CREATED, PaymentOrderStatus.CLOSED)
                 .set(PaymentOrderEntity::getStatus, PaymentOrderStatus.PAID)
                 .set(PaymentOrderEntity::getTransactionId, result.transactionId())
                 .set(PaymentOrderEntity::getPaymentRecordId, payment.getId())
@@ -106,11 +156,39 @@ class PaymentOrderStore {
                 "PAYMENT_RECORD",
                 payment.getId(),
                 null,
-                "{\"outTradeNo\":\"" + order.getOutTradeNo() + "\"}",
+                "{\"outTradeNo\":\"" + order.getOutTradeNo() + "\",\"orderAmountMinor\":"
+                        + order.getAmountMinor() + ",\"paidAmountMinor\":" + settledAmountMinor + "}",
                 now));
         return new SettlementOutcome(
                 PaymentOrderStatus.PAID, order.getUserAccountId(), payment.getId(),
-                order.getAmountMinor(), true);
+                settledAmountMinor, true);
+    }
+
+    /**
+     * 实付少于应付才拒；多付照常结算。
+     *
+     * <p>原来这里要求**严格相等**，而易支付会为了区分同额订单把金额往上加分
+     * （实测：两笔都发 money=0.01，网关记成 0.01 与 0.02），于是一笔真实付款会被判成
+     * {@code PAYMENT_AMOUNT_MISMATCH}，回调端点又把它映射成 500，网关无限重试——
+     * <b>用户付了钱，订单永远停在待支付</b>。这个等号挡的不是攻击，是网关的正常行为。</p>
+     *
+     * <p>少付必须继续拒：那是唯一真会亏钱的方向。金额本身来自平台公钥验签过的回调
+     * 或查单响应，不是前端能摆布的值。</p>
+     */
+    private static long requireSufficientAmount(PaymentResult result, PaymentOrderEntity order) {
+        long paid = result.totalAmountMinor();
+        long ordered = order.getAmountMinor();
+        if (paid < ordered) {
+            LOGGER.warn("支付金额少于订单金额，拒绝结算, outTradeNo={}, ordered={}, paid={}",
+                    order.getOutTradeNo(), ordered, paid);
+            throw new ApiException(
+                    HttpStatus.CONFLICT, "PAYMENT_AMOUNT_MISMATCH", "支付金额少于订单金额");
+        }
+        if (paid > ordered) {
+            LOGGER.info("渠道侧金额高于订单金额，按实付结算, outTradeNo={}, ordered={}, paid={}",
+                    order.getOutTradeNo(), ordered, paid);
+        }
+        return paid;
     }
 
     @Transactional(readOnly = true)
@@ -139,6 +217,10 @@ class PaymentOrderStore {
     /** 商户订单号形如 Base64URL，超长或含非法字符时不必查库。 */
     private static boolean plausibleOutTradeNo(String outTradeNo) {
         return outTradeNo != null && OUT_TRADE_NO.matcher(outTradeNo).matches();
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     record SettlementOutcome(

@@ -16,7 +16,7 @@ const MARITAL = ['未婚', '离异', '丧偶']
 
 const form = ref({
   name: '',
-  birthDate: '',
+  eventDate: '',
   education: '',
   occupation: '',
   income: '',
@@ -38,8 +38,8 @@ const form = ref({
         <AppFormRow label="真实姓名" required hint="该信息仅用于身份验证，仅自己可见">
           <AppInput v-model="form.name" placeholder="请输入真实姓名" />
         </AppFormRow>
-        <AppFormRow label="出生日期" required>
-          <AppDateField v-model="form.birthDate" />
+        <AppFormRow label="日期字段" required>
+          <AppDateField v-model="form.eventDate" />
         </AppFormRow>
         <AppFormRow label="学历" required>
           <AppSelect v-model="form.education" :options="EDUCATION" placeholder="请选择学历" />

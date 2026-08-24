@@ -22,12 +22,31 @@ class ProfileSubmissionReadinessValidatorTest {
                 profile,
                 List.of(
                         coreDefinition(1L, "wechat_id", true, 80),
-                        coreDefinition(2L, "douyin_id", false, 90),
-                        coreDefinition(3L, "douyin_nickname", false, 100),
-                        coreDefinition(4L, "douyin_profile_url", false, 110)),
+                        coreDefinition(2L, "douyin_id", false, 90)),
                 List.of());
 
         assertThat(missing).isEmpty();
+    }
+
+    /**
+     * 年龄必须被 {@code coreValuePresent} 认识。
+     *
+     * <p>没写进那个 switch 的 CORE 字段会落到 {@code default -> false}，于是**填了也算没填**：
+     * 档案永远停在「还缺年龄」，状态永远升不到 COMPLETED，而表单上那一格明明是有值的。
+     * birth_date 换成 age 时漏改这一处不会有任何编译错误。</p>
+     */
+    @Test
+    void countsAgeAsFilledOnceTheGuestEnteredIt() {
+        GuestProfileEntity blank = new GuestProfileEntity();
+        GuestProfileEntity filled = new GuestProfileEntity();
+        filled.setAge(31);
+        List<ProfileFieldDefinitionEntity> definitions =
+                List.of(coreDefinition(1L, "age", true, 20));
+
+        assertThat(validator.missingRequiredFieldCodes(blank, definitions, List.of()))
+                .containsExactly("age");
+        assertThat(validator.missingRequiredFieldCodes(filled, definitions, List.of()))
+                .isEmpty();
     }
 
     private static ProfileFieldDefinitionEntity coreDefinition(

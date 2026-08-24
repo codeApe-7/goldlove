@@ -22,6 +22,7 @@ import AppProgressMeter from '@/components/AppProgressMeter.vue'
 import type { UploaderItem } from '@/components/AppUploader.vue'
 import type { CompletionItem } from '@/components/AppProgressMeter.vue'
 import {
+  MAX_LIFE_PHOTOS,
   profileCompletion,
   profileGroup,
   remainingLifePhotoSlots,
@@ -33,7 +34,6 @@ import {
   profileValuesToDraftPayload,
 } from '@/utils/profileFields'
 
-const MAX_LIFE_PHOTOS = 6
 const GENDER_ICONS: Record<string, string> = { 男: 'user', 女: 'user', 不公开: 'lock' }
 
 const store = useProfileStore()
@@ -287,7 +287,10 @@ async function save(): Promise<void> {
       </view>
     </SectionCard>
 
-    <SectionCard title="个人影像" :meta="`${lifePhotos.length + (avatar ? 1 : 0)}/7`">
+    <SectionCard
+      title="个人影像"
+      :meta="`${lifePhotos.length + (avatar ? 1 : 0)}/${MAX_LIFE_PHOTOS + 1}`"
+    >
       <view class="photo-body">
         <view class="photo-row">
           <view class="photo-copy">

@@ -17,7 +17,8 @@ public interface AdminPaymentOrderQueryMapper {
     @Select("""
             <script>
             SELECT o.id, o.out_trade_no, o.channel, o.amount_minor, o.status,
-                   o.paid_at, o.created_at, a.id AS user_account_id, a.phone
+                   o.channel_trade_no, o.paid_at, o.created_at,
+                   a.id AS user_account_id, a.phone
               FROM payment_order o
               JOIN user_account a ON a.id = o.user_account_id
              WHERE 1 = 1

@@ -61,7 +61,7 @@ describe('课程 store', () => {
     expect(api.courses).toHaveBeenCalledTimes(1)
   })
 
-  it('切合集从第一页重新拉', async () => {
+  it('切目录从第一页重新拉', async () => {
     vi.mocked(api.courses).mockResolvedValue({
       items: [listItem(1)], page: 1, size: 10, total: 1,
     })
@@ -74,7 +74,7 @@ describe('课程 store', () => {
     expect(store.items.map((item) => item.id)).toEqual([1])
   })
 
-  it('选同一个合集不重复请求', async () => {
+  it('选同一个目录不重复请求', async () => {
     vi.mocked(api.courses).mockResolvedValue({ items: [], page: 1, size: 10, total: 0 })
     const store = useCourseStore()
 
@@ -122,8 +122,8 @@ describe('课程 store', () => {
     expect(store.detailLocked).toBe(false)
   })
 
-  it('合集拉失败不影响课程列表', async () => {
-    vi.mocked(api.courseCollections).mockRejectedValue(new Error('合集炸了'))
+  it('目录拉失败不影响课程列表', async () => {
+    vi.mocked(api.courseCollections).mockRejectedValue(new Error('目录炸了'))
     vi.mocked(api.courses).mockResolvedValue({
       items: [listItem(1)], page: 1, size: 10, total: 1,
     })
@@ -132,7 +132,7 @@ describe('课程 store', () => {
     await store.loadCollections()
     await store.loadMore()
 
-    // 不筛合集就是全部，列表本身不依赖合集接口。
+    // 不筛目录就是全部，列表本身不依赖目录接口。
     expect(store.items).toHaveLength(1)
   })
 })

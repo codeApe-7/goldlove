@@ -34,7 +34,8 @@ export interface GuestProfileDraft {
   status: string
   version: number | null
   gender: string | null
-  birthDate: string | null
+  /** 只收年龄，不收出生日期——档案用到的只有「多大」。 */
+  age: number | null
   heightCm: number | null
   education: string | null
   occupation: string | null
@@ -42,8 +43,6 @@ export interface GuestProfileDraft {
   city: string | null
   wechatId: string | null
   douyinId: string | null
-  douyinNickname: string | null
-  douyinProfileUrl: string | null
   missingRequiredFieldCodes: string[]
   dynamicFields: unknown[]
 }
@@ -98,6 +97,25 @@ export interface OnlineOrderStatus {
   amountMinor: number
   /** 该笔付款是否已计入会员额度。 */
   membershipGranted: boolean
+  /** 渠道侧订单号，下单成功即有；报障时把它给客服比商户订单号有用。 */
+  channelTradeNo: string | null
+  expiresAt: string | null
+}
+
+/**
+ * 「我的订单」列表项。
+ *
+ * `status === 'CREATED'` 即「还能继续付」——后端在返回列表前会把已过期的订单转成
+ * `CLOSED`，所以前端不需要自己拿 `expiresAt` 和当前时间比。
+ */
+export interface OnlineOrderListItem {
+  outTradeNo: string
+  status: 'CREATED' | 'PAID' | 'CLOSED'
+  amountMinor: number
+  channelTradeNo: string | null
+  createdAt: string
+  paidAt: string | null
+  expiresAt: string | null
 }
 
 /** 后端 `common.web.PageView`：1 起页码。 */
@@ -111,7 +129,7 @@ export interface PageView<T> {
 /** 课程类型：图文 / 视频 / 纯文本。 */
 export type CourseContentType = 'ARTICLE' | 'VIDEO' | 'TEXT'
 
-/** 合集只统计已发布的课，未发布的草稿访客侧看不到。 */
+/** 目录只统计已发布的课，未发布的草稿访客侧看不到。 */
 export interface GuestCourseCollectionView {
   id: number
   name: string

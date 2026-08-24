@@ -61,20 +61,15 @@ describe('admin presentation helpers', () => {
     expect(storageKindLabel('DYNAMIC')).toBe('自定义')
   })
 
-  it('derives age from the birth date', () => {
-    const today = new Date('2026-08-22T00:00:00')
-    expect(ageLabel('1992-03-30', today)).toBe('34')
-    // 生日还没到，按前一岁算。
-    expect(ageLabel('1992-12-31', today)).toBe('33')
-    expect(ageLabel('2026-08-22', today)).toBe('0')
+  // 年龄现在是访客自己填的一列，不再从出生日期推——出生日期已经不收集了。
+  // 于是这里只剩「有值照原样显示，没值给占位符」，不会再随「今天是哪天」变。
+  it('shows the age the guest entered', () => {
+    expect(ageLabel(34)).toBe('34')
+    expect(ageLabel(18)).toBe('18')
   })
 
-  it('keeps age empty for missing, unparsable or future birth dates', () => {
-    const today = new Date('2026-08-22T00:00:00')
-    expect(ageLabel(null, today)).toBe('—')
-    expect(ageLabel('', today)).toBe('—')
-    expect(ageLabel('不是日期', today)).toBe('—')
-    expect(ageLabel('2030-01-01', today)).toBe('—')
+  it('keeps age empty when the guest has not filled it in', () => {
+    expect(ageLabel(null)).toBe('—')
   })
 
   it('shortens the profile number for the table', () => {

@@ -24,7 +24,7 @@ const menuGroups = [
     title: '运营',
     items: [
       { path: '/courses', label: '课程管理', icon: Reading },
-      { path: '/course-collections', label: '课程合集', icon: Collection },
+      { path: '/course-collections', label: '课程目录', icon: Collection },
       { path: '/payment-orders', label: '支付订单', icon: CreditCard },
       { path: '/activation-codes', label: '激活码', icon: Key },
     ],

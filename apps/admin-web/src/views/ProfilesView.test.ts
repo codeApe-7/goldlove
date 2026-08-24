@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import profilesSource from './ProfilesView.vue?raw'
 import fieldsSource from './FieldDefinitionsView.vue?raw'
+import drawerSource from '../components/ProfileDetailDrawer.vue?raw'
 import layoutSource from '../layouts/AdminLayout.vue?raw'
 
 /**
@@ -53,6 +54,23 @@ describe('档案管理页', () => {
   })
 })
 
+describe('档案详情抽屉', () => {
+  /**
+   * 档案只收年龄，不收出生日期，抖音只留账号本身。
+   *
+   * 这三项都是能直接指认到人的信息，后端连列都删了。断言抽屉里**没有**这些标签：
+   * 加一行 `{ label: '出生日期', ... }` 不会有任何类型错误，
+   * 只会渲染出一个永远是「—」的格子，没人会注意到。
+   */
+  it('只显示年龄，没有出生日期与已下线的抖音字段', () => {
+    expect(drawerSource).toContain("{ label: '年龄', value: ageLabel(value.age) }")
+    expect(drawerSource).toContain("{ label: '抖音号', value: orDash(value.douyinId) }")
+    expect(drawerSource).not.toContain('出生日期')
+    expect(drawerSource).not.toContain('抖音昵称')
+    expect(drawerSource).not.toContain('抖音主页')
+  })
+})
+
 describe('字段配置页', () => {
   it('核心字段的必填与启用置灰并原样回传', () => {
     // 后端对 CORE 改这两项直接抛 FIELD_DEFINITION_IMMUTABLE，不能让人点完再吃 409。
@@ -77,6 +95,11 @@ describe('侧边栏', () => {
     expect(layoutSource).not.toContain('标签管理')
     expect(layoutSource).not.toContain('系统设置')
     expect(layoutSource).not.toContain('日志中心')
+  })
+
+  it('课程分类叫「课程目录」', () => {
+    expect(layoutSource).toContain("label: '课程目录'")
+    expect(layoutSource).not.toContain('课程合集')
   })
 
   it('选中态用主色，金色只留给品牌标识', () => {

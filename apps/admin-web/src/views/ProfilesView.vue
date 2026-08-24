@@ -388,7 +388,7 @@ onMounted(() => {
           <template #default="{ row }">{{ orDash(row.gender) }}</template>
         </el-table-column>
         <el-table-column v-if="shows('age')" label="年龄" width="70">
-          <template #default="{ row }">{{ ageLabel(row.birthDate) }}</template>
+          <template #default="{ row }">{{ ageLabel(row.age) }}</template>
         </el-table-column>
         <el-table-column v-if="shows('city')" label="所在地区" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">{{ orDash(row.city) }}</template>

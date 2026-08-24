@@ -16,7 +16,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
-import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -24,7 +23,7 @@ import org.springframework.http.HttpStatus;
 public record SaveGuestProfileRequest(
         Long expectedVersion,
         @Size(max = 32) String gender,
-        LocalDate birthDate,
+        Integer age,
         Integer heightCm,
         @Size(max = 100) String education,
         @Size(max = 200) String occupation,
@@ -32,8 +31,6 @@ public record SaveGuestProfileRequest(
         @Size(max = 100) String city,
         @Size(max = 200) String wechatId,
         @Size(max = 200) String douyinId,
-        @Size(max = 500) String douyinNickname,
-        URI douyinProfileUrl,
         List<@Valid DynamicFieldRequest> dynamicFields,
         PhotoCollectionRequest photos) {
 
@@ -42,15 +39,14 @@ public record SaveGuestProfileRequest(
                 ? List.of()
                 : dynamicFields.stream().map(DynamicFieldRequest::toInput).toList();
         return new SaveGuestProfileCommand(
-                expectedVersion, gender, birthDate, heightCm, education, occupation,
-                incomeRange, city, wechatId, douyinId, douyinNickname,
-                douyinProfileUrl, fields,
+                expectedVersion, gender, age, heightCm, education, occupation,
+                incomeRange, city, wechatId, douyinId, fields,
                 photos == null ? ProfilePhotoTarget.empty() : photos.toTarget());
     }
 
     public record PhotoCollectionRequest(
             @Size(max = 1024) String avatar,
-            @Size(max = 6) List<@Size(max = 1024) String> life) {
+            @Size(max = 3) List<@Size(max = 1024) String> life) {
 
         ProfilePhotoTarget toTarget() {
             return new ProfilePhotoTarget(avatar, life);

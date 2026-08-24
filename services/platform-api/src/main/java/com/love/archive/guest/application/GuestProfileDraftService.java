@@ -18,7 +18,6 @@ import com.love.archive.guest.persistence.ProfilePhotoEntity;
 import com.love.archive.guest.persistence.ProfilePhotoMapper;
 import com.love.archive.storage.application.ObjectStorageService;
 import java.math.BigDecimal;
-import java.net.URI;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -153,11 +152,11 @@ public class GuestProfileDraftService {
             targets.add(requirePhoto(accountId, "avatar", photos.avatar(), seen, 0));
         }
         if (photos.life() != null) {
-            if (photos.life().size() > 6) {
+            if (photos.life().size() > 3) {
                 throw new ApiException(
                         HttpStatus.CONFLICT,
                         "PHOTO_COUNT_LIMIT_EXCEEDED",
-                        "头像最多 1 张，生活照最多 6 张");
+                        "头像最多 1 张，生活照最多 3 张");
             }
             for (int index = 0; index < photos.life().size(); index++) {
                 targets.add(requirePhoto(
@@ -291,7 +290,7 @@ public class GuestProfileDraftService {
                 .eq(GuestProfileEntity::getUserAccountId, current.getUserAccountId())
                 .eq(GuestProfileEntity::getVersion, expectedVersion)
                 .set(GuestProfileEntity::getGender, data.gender())
-                .set(GuestProfileEntity::getBirthDate, data.birthDate())
+                .set(GuestProfileEntity::getAge, data.age())
                 .set(GuestProfileEntity::getHeightCm, data.heightCm())
                 .set(GuestProfileEntity::getEducation, data.education())
                 .set(GuestProfileEntity::getOccupation, data.occupation())
@@ -299,8 +298,6 @@ public class GuestProfileDraftService {
                 .set(GuestProfileEntity::getCity, data.city())
                 .set(GuestProfileEntity::getWechatId, data.wechatId())
                 .set(GuestProfileEntity::getDouyinId, data.douyinId())
-                .set(GuestProfileEntity::getDouyinNickname, data.douyinNickname())
-                .set(GuestProfileEntity::getDouyinProfileUrl, data.douyinProfileUrl())
                 .set(GuestProfileEntity::getVersion, expectedVersion + 1)
                 .set(GuestProfileEntity::getUpdatedAt, now));
         if (updated != 1) {
@@ -315,7 +312,7 @@ public class GuestProfileDraftService {
 
     private static void apply(GuestProfileEntity profile, NormalizedProfile data) {
         profile.setGender(data.gender());
-        profile.setBirthDate(data.birthDate());
+        profile.setAge(data.age());
         profile.setHeightCm(data.heightCm());
         profile.setEducation(data.education());
         profile.setOccupation(data.occupation());
@@ -323,8 +320,6 @@ public class GuestProfileDraftService {
         profile.setCity(data.city());
         profile.setWechatId(data.wechatId());
         profile.setDouyinId(data.douyinId());
-        profile.setDouyinNickname(data.douyinNickname());
-        profile.setDouyinProfileUrl(data.douyinProfileUrl());
     }
 
     private List<PreparedFieldValue> prepareDynamicValues(List<ProfileFieldInput> inputs) {
@@ -490,13 +485,12 @@ public class GuestProfileDraftService {
                             value.getDateValue(), value.getBooleanValue(), value.getOptionValue());
                 })
                 .toList();
-        String profileUrl = profile.getDouyinProfileUrl();
         return new GuestProfileDraftView(
                 profile.getProfileNo(),
                 profile.getStatus().name(),
                 profile.getVersion(),
                 profile.getGender(),
-                profile.getBirthDate(),
+                profile.getAge(),
                 profile.getHeightCm(),
                 profile.getEducation(),
                 profile.getOccupation(),
@@ -504,8 +498,6 @@ public class GuestProfileDraftService {
                 profile.getCity(),
                 profile.getWechatId(),
                 profile.getDouyinId(),
-                profile.getDouyinNickname(),
-                profileUrl == null ? null : URI.create(profileUrl),
                 missingRequiredFieldCodes(profile),
                 dynamic);
     }
@@ -549,7 +541,7 @@ public class GuestProfileDraftService {
             List<PreparedFieldValue> preparedValues) {
         Set<String> changed = new LinkedHashSet<>();
         compare(changed, "gender", current == null ? null : current.getGender(), data.gender());
-        compare(changed, "birth_date", current == null ? null : current.getBirthDate(), data.birthDate());
+        compare(changed, "age", current == null ? null : current.getAge(), data.age());
         compare(changed, "height_cm", current == null ? null : current.getHeightCm(), data.heightCm());
         compare(changed, "education", current == null ? null : current.getEducation(), data.education());
         compare(changed, "occupation", current == null ? null : current.getOccupation(), data.occupation());
@@ -557,10 +549,6 @@ public class GuestProfileDraftService {
         compare(changed, "city", current == null ? null : current.getCity(), data.city());
         compare(changed, "wechat_id", current == null ? null : current.getWechatId(), data.wechatId());
         compare(changed, "douyin_id", current == null ? null : current.getDouyinId(), data.douyinId());
-        compare(changed, "douyin_nickname",
-                current == null ? null : current.getDouyinNickname(), data.douyinNickname());
-        compare(changed, "douyin_profile_url",
-                current == null ? null : current.getDouyinProfileUrl(), data.douyinProfileUrl());
 
         Map<Long, TypedValue> oldByDefinition = new HashMap<>();
         for (ProfileFieldValueEntity old : oldValues) {
@@ -609,8 +597,8 @@ public class GuestProfileDraftService {
         if (gender != null) {
             validateCoreSingleOption(CORE_GENDER_FIELD_CODE, gender);
         }
-        if (command.birthDate() != null && command.birthDate().isAfter(LocalDate.now())) {
-            throw invalidFieldValue("出生日期不能晚于今天");
+        if (command.age() != null && (command.age() < 18 || command.age() > 100)) {
+            throw invalidFieldValue("年龄范围不正确");
         }
         if (command.heightCm() != null
                 && (command.heightCm() < 50 || command.heightCm() > 250)) {
@@ -631,19 +619,16 @@ public class GuestProfileDraftService {
         }
         String wechatId = optionalText(command.wechatId(), "微信号", 200);
         String douyinId = optionalText(command.douyinId(), "抖音号", 200);
-        String profileUrl = normalizeUrl(command.douyinProfileUrl());
         return new NormalizedProfile(
                 gender,
-                command.birthDate(),
+                command.age(),
                 command.heightCm(),
                 education,
                 occupation,
                 incomeRange,
                 optionalText(command.city(), "所在城市", 100),
                 wechatId,
-                douyinId,
-                optionalText(command.douyinNickname(), "抖音昵称", 500),
-                profileUrl);
+                douyinId);
     }
 
     private void validateCoreSingleOption(String fieldCode, String value) {
@@ -665,27 +650,6 @@ public class GuestProfileDraftService {
         if (options.isEmpty() || !options.contains(value)) {
             throw invalidFieldValue("字段选项不合法: " + fieldCode);
         }
-    }
-
-    private static String normalizeUrl(URI uri) {
-        if (uri == null) {
-            return null;
-        }
-        // Jackson 把 JSON 空串反序列化成 URI.create("")——这是 URI 类型的特例，不是 null。
-        // 抖音主页链接是选填的，客户端对未填写字段发空串很正常，这里必须当作「没填」，
-        // 否则整份档案永远存不下去（报错还落在一个用户没填过的字段上）。
-        if (uri.toString().isBlank()) {
-            return null;
-        }
-        String scheme = uri.getScheme();
-        String normalized = uri.normalize().toASCIIString();
-        if (scheme == null
-                || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))
-                || uri.getHost() == null
-                || normalized.length() > 2048) {
-            throw invalidFieldValue("抖音主页链接格式不正确");
-        }
-        return normalized;
     }
 
     private static String optionalText(String value, String label, int maxLength) {
@@ -757,7 +721,7 @@ public class GuestProfileDraftService {
     private static GuestProfileDraftView notStarted() {
         return new GuestProfileDraftView(
                 null, "NOT_STARTED", null, null, null, null, null, null, null, null,
-                null, null, null, null, List.of(), List.of());
+                null, null, List.of(), List.of());
     }
 
     private static ApiException invalidFieldValue(String message) {
@@ -775,16 +739,14 @@ public class GuestProfileDraftService {
 
     private record NormalizedProfile(
             String gender,
-            LocalDate birthDate,
+            Integer age,
             Integer heightCm,
             String education,
             String occupation,
             String incomeRange,
             String city,
             String wechatId,
-            String douyinId,
-            String douyinNickname,
-            String douyinProfileUrl) {
+            String douyinId) {
     }
 
     private record PreparedFieldValue(

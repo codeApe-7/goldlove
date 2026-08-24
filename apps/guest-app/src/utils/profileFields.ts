@@ -3,7 +3,7 @@ import type { ProfileValues } from '@/validators/profile'
 
 export const CORE_FIELD_PROPERTIES = {
   gender: 'gender',
-  birth_date: 'birthDate',
+  age: 'age',
   height_cm: 'heightCm',
   education: 'education',
   occupation: 'occupation',
@@ -11,8 +11,6 @@ export const CORE_FIELD_PROPERTIES = {
   city: 'city',
   wechat_id: 'wechatId',
   douyin_id: 'douyinId',
-  douyin_nickname: 'douyinNickname',
-  douyin_profile_url: 'douyinProfileUrl',
 } as const
 
 export function draftToProfileValues(draft: GuestProfileDraft): ProfileValues {
@@ -31,9 +29,8 @@ export function profileValuesToDraftPayload(
   const payload: Record<string, unknown> = { expectedVersion }
   for (const [fieldCode, property] of Object.entries(CORE_FIELD_PROPERTIES)) {
     const value = values[fieldCode]
-    // 没填的字段必须发 null，不能发空串。后端 douyinProfileUrl 是 URI 类型，
-    // Jackson 会把空串反序列化成 URI.create("")（URI 的特例，不是 null），
-    // 于是选填的抖音主页链接会被当成「有值但格式不对」直接拒掉。
+    // 没填的字段必须发 null，不能发空串：后端对空串与 null 的处理并不总是一致，
+    // 而「没填」是这里唯一想表达的意思。
     payload[property] = value === '' || value === undefined ? null : value
   }
   return payload

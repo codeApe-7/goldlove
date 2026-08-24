@@ -3,12 +3,19 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useVipPaymentStore, pendingOrderStore } from './payment'
 import * as api from '@/api'
 import { requestPayment } from '@/adapters/payment'
-import type { MembershipView, OnlineOrder, OnlineOrderStatus, OnlinePaymentSettings } from '@/types'
+import type {
+  MembershipView,
+  OnlineOrder,
+  OnlineOrderListItem,
+  OnlineOrderStatus,
+  OnlinePaymentSettings,
+} from '@/types'
 
 vi.mock('@/api', () => ({
   vipPaymentSettings: vi.fn(),
   createVipOrder: vi.fn(),
   vipOrderStatus: vi.fn(),
+  vipOrders: vi.fn(),
   membership: vi.fn(),
   redeemActivationCode: vi.fn(),
 }))
@@ -34,6 +41,20 @@ const PAID_STATUS: OnlineOrderStatus = {
   status: 'PAID',
   amountMinor: 9900,
   membershipGranted: true,
+  channelTradeNo: '20260823225910918724',
+  expiresAt: null,
+}
+
+function pendingOrder(outTradeNo: string): OnlineOrderListItem {
+  return {
+    outTradeNo,
+    status: 'CREATED',
+    amountMinor: 9900,
+    channelTradeNo: null,
+    createdAt: '2026-08-23T10:36:32Z',
+    paidAt: null,
+    expiresAt: '2026-08-23T11:06:32Z',
+  }
 }
 
 const FREE: MembershipView = {
@@ -155,6 +176,92 @@ describe('guest VIP payment store', () => {
     expect(membership.tier).toBe('VIP')
     expect(store.tier).toBe('VIP')
     expect(api.createVipOrder).not.toHaveBeenCalled()
+  })
+
+  /** 订单已经付不了了就别再攥着句柄，否则每次进页面都要为它白查一次。 */
+  it('drops the stored order once it is closed', async () => {
+    pendingOrderStore.write('OTN-VIP-1')
+    vi.mocked(api.vipOrderStatus).mockResolvedValue({ ...PAID_STATUS, status: 'CLOSED' })
+    const store = useVipPaymentStore()
+
+    await store.refreshStatus()
+
+    expect(store.paid).toBe(false)
+    expect(pendingOrderStore.read()).toBe('')
+    expect(api.membership).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * 「重新登录后找不回订单」的修复。
+ *
+ * 原来订单号只有两个来源：回跳参数（一次性）和 `sessionStorage`（单标签页）。
+ * 关掉标签页或重新登录，那笔订单就再也没有任何入口能碰到它了。
+ */
+describe('接续未付订单', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    sessionStorage.clear()
+    vi.clearAllMocks()
+  })
+
+  it('回跳参数优先，不必为此多问服务端一次', async () => {
+    const store = useVipPaymentStore()
+
+    expect(await store.resumeTarget('OTN-FROM-RETURN')).toBe('OTN-FROM-RETURN')
+    expect(api.vipOrders).not.toHaveBeenCalled()
+  })
+
+  it('没有回跳参数时用会话存储', async () => {
+    pendingOrderStore.write('OTN-FROM-SESSION')
+    const store = useVipPaymentStore()
+
+    expect(await store.resumeTarget(null)).toBe('OTN-FROM-SESSION')
+    expect(api.vipOrders).not.toHaveBeenCalled()
+  })
+
+  it('本地什么都没有时，从服务端订单列表里捞最近一笔未付的', async () => {
+    vi.mocked(api.vipOrders).mockResolvedValue([
+      { ...pendingOrder('OTN-PAID'), status: 'PAID', paidAt: '2026-08-23T10:40:00Z' },
+      pendingOrder('OTN-STILL-OPEN'),
+      pendingOrder('OTN-OLDER-OPEN'),
+    ])
+    const store = useVipPaymentStore()
+
+    // 列表是新的在前，所以取到的是第一笔仍可支付的，而不是最老的那笔。
+    expect(await store.resumeTarget(null)).toBe('OTN-STILL-OPEN')
+  })
+
+  it('一笔可付的都没有就返回空串，不去查一个不存在的订单', async () => {
+    vi.mocked(api.vipOrders).mockResolvedValue([
+      { ...pendingOrder('OTN-CLOSED'), status: 'CLOSED' },
+    ])
+    const store = useVipPaymentStore()
+
+    expect(await store.resumeTarget(null)).toBe('')
+    expect(api.vipOrderStatus).not.toHaveBeenCalled()
+  })
+
+  it('payableOrders 只留还能付的那些', async () => {
+    vi.mocked(api.vipOrders).mockResolvedValue([
+      pendingOrder('OTN-OPEN'),
+      { ...pendingOrder('OTN-CLOSED'), status: 'CLOSED' },
+      { ...pendingOrder('OTN-PAID'), status: 'PAID' },
+    ])
+    const store = useVipPaymentStore()
+
+    await store.loadOrders()
+
+    expect(store.orders).toHaveLength(3)
+    expect(store.payableOrders.map((order) => order.outTradeNo)).toEqual(['OTN-OPEN'])
+  })
+
+  it('服务端回了个不是数组的东西也不能把页面搞崩', async () => {
+    vi.mocked(api.vipOrders).mockResolvedValue(undefined as never)
+    const store = useVipPaymentStore()
+
+    expect(await store.loadOrders()).toEqual([])
+    expect(store.payableOrders).toEqual([])
   })
 })
 

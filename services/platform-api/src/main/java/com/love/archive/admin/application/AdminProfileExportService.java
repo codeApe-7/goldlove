@@ -6,9 +6,7 @@ import com.love.archive.audit.application.AuditEvent;
 import com.love.archive.audit.application.AuditTrail;
 import com.love.archive.common.web.ApiException;
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.Period;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
@@ -40,8 +38,8 @@ public class AdminProfileExportService {
 
     private static final List<String> HEADERS = List.of(
             "档案编号", "手机号", "账号状态", "完成度", "会员等级", "累计付费(元)",
-            "性别", "出生日期", "年龄", "身高(cm)", "学历", "职业", "年薪",
-            "所在地区", "微信号", "抖音号", "抖音昵称", "抖音主页",
+            "性别", "年龄", "身高(cm)", "学历", "职业", "年薪",
+            "所在地区", "微信号", "抖音号",
             "创建时间", "更新时间");
 
     private final AdminProfileQueryMapper profileQueryMapper;
@@ -82,15 +80,13 @@ public class AdminProfileExportService {
         // Excel 只有见到 BOM 才把 CSV 当 UTF-8 读，否则中文全是乱码。
         StringBuilder csv = new StringBuilder("﻿");
         csv.append(String.join(",", HEADERS)).append("\r\n");
-        LocalDate today = LocalDate.now(clock);
         for (AdminProfileDetailRow row : rows) {
-            appendRow(csv, row, today);
+            appendRow(csv, row);
         }
         return csv.toString();
     }
 
-    private static void appendRow(
-            StringBuilder csv, AdminProfileDetailRow row, LocalDate today) {
+    private static void appendRow(StringBuilder csv, AdminProfileDetailRow row) {
         List<String> cells = List.of(
                 text(row.getProfileNo()),
                 text(row.getPhone()),
@@ -101,8 +97,7 @@ public class AdminProfileExportService {
                         ? "0.00"
                         : String.format("%.2f", row.getMembershipCreditMinor() / 100.0),
                 text(row.getGender()),
-                text(row.getBirthDate()),
-                age(row.getBirthDate(), today),
+                text(row.getAge()),
                 text(row.getHeightCm()),
                 text(row.getEducation()),
                 text(row.getOccupation()),
@@ -110,8 +105,6 @@ public class AdminProfileExportService {
                 text(row.getCity()),
                 text(row.getWechatId()),
                 text(row.getDouyinId()),
-                text(row.getDouyinNickname()),
-                text(row.getDouyinProfileUrl()),
                 timestamp(row.getCreatedAt()),
                 timestamp(row.getUpdatedAt()));
         for (int index = 0; index < cells.size(); index++) {
@@ -121,13 +114,6 @@ public class AdminProfileExportService {
             csv.append(escape(cells.get(index)));
         }
         csv.append("\r\n");
-    }
-
-    private static String age(LocalDate birthDate, LocalDate today) {
-        if (birthDate == null || birthDate.isAfter(today)) {
-            return "";
-        }
-        return String.valueOf(Period.between(birthDate, today).getYears());
     }
 
     private static String text(Object value) {

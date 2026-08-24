@@ -70,35 +70,14 @@ export function storageKindLabel(kind: string): string {
 }
 
 /**
- * 年龄由出生日期推导——库里没有年龄列，存一个每年都会过期的数字没有意义。
- * 服务端也不下发年龄：那会把「今天是哪天」的判断挪到服务器时区上。
+ * 年龄现在是档案上的一列，访客自己填，前端不再从出生日期推。
  *
- * 出生日期手动拆成本地日期再比：`new Date('1992-03-30')` 按 UTC 解析，
- * 与本地的「今天」直接比较会在时区偏移里差出一天，生日当天就会算错。
+ * <p>之前是「服务端给出生日期、前端算年龄」，因为算的那一刻取决于「今天是哪天」。
+ * 现在连出生日期都不收了——档案要的一直只是「多大」——于是这里退化成纯展示：
+ * 有值就显示，没值显示占位符。不做区间校验，那是后端与库的 CHECK 的事。</p>
  */
-export function ageLabel(birthDate: string | null, today: Date = new Date()): string {
-  const born = parseLocalDate(birthDate)
-  if (!born || born > today) {
-    return '—'
-  }
-  let age = today.getFullYear() - born.getFullYear()
-  const monthDiff = today.getMonth() - born.getMonth()
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < born.getDate())) {
-    age -= 1
-  }
-  return age < 0 ? '—' : String(age)
-}
-
-function parseLocalDate(value: string | null): Date | null {
-  if (!value) {
-    return null
-  }
-  const matched = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
-  if (!matched) {
-    return null
-  }
-  const parsed = new Date(Number(matched[1]), Number(matched[2]) - 1, Number(matched[3]))
-  return Number.isNaN(parsed.getTime()) ? null : parsed
+export function ageLabel(age: number | null): string {
+  return age === null || age === undefined ? '—' : String(age)
 }
 
 /**
