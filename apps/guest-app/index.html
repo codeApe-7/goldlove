@@ -9,6 +9,9 @@
         '<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0' +
         (coverSupport ? ', viewport-fit=cover' : '') + '" />')
     </script>
+    <!-- uni-app H5 把 src/static/ 拷到产物的 static/ 下，所以这里带 /static 前缀，
+         和管理端的 /favicon.svg 不一样。 -->
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
     <title>gold 智能档案库</title>
     <!--preload-links-->
     <!--app-context-->

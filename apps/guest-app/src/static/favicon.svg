@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="gold 智能档案库">
+  <!--
+    站内标识本身，与 apps/{admin-web,guest-app}/src/components/BrandMark.vue 同形：
+    7 根圆头竖条，高度比例 48 / 72 / 94 / 66 / 94 / 72 / 48，金色 #c9a96a。
+    改了这里请连那两个组件一起改，否则标签页图标和站内 logo 会长得不一样。
+
+    只有一处刻意偏离组件：竖条**加粗了**。组件里是 2px 宽 / 44px 高的容器（比例 1:22），
+    照搬到 16px 的标签页图标上每根条不到 1 个物理像素，直接消失。这里用 3:32（1:10.7），
+    轮廓（各条的相对高度）与组件完全一致。
+
+    只放 SVG、不放 .ico：这是纯几何图形，SVG 在任何尺寸下都是精确的，也不必往仓库里塞二进制。
+  -->
+  <g fill="#c9a96a">
+    <rect x="1" y="8.34" width="3" height="15.32" rx="1.5"/>
+    <rect x="5.5" y="4.51" width="3" height="22.98" rx="1.5"/>
+    <rect x="10" y="1" width="3" height="30" rx="1.5"/>
+    <rect x="14.5" y="5.47" width="3" height="21.06" rx="1.5"/>
+    <rect x="19" y="1" width="3" height="30" rx="1.5"/>
+    <rect x="23.5" y="4.51" width="3" height="22.98" rx="1.5"/>
+    <rect x="28" y="8.34" width="3" height="15.32" rx="1.5"/>
+  </g>
+</svg>
