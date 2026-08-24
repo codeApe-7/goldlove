@@ -167,7 +167,7 @@ Compose 会先运行一次性 Flyway 迁移容器，再启动 API。长驻 API �
 | 错误码 | HTTP | 含义 |
 |---|---|---|
 | `PHONE_INVALID` | 400 | 手机号格式不正确 |
-| `PASSWORD_POLICY_VIOLATION` | 400 | 密码需为 12 至 128 位并同时包含字母和数字 |
+| `PASSWORD_POLICY_VIOLATION` | 400 | 密码需为 8 至 128 位并同时包含字母和数字 |
 | `PASSWORD_CONFIRMATION_MISMATCH` | 400 | 两次输入的密码不一致 |
 | `CONSENT_ACCEPTANCE_REQUIRED` | 400 | 必须阅读并同意授权书 |
 | `ACCOUNT_ALREADY_EXISTS` | 409 | 该手机号已存在账号 |

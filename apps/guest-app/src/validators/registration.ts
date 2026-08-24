@@ -1,7 +1,7 @@
 const MAINLAND_MOBILE = /^1[3-9]\d{9}$/
 const HAS_LETTER = /[A-Za-z]/
 const HAS_DIGIT = /\d/
-const MIN_PASSWORD_LENGTH = 12
+const MIN_PASSWORD_LENGTH = 8
 const MAX_PASSWORD_LENGTH = 128
 
 export interface RegistrationForm {
@@ -34,7 +34,7 @@ export function validateRegistrationForm(form: RegistrationForm): string | null 
     form.password.length < MIN_PASSWORD_LENGTH
     || form.password.length > MAX_PASSWORD_LENGTH
   ) {
-    return '密码需为 12 至 128 位'
+    return '密码需为 8 至 128 位'
   }
   if (!HAS_LETTER.test(form.password) || !HAS_DIGIT.test(form.password)) {
     return '密码需同时包含字母和数字'

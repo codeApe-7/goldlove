@@ -33,12 +33,12 @@ describe('registration form validation', () => {
 
   it('enforces the same password policy as the server', () => {
     expect(validateRegistrationForm({ ...VALID, password: 'Short1', confirmPassword: 'Short1' }))
-      .toBe('密码需为 12 至 128 位')
+      .toBe('密码需为 8 至 128 位')
     expect(validateRegistrationForm({
       ...VALID,
       password: 'a'.repeat(129) + '1',
       confirmPassword: 'a'.repeat(129) + '1',
-    })).toBe('密码需为 12 至 128 位')
+    })).toBe('密码需为 8 至 128 位')
     expect(validateRegistrationForm({
       ...VALID,
       password: 'onlyletterspassword',
@@ -49,6 +49,23 @@ describe('registration form validation', () => {
       password: '123456789012',
       confirmPassword: '123456789012',
     })).toBe('密码需同时包含字母和数字')
+  })
+
+  /**
+   * 下限 8 位这个数字写在三处：这个校验器、注册页输入框的提示、后端 PasswordPolicy。
+   * 只改一处不会报错，症状是「前端说可以、后端却拒绝」。这里钉前两处。
+   */
+  it('8 位刚好放行，7 位就拒', () => {
+    expect(validateRegistrationForm({ ...VALID, password: 'abc12345', confirmPassword: 'abc12345' }))
+      .toBeNull()
+    expect(validateRegistrationForm({ ...VALID, password: 'abc1234', confirmPassword: 'abc1234' }))
+      .toBe('密码需为 8 至 128 位')
+  })
+
+  it('注册页的提示文案跟着说 8 位', async () => {
+    const page = (await import('../pages/register/index.vue?raw')).default
+    expect(page).toContain('8 至 128 位，含字母和数字')
+    expect(page).not.toContain('12 至 128')
   })
 
   it('requires both password fields to match', () => {

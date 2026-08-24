@@ -82,7 +82,7 @@ function backToLogin(): void {
         <AppInput
           v-model="form.password"
           type="password"
-          placeholder="12 至 128 位，含字母和数字"
+          placeholder="8 至 128 位，含字母和数字"
         />
       </view>
       <view class="field-group">
